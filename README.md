@@ -21,6 +21,12 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 The repository is currently at governance bootstrap. It contains the project design and repository-governance baseline, but no buildable app, business implementation, or test target.
 
+Stage 1 now contains a V1 scope, architecture, and research-evidence Freeze Candidate awaiting Reviewer Gate; no implementation stage has begun.
+
+- [V1 Scope Freeze Candidate](docs/V1_SCOPE.md)
+- [V1 Architecture & Technology Freeze Candidate](docs/V1_ARCHITECTURE.md)
+- [V1 Research Evidence](docs/V1_RESEARCH_EVIDENCE.md)
+
 The canonical product design source for later stages is [Aureus_Wealth_Terminal_项目设计汇总.md](Aureus_Wealth_Terminal_项目设计汇总.md).
 
 The specific open-source license has not yet been frozen. All Git and GitHub operations are managed manually by the user.
