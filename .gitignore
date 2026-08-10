@@ -91,10 +91,11 @@ Secrets.local.xcconfig
 *.tmp
 *.temp
 
-# Explicitly permit reviewed synthetic fixtures. Never place real data here.
-!Tests/
-!Tests/Fixtures/
-!Tests/Fixtures/**
+# Fixture privacy boundary
+# Ordinary JSON, CSV, Markdown, and source fixtures are not globally ignored, so no blanket re-allow is needed.
+# Tests/Fixtures must not bypass secret, credential, database, backup, or private-export rules.
+# A synthetic database fixture requires separate privacy review and an exception for that exact file only.
+# .gitignore does not replace synthetic-data review.
 
 # These rules intentionally do not ignore all Markdown, JSON, CSV, Tests, or source files.
 # An ignore rule is only a defensive layer; private financial data must stay outside this repository.
