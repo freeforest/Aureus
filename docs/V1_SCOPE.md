@@ -2,8 +2,8 @@
 
 ## 1. Status and Authority
 
-**Status:** Stage 1 Freeze Candidate  
-**Candidate date:** 2026-08-10  
+**Status:** Stage 1 Final Freeze Candidate  
+**Candidate date:** 2026-08-11  
 **Approval boundary:** This document becomes the V1 scope baseline only after a Reviewer Gate decision of PASS.
 
 Authority remains, from highest to lowest:
@@ -78,7 +78,11 @@ No required module may be removed merely because its implementation occurs in a 
 - Explicit stale, delayed, missing, and offline states.
 - Provider attribution and terms compliance.
 
-The required market scope is not silently narrowed by Stage 1 provider uncertainty. A production Primary Market Data Provider remains a documented architecture blocker because current official evidence does not establish a free, practically usable provider for the required United States, Hong Kong, mainland China, and Japan coverage with acceptable terms, quotas, and local-cache rights. A Provider-independent foundation is only a bounded architectural direction: it does **not** mean Stage 1 has passed, does **not** authorize Stage 2, and cannot substitute for resolving A-008. Production-provider implementation may not proceed until the blocker is resolved by an authorized decision.
+The user authorized **Twelve Data** as the V1 Primary Market Data Provider on 2026-08-10. The credential model is **Bring Your Own Key (BYOK)**: every user supplies and owns a separate Twelve Data API key; Aureus purchases no subscription, embeds or shares no key, and redistributes no Provider data.
+
+Basic Free is a usable, US-focused entry path. It is not represented as complete United States, Hong Kong, mainland-China, and Japan coverage. The required four-market scope remains frozen, but access is plan- and entitlement-dependent: a user may choose Twelve Data Pro or higher, and Stage 6 must verify the actual key's exchange, endpoint, freshness, adjustment, action, quota, cache, deletion, and attribution entitlements. A listed exchange or user-entered plan name is not proof of access.
+
+An unavailable market must be shown as `Plan Required`, `Unsupported by Current Entitlement`, or an equivalently explicit state. It must not be silently hidden, reported as an empty success, or replaced by Mock data. This Provider selection is a Stage 1 Freeze Candidate; it does not prove credentialed API behavior, does not complete Stage 6 acceptance, and does not authorize Stage 2.
 
 ### 3.4 Portfolio intelligence
 
@@ -159,11 +163,11 @@ This mapping assigns the frozen capabilities to the existing Stage 2 through Sta
 
 | Stage | V1 ownership |
 |---|---|
-| Stage 2 | **App Foundation + Persistence Core:** App shell; Navigation; core domain/value types; GRDB persistence bootstrap; Migration foundation; permanent/cache physical separation; synthetic demo policy; Unit/Integration/UI testing foundation; Provider-independent contracts only. A-008 remains blocked, Stage 1 has not passed by implication, and this mapping does not authorize Stage 2. |
+| Stage 2 | **App Foundation + Persistence Core:** App shell; Navigation; core domain/value types; GRDB persistence bootstrap; Migration foundation; permanent/cache physical separation; synthetic demo policy; Unit/Integration/UI testing foundation; Provider-independent contracts and a Keychain boundary only. Twelve Data is selected, but Stage 2 does not implement its adapter, accept a real key, or make Provider calls; this mapping does not authorize Stage 2. |
 | Stage 3 | **Wealth + Asset Container.** |
 | Stage 4 | **Ledger + Cash Flow.** |
 | Stage 5 | **Wealth Snapshot + Dashboard + Core Visualization.** |
-| Stage 6 | **Market Data Infrastructure only:** `MarketDataProvider` production boundary; Symbol model and search backend; Historical Prices; FX; Market Cache; Size limit; TTL/LRU; automatic/manual cleanup; retry/error/rate-limit/offline behavior; permanent wealth data safety. Market Overview, Watchlist UI, Heatmap, and single-stock professional chart UI are excluded from Stage 6. |
+| Stage 6 | **Market Data Infrastructure only:** Twelve Data production adapter; real BYOK lifecycle and Plan/Entitlement acceptance; `MarketDataProvider` production boundary; Symbol model and search backend; Historical Prices; FX; Market Cache; Size limit; TTL/LRU; automatic/manual cleanup; retry/error/rate-limit/offline behavior; disconnect/Provider-data deletion; Terms/attribution refresh; permanent wealth data safety. Market Overview, Watchlist UI, Heatmap, and single-stock professional chart UI are excluded from Stage 6. |
 | Stage 7 | **Markets Terminal:** Market Overview; Watchlist; Day/Week/Month/Quarter/Year interaction; Market Heatmap; Stock detail; Candlestick; Volume; Zoom/Pan/Crosshair/Tooltip; MA/EMA/RSI/MACD/Bollinger Bands. |
 | Stage 8 | **Portfolio.** |
 | Stage 9 | **Analytics.** |

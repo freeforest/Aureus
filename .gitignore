@@ -35,6 +35,7 @@ DerivedData/
 Config/Local.xcconfig
 
 # Private keys, certificates, credentials, and secrets
+# User-authorized local-only Twelve Data secret directory: never commit; the Production App must not read it.
 .secrets/
 *.pem
 *.key

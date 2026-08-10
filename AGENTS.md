@@ -74,6 +74,14 @@ Never place any of the following in a future public repository:
 
 Defensive ignore rules are not permission to store private data in the project directory.
 
+### Narrow Local-only Twelve Data Secret Exception
+
+- The only authorized local manual secret record is `/.secrets/twelve-data-api-key.local.txt`. It is a user-authorized local-filesystem exception, not Repository content.
+- `.secrets/` must remain excluded by `.gitignore`; the directory permission is `700` and the file permission is `600`.
+- Agents must never read, print, transcribe, hash, scan, copy, back up, or report the file's contents. Metadata-only existence, type, and permission checks are allowed.
+- The file is never a Build, Test, Runtime, or Production credential source. The Production App must store and retrieve the Twelve Data API key only through Keychain.
+- This exception does not authorize any other secret, real financial data, database, backup, private import, or private export inside the project directory. Every additional local secret file requires new explicit user authorization.
+
 ## User-owned Git and GitHub Boundary
 
 - The user manually owns every Git and GitHub operation.

@@ -2,15 +2,15 @@
 
 ## 1. Decision Status
 
-**Status:** Stage 1 Freeze Candidate  
-**Candidate date:** 2026-08-10  
+**Status:** Stage 1 Final Freeze Candidate  
+**Candidate date:** 2026-08-11  
 **Approval boundary:** These decisions become the V1 technical baseline only after a Reviewer Gate decision of PASS.
 
 The user's latest explicit instruction and root `AGENTS.md` remain authoritative. [`V1_SCOPE.md`](V1_SCOPE.md) owns product scope; this file owns the proposed implementation baseline; [`V1_RESEARCH_EVIDENCE.md`](V1_RESEARCH_EVIDENCE.md) records supporting research and uncertainty.
 
 After approval, a frozen decision changes only through an explicit architecture change record that identifies the affected decision IDs, reason, alternatives, data/migration impact, privacy impact, testing impact, and approving authority. Repository reality may disprove completion, but it does not silently change requirements.
 
-One core selection cannot be safely frozen: **A-008 Primary Market Data Provider is BLOCKED**. The completed nine-candidate review found no free or practically usable free plan with an official evidence chain that simultaneously resolves required United States, Hong Kong, mainland China, and Japan coverage, Search, OHLCV/adjustment needs, quota, persistent local cache, retention/deletion, attribution, and personal bring-your-own-key desktop use. Paid possibilities remain conditional on user authorization and rights confirmation. This document preserves the required market scope and describes the Provider-independent boundary; that boundary does **not** mean Stage 1 has passed and does **not** authorize Stage 2.
+The user authorized the final missing product decision on 2026-08-10: **A-008 selects Twelve Data with a user-owned BYOK and plan-aware entitlement model**. Basic Free is the usable US-focused entry path. Complete United States, Hong Kong, mainland-China, and Japan capability may depend on a user-selected Pro-or-higher entitlement and remains subject to Stage 6 verification of the actual key, exchange/data rights, freshness, cache, deletion, and attribution obligations. The selection completes the Stage 1 architecture candidate; only the Reviewer may decide its Gate, and this document does not authorize Stage 2.
 
 ## 2. Decision Register
 
@@ -23,12 +23,12 @@ One core selection cannot be safely frozen: **A-008 Primary Market Data Provider
 | A-005 | Fixed-point semantic types backed by checked `Int64`; `Decimal` intermediates | Exact storage and explicit scales; no authoritative `Double` | Scale conversions and overflow checks are application responsibilities | Stage 2 onward | [Precision evidence](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-006 | CNY base; USD original + CNY-per-USD rate + converted CNY; immutable snapshot provenance | Reproducible historical valuation | More stored fields and explicit stale-rate handling | Stage 2, 3, 5 | [FX evidence](V1_RESEARCH_EVIDENCE.md#6-fx-provider-comparison-matrix) |
 | A-007 | UTC instants + explicit Gregorian civil dates/IANA zones; exchange-session dates preserved | Avoids local-time and DST ambiguity | Callers must choose instant versus civil-date semantics | Stage 2 onward | [Platform evidence](V1_RESEARCH_EVIDENCE.md#3-deployment-target-evidence) |
-| A-008 | **BLOCKED:** no production Primary Market Data Provider or plan selected; Provider-independent contract direction only | No usable free plan jointly verifies four-market coverage, required data, quota, cache/retention, attribution, and BYOK rights | Production market integration cannot begin; paid plan or scope decisions remain user-owned | Descriptive Stage 2 contract only; Stage 6 production work blocked | [Market matrix and Decision Packet](V1_RESEARCH_EVIDENCE.md#5-market-provider-comparison-matrix) |
+| A-008 | **SELECTED — Twelve Data, user-owned BYOK, plan-aware capability/entitlement model** | Basic Free gives a workable US-focused entry path; Twelve Data publishes a Pro-or-higher route for the required exchange set; the user explicitly authorized this tiered boundary | Basic does not cover the full four-market scope; Pro-or-higher access, EOD licensing, cache rights, and actual-key behavior still require Stage 6 acceptance | Stage 2 contracts/Keychain boundary only; Stage 6 adapter, real-key flow, entitlement, terms, and four-market acceptance | [Twelve Data refresh and decision trace](V1_RESEARCH_EVIDENCE.md#58-twelve-data-freeze-refresh--2026-08-11) |
 | A-009 | Frankfurter v2 filtered to ECB reference rates | No key, historical CNY/USD derivation, clear ECB provenance | Reference rates are working-day valuation data, not executable quotes | Stage 2 boundary; later FX integration | [FX matrix](V1_RESEARCH_EVIDENCE.md#6-fx-provider-comparison-matrix) |
 | A-010 | Dedicated GRDB cache DB; 512 MiB default, typed TTLs, LRU, 80% cleanup watermark | Bounded offline-capable cache with a provable deletion boundary | Stale-data UX and cache metadata add work | Stage 2 storage; Stage 6 UX | [Cache trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-011 | Swift Charts for native statistics/heatmaps; bundled Lightweight Charts 5.2.x in isolated `WKWebView` for K-line | Native accessibility for wealth views and mature financial interactions for markets | Web bridge, attribution, and native accessible fallback for K-line | Stage 5, 7 | [Chart matrix](V1_RESEARCH_EVIDENCE.md#7-chart-technology-comparison-matrix) |
 | A-012 | Swift-only analytics | Meets V1 formulas without runtime/distribution complexity | Advanced quant ecosystems remain outside V1 | Stage 2 domain; Stage 9 | [Runtime comparison](V1_RESEARCH_EVIDENCE.md#8-swift-only-vs-python-comparison) |
-| A-013 | `URLSession` + structured concurrency; actor rate gate; bounded retry/backoff | Native, testable networking with one concurrency owner | Provider-specific quotas still require an approved provider | Stage 2 boundary; Stage 6 production integration | [Networking sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
+| A-013 | `URLSession` + structured concurrency; actor rate gate; bounded retry/backoff | Native, testable networking with one concurrency owner | Twelve Data endpoint weights, actual-key quotas, and entitlements still require Stage 6 observation | Stage 2 boundary; Stage 6 production integration | [Networking sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
 | A-014 | App Sandbox; Keychain secrets; container-scoped data; security-scoped user files; no app-layer DB encryption in V1 | Local-first privacy with system controls and minimal dependency surface | Database files/backups are not independently encrypted by the app | Stage 2, 11, 12 | [Apple security sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
 | A-015 | Consistent DB backup, manifest/hash verification, five internal generations; unified privacy-redacted logging | Recoverable permanent data without backing up cache or secrets | V1 backups rely on user/system encrypted storage | Stage 11; Stage 12 regression hardening | [Backup trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-016 | Swift Testing for unit/integration; XCTest/XCUI for UI; synthetic fixtures and explicit manual provider QA | Modern unit tests plus supported UI automation | Real-provider and macOS interaction acceptance remain separate | Stage 2 onward | [Testing sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
@@ -330,14 +330,17 @@ Stage 2 establishes instant/date/session value types, Clock injection, and DST/d
 
 ## 10. Market Data Provider — A-008
 
-**Decision status: BLOCKED — Result B**
+**Decision status: SELECTED — Twelve Data, user-owned BYOK, plan-aware capability model**
 
-No production V1 Primary Market Data Provider or plan is selected. The review covers Yahoo Finance/yfinance, Alpha Vantage, Stooq, Twelve Data, Marketstack, Tiingo, EODHD, Finnhub, and Financial Modeling Prep (FMP). Current official evidence does not prove a free or practically usable free plan satisfies the frozen United States, Hong Kong, mainland China, and Japan scope together with Symbol Search, historical OHLCV, required adjustment/corporate-action semantics, workable quota, persistent local-cache permission, termination deletion, attribution, and each user's own-key desktop use.
+The user authorized Twelve Data on 2026-08-10 after the nine-candidate comparison. Every Aureus user owns and supplies a separate Twelve Data API key. Aureus does not buy a subscription, embed or share credentials, redistribute Provider data, or assume a paid entitlement.
 
-The provider-independent boundary is frozen so foundation work does not depend on a vendor:
+### Provider boundary
+
+The domain boundary remains small and vendor-independent even though Twelve Data is the single selected production adapter:
 
 ```swift
 protocol MarketDataProvider: Sendable {
+    func capabilities() async throws -> MarketProviderCapabilities
     func searchSymbols(query: String) async throws -> [MarketSymbol]
     func marketStatus(for exchanges: Set<ExchangeID>) async throws -> [ExchangeStatus]
     func historicalBars(_ request: HistoricalBarsRequest) async throws -> HistoricalBarsPage
@@ -345,48 +348,104 @@ protocol MarketDataProvider: Sendable {
 }
 ```
 
-This is a type sketch, not production code. Domain-facing values carry symbol, exchange/MIC, currency, interval, timestamps/session dates, provider identifier, adjustment state, and provenance. Provider JSON models never enter Domain. The boundary does not expose a dynamic plugin registry or automatic provider fallback.
+This is a type sketch, not production code. Domain-facing values carry symbol, exchange/MIC, currency, interval, source/fetch/session timestamps, provider identifier, freshness, adjustment state, entitlement state, and provenance. Twelve Data DTOs never enter Domain. Integration uses Foundation `URLSession`, `Codable`, structured concurrency, and one actor-owned rate limiter; no Twelve Data SDK, multi-Provider platform, plugin system, runtime registry, or automatic Provider fallback is introduced.
 
-If and only if a later Stage 2 prompt is separately authorized after the Reviewer Gate, Stage 2 is limited to the protocol, value contracts needed by compilation, and a deterministic in-memory synthetic provider. This Provider-independent direction is not evidence that Stage 1 passed and is not authorization to enter Stage 2. It must not create an API account, key, network client for a market vendor, SDK dependency, or production provider implementation.
+### Plans and entitlements
 
-When a production provider is authorized:
+The model uses a small tagged state, not a Plan inheritance hierarchy:
 
-- Its API key is stored in Keychain and never source, settings files, logs, fixtures, or backups.
-- The provider's documented quota is enforced by an actor rate gate; the stricter verified limit wins.
-- Provider errors map to typed authentication, quota, unavailable, malformed-data, unsupported-market, and terms/entitlement states.
-- Cached responses retain provider and timestamp; offline/stale presentation is explicit.
-- Required attribution is shown and included with exported provider-derived data when terms require it.
-- A real-provider acceptance run is separate from deterministic provider contract tests.
+| State | Meaning and required behavior |
+|---|---|
+| `basic` | Basic Free was verified at 8 API credits/minute and 800/day. It is a usable US-focused entry path, not four-market coverage. |
+| `proOrHigher` | A paid individual tier selected by the user. It permits capability discovery but does not itself prove that every endpoint, market, or exchange license is active. |
+| `unknown` | No trustworthy current capability result; show an explicit unknown state and do not infer from a typed Plan label. |
+| `invalidOrExpired` | Authentication or confirmed entitlement expiry; stop affected requests and offer reconnect/disconnect actions. |
+| `unsupportedMarket` | The current key/plan does not authorize the requested market; show `Unsupported by Current Entitlement`. |
+| `upgradeRequired` | Official metadata or Provider response identifies a higher tier/add-on requirement; show `Plan Required` or `Upgrade Required`. |
+| `rateLimited` | Credit/rate budget exhausted or HTTP 429; preserve cached data with timestamps and retry guidance. |
+| `stale` / `delayed` / `offline` / `missing` | Separate data-quality/transport states; none is represented as an empty successful result. |
 
-**Decision boundary required to unblock production market work**
+A user-entered Plan name is display metadata only. Stage 6 must reconcile the key's Provider-returned usage/plan information, response headers, endpoint responses, official exchange/plan tables, and observed entitlements. A mismatch resolves to the more restrictive explicit state.
 
-The evidence-backed choices are recorded in the [User Decision Packet](V1_RESEARCH_EVIDENCE.md#57-user-decision-packet). They are: keep the complete market scope and keep A-008 blocked; explicitly authorize a named paid provider/plan followed by current entitlement and rights confirmation; or explicitly approve a V1 market-coverage change. The Executor selects none of these. A paid plan is not authorized by appearing in research, and no market is removed by omission.
+### Market and data capability boundary
+
+| Market or capability | Freeze-candidate boundary |
+|---|---|
+| United States | Basic Free is the usable path for real-time US equities/ETFs plus reference and technical data within its quota. Stage 6 must still test Search, history, adjustments, and actions with a real Basic key. |
+| `XHKG` | Official Exchanges lists Pro as the minimum individual plan, while the current EOD guide flags Hong Kong for Provider/licensing confirmation. Treat Pro-or-higher as an allowed entitlement route, not proof that EOD data is active. |
+| `XSHG` | Official Exchanges lists Pro and EOD. Actual symbol/history/action access must be verified with the user's entitlement. |
+| `XSHE` | Official Exchanges lists Pro and EOD. Actual symbol/history/action access must be verified with the user's entitlement. |
+| `XJPX` | Official Exchanges lists Pro as the minimum individual plan, while the current EOD guide flags Tokyo for Provider/licensing confirmation. Treat Pro-or-higher as an allowed entitlement route, not proof that EOD data is active. |
+| Search/reference | Use the formal discovery/reference surfaces. Catalog visibility is not price-data entitlement; inaccessible results carry plan/market state rather than empty success. |
+| Historical OHLCV | Twelve Data documents historical OHLCV and recommends fetching history once, caching it, then incrementally updating. Retention remains limited by current Terms/Documentation. |
+| Adjustment/actions | Stage 6 must verify the current `adjust` modes (`all`, `splits`, `dividends`, `none`), defaults, daily-versus-intraday behavior, and split/dividend endpoints before mapping Provider data into authoritative Domain values. |
+| Freshness | Store and display whether the observation is real-time, delayed, or EOD. Exchange listing, plan level, and REST candle processing latency are separate facts. |
+
+The product scope remains United States, Hong Kong, mainland China, and Japan. Basic Free does not satisfy all four. Pro or higher is the user-authorized route for full capability, subject to actual entitlement, add-on/licensing, and Stage 6 acceptance. No Mock substitutes for an unavailable market.
+
+### API key lifecycle
+
+The Production App's Twelve Data key:
+
+- is stored only as an app-scoped Keychain item;
+- is never stored in `UserDefaults`, SQLite, plist, `.env`, `xcconfig`, source, fixture, export, backup, log, error report, UI screenshot, or analytics;
+- is never sent to the financial-chart `WKWebView` or included in chart bridge payloads;
+- is never built into default configuration or distributed with source;
+- is accepted, saved, updated, validated, deleted, and disconnected only by the separately authorized Stage 6 implementation.
+
+Stage 2 may create only the Keychain protocol/boundary and synthetic tests; it must not read the user-authorized local manual record, accept a real key, or call Twelve Data. The local `/.secrets/twelve-data-api-key.local.txt` record is human-only and outside every Build, Test, Runtime, and Production credential path.
+
+### Provider-data deletion and cache isolation
+
+- Every Twelve Data cache entry records Provider, entitlement context, fetch time, freshness, and deletion-policy metadata.
+- User-initiated Disconnect or key deletion immediately stops requests and deletes all Twelve Data recoverable market-cache rows/files.
+- Confirmed subscription or entitlement termination stops new requests. The Terms observed on 2026-08-11 require deletion of all Provider Data upon termination; Stage 6 must refresh the current deadline and implement the stricter applicable rule.
+- A temporary network error or ordinary authentication failure is not silently classified as subscription termination. An unresolved state is shown explicitly with safe `Disconnect + Delete Cache` action.
+- Cache cleanup receives only `MarketCacheStore`; it has no permanent database URL, `WealthStore`, or permanent deletion capability.
+- Valid valuation provenance already committed to a permanent wealth Snapshot is not removed by ordinary cache cleanup. Stage 6 and Stage 11 must confirm that the retained provenance form complies with current Provider Terms before acceptance.
+- Raw Twelve Data Export is prohibited by default in V1 unless a later terms review explicitly authorizes the exact export.
+
+### UI obligations
+
+Every Provider-backed screen must expose Twelve Data as the source, the configured/observed Plan or capability, market entitlement, real-time/delayed/EOD state, last update time, stale/offline state, rate limit, authentication error, and applicable attribution. `Upgrade Required`, `Plan Required`, `Unsupported by Current Entitlement`, `Missing`, `Offline`, and Provider error are distinct user-visible outcomes.
+
+Private/internal use does not generally require public-display attribution under the current guide, but Aureus will still show a compact source label. If the use, Plan, market, or terms requires attribution, the UI must use the then-current Twelve Data wording and exchange-specific notice. No data is redistributed to third parties.
+
+### Stage 6 acceptance contract
+
+Stage 6 must produce separate evidence for:
+
+1. user-owned key entry, Keychain save/update/delete, Disconnect, and redaction;
+2. Basic Free real requests, Search, OHLCV, adjustment/action semantics, 8/minute and 800/day rate behavior;
+3. observed Plan/entitlement discovery and mismatch handling;
+4. Pro-or-higher `XHKG`, `XSHG`, `XSHE`, and `XJPX` access, freshness, history, and actions;
+5. cache writes, bounded retention, incremental refresh, expiry, Disconnect deletion, and confirmed-termination deletion;
+6. attribution, unsupported/upgrade/auth/rate/stale/delayed/offline UI states;
+7. refreshed Pricing, Exchanges, Documentation, Terms, personal-use, EOD, and market-specific licensing evidence.
+
+If no Pro-or-higher test entitlement is available, four-market acceptance is `NOT VERIFIED`; it cannot be inferred from Basic, trial symbols, a catalog entry, or Mock data.
 
 **Rationale**
 
-Selecting a convenient endpoint without coverage and rights evidence would turn a product requirement into operational/legal debt. A small boundary and mock allow domain, persistence, cache, and UI foundation to remain vendor-neutral without building a multi-provider platform.
+Twelve Data has a formal API, a workable Basic Free US entry path, explicit plan-aware exchange metadata, and a user-authorized Pro-or-higher route for international markets. BYOK separates open source from each user's credentials and subscription. The entitlement model preserves required scope without falsely claiming every key has every market.
 
-**Rejected or unverified candidates**
+**Rejected alternatives**
 
-- Yahoo Finance/yfinance — rejected: yfinance identifies itself as an unofficial research/education wrapper and Yahoo data as personal-use subject to Yahoo terms; it is not a production client API contract.
-- Alpha Vantage — rejected: official pages conflict on free quota and do not verify the complete required market/tier/rights matrix.
-- Stooq — unverified: no accessible formal API, pricing/quota, usage, or attribution documentation was established.
-- Twelve Data — rejected as current primary, retained only as conditional leader: full required exchanges are paid-tier features and precise cache/display rights require authorized subscription review.
-- Marketstack — rejected: the directly readable official FAQ conflicts internally on free quota, the official Pricing page was inaccessible in this execution, and exact four-market tier/rights evidence is incomplete.
-- Tiingo — rejected: Starter explicitly prohibits persistent storage, and the EOD exchange list verifies US and mainland-China A-shares but does not list or establish Hong Kong or Japan.
-- EODHD — rejected on the free plan: 20 calls/day is not practically usable at 30/100-symbol refresh scenarios; the paid All World plan is unauthorized and the current official EOD exchange list does not establish Hong Kong and Tokyo price coverage even though a separate trading-hours endpoint knows `XHKG` and `XTKS`.
-- Finnhub — unverified/rejected as Primary: the official dynamic Pricing and API pages returned no readable body in this execution, while the readable Terms page alone cannot establish a current free or paid four-market capability and entitlement chain.
-- Financial Modeling Prep (FMP) — rejected on the free plan: Basic is a US-limited five-year plan; Global Coverage is on the unauthorized Ultimate plan, and personal-use application/display and cache-deletion terms require an applicable agreement.
+- A multi-Provider runtime, automatic fallback, or plugin platform: rejected as unnecessary operational and provenance complexity.
+- Twelve Data SDK: rejected because `URLSession`, `Codable`, and structured concurrency cover the required REST integration.
+- Basic-as-four-market: rejected because Basic is a three-market/US-focused entry tier, not proof of `XHKG`/`XSHG`/`XSHE`/`XJPX` access.
+- Plan-name trust: rejected because catalog metadata and user input can differ from actual key entitlement.
+- The eight non-selected Providers remain in the Research Evidence comparison; selection of Twelve Data does not delete or rewrite that history.
 
 **Consequences**
 
-Production market calls and vendor-specific acceptance are blocked. The required Markets feature scope remains in V1 and is not represented as completed by mock data, protocol compilation, or cache tests. A user budget or product-scope decision is required before the blocker can be reviewed again.
+The architecture has one production Provider and one deterministic synthetic test provider. Users on Basic receive a useful but narrower market path with explicit upgrade/unsupported states. Paid subscription, exchange licensing, and four-market validation remain user/Stage 6 responsibilities. Credential and Provider-data lifecycle work is larger than a simple HTTP adapter.
 
 **Implementation impact**
 
-A future, separately authorized Stage 2 may implement only compile-time contracts and synthetic mocks. This statement does not authorize Stage 2 while the Stage 1 Gate is unresolved. Any production integration requires a new explicit authorization that resolves this decision and updates A-008 evidence.
+After Reviewer acceptance and a separate Stage 2 prompt, Stage 2 may define only provider-neutral contracts, entitlement value states, a Keychain boundary, and deterministic synthetic mocks. Stage 6 owns the Twelve Data adapter, real key lifecycle, Provider calls, cache/deletion implementation, UI states, and acceptance evidence.
 
-**Evidence:** [Market provider matrix](V1_RESEARCH_EVIDENCE.md#5-market-provider-comparison-matrix) and [conflicts](V1_RESEARCH_EVIDENCE.md#11-unverified-or-conflicting-facts).
+**Evidence:** [Market provider matrix](V1_RESEARCH_EVIDENCE.md#5-market-provider-comparison-matrix), [Twelve Data refresh](V1_RESEARCH_EVIDENCE.md#58-twelve-data-freeze-refresh--2026-08-11), and [remaining verification limits](V1_RESEARCH_EVIDENCE.md#11-unverified-or-conflicting-facts).
 
 ## 11. Market Cache — A-010
 
@@ -427,6 +486,7 @@ TTL expiry means “eligible for refresh/removal,” not proof that a network re
 - Manual cleanup offers “remove expired” and “reset market cache.” Reset closes only the cache connection, removes/recreates only `market-cache.sqlite` and its SQLite sidecars, runs only the cache migrator, and never receives the permanent-store URL.
 - Settings displays current bytes, configured cap, percentage used, last cleanup result/time, oldest entry, provider breakdown, and stale/offline status.
 - After eviction, the app re-fetches on demand when online; offline misses show unavailable rather than fabricated values.
+- Twelve Data entries remain Provider-tagged. Disconnect or key deletion invokes a Provider-scoped cache purge immediately; confirmed entitlement termination invokes the current Terms-compliant deletion path. Neither path can resolve or receive the permanent-store location.
 
 ### Safety proof obligation
 
@@ -532,6 +592,7 @@ Stage 2 creates only calculation structure and foundational numeric tests; Stage
 - One actor-owned client per approved external service owns request construction, authentication, quota state, in-flight deduplication, and response decoding.
 - Default maximum is **2 concurrent external requests per provider**, reduced when the provider's verified quota requires it.
 - Apply the strictest current official quota. If a quota is unknown or conflicting, production integration remains disabled rather than guessing.
+- For Twelve Data Basic, seed the actor policy with 8 API credits/minute and 800/day. For paid entitlements, Stage 6 discovers the actual allowance from Provider plan/usage responses and credit headers, applies the stricter observed limit, and never trusts only a typed Plan name.
 - Request timeout: **30 seconds**; resource timeout: **60 seconds**.
 - Retry only idempotent GET requests after transient network failures, HTTP 408, 429, or 5xx. Maximum **3 retry attempts** after the initial request, with approximately **1, 2, and 4 seconds** exponential delay plus bounded jitter; honor `Retry-After` when present. Do not retry authentication, entitlement, validation, or decoding failures.
 - Cancel work when the owning task is cancelled. Do not detach unstructured tasks for ordinary requests.
@@ -550,11 +611,11 @@ System networking and structured concurrency meet V1 needs. A single actor owner
 
 **Consequences**
 
-Provider adapters must translate provider-specific pagination and limits into the small domain boundary. Exact production quotas cannot be configured until A-008 is resolved.
+The Twelve Data adapter must translate endpoint credit weights, pagination, batch-per-symbol cost, and observed entitlement into the small domain boundary. A catalog entry or plan label is not quota evidence for the current key.
 
 **Implementation impact**
 
-Stage 2 may define testable request policy primitives if required by an authorized foundation prompt. It may not implement a production market provider while A-008 is blocked.
+Stage 2 may define testable request-policy primitives if required by an authorized foundation prompt. It may not implement the Twelve Data production adapter or make a Provider request; that work and real-key acceptance belong to Stage 6.
 
 **Evidence:** [Apple URLSession/concurrency and provider sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register).
 
@@ -570,12 +631,13 @@ All paths below are relative to the signed app's sandbox container and are resol
 | Market cache | `Caches/Aureus/Market/market-cache.sqlite`; recoverable and excluded from backup. |
 | Internal backups | `Application Support/Aureus/Backups/`; maximum five validated generations. |
 | User export/import/backup destination | User-selected URL through standard open/save panel with scoped access only for the operation; persistent security-scoped bookmarks only when a frozen feature truly requires recurring access. |
-| API keys and provider secrets | Keychain item scoped to the app/service/account; never `UserDefaults`, plist, environment file, source, database, backup, export, fixture, analytics, or log. |
+| API keys and provider secrets | Production Runtime uses a Keychain item scoped to the app/service/account; never `UserDefaults`, plist, environment file, source, database, backup, export, fixture, analytics, or log. The user-authorized local manual record is human-only and is not a Runtime credential source. |
 | Preferences without secrets | `UserDefaults` for non-sensitive display/configuration only. |
 | Logs | Unified OSLog only, privacy-redacted; no repository/local log file by default. |
 | Demo/test data | Explicit synthetic resources and temporary test stores; separate launch configuration and never derived from a real store. |
 
 - App Sandbox is enabled from foundation. Entitlements are least-privilege: outgoing network and user-selected file read/write only when used.
+- `/.secrets/twelve-data-api-key.local.txt` is a narrow user-authorized local-filesystem exception governed by `AGENTS.md`. The Production App, Build, Tests, fixtures, scripts, backup, export, and logs must never read or copy it; only metadata-only permission checks are allowed for governance verification.
 - Security-scoped access begins immediately before file work and ends immediately after it. Imported content is validated before permanent transactions.
 - Logs may include stable error category, subsystem, operation, duration bucket, record count, provider, and HTTP status. Logs must not contain account names, filenames chosen by the user, amounts, holdings, symbols tied to a portfolio, transaction descriptions, raw payloads, API keys, tokens, database rows, or identifying paths.
 - V1 does **not** add application-layer database encryption such as SQLCipher. It relies on the sandbox and the user's macOS data-at-rest protection; Keychain protects secrets. The Settings/privacy documentation must state that database and backup files are not independently encrypted by Aureus.
@@ -609,7 +671,7 @@ Stage 2 configures sandbox paths and a Keychain boundary without adding real key
 - Offer on-demand internal backup and create one before every permanent-schema migration.
 - Keep the newest **five successfully validated** internal backup generations. Prune only after the new backup's manifest and hash validate.
 - Manifest includes app version, schema version, creation UTC instant, database byte count, SHA-256, and backup format version. It contains no financial summary or credentials.
-- Backup includes the permanent database and required manifest only. Exclude Market Cache, SQLite cache sidecars, Keychain secrets, logs, temporary imports, and generated chart assets.
+- Backup includes the permanent database and required manifest only. Exclude Market Cache, SQLite cache sidecars, Keychain secrets, `/.secrets/`, logs, temporary imports, and generated chart assets.
 - Restore sequence: close permanent access; validate manifest/hash/format/schema compatibility; create a safety backup of the current store; stage the candidate in the permanent-data filesystem; atomically replace; run forward migrations; open and run integrity/application invariants; roll back to the safety backup on failure.
 - Never restore a database directly from an unvalidated user-selected path. Never replace the current store before a recoverable safety copy exists.
 - Manual external backup/export uses a user-selected destination. V1 backup artifacts are not encrypted by Aureus, so the UI warns the user to choose encrypted private storage.
@@ -688,7 +750,7 @@ Swift Testing covers deterministic Swift logic and integration well, while XCUI 
 
 **Consequences**
 
-Performance numbers are candidate gates and must be measured on a recorded machine/configuration. Real-provider QA remains blocked with A-008.
+Performance numbers are candidate gates and must be measured on a recorded machine/configuration. Twelve Data real-provider and entitlement QA remains an uncompleted Stage 6 acceptance requirement.
 
 **Implementation impact**
 
@@ -704,7 +766,7 @@ Stage 2 creates both test targets and foundational suites. Later stages add cove
 - **Later Stage 7 asset/dependency: TradingView Lightweight Charts 5.2.x**, pinned and bundled locally with Apache-2.0 license/NOTICE and required attribution. It is not added during Stage 2.
 - Use system SQLite, Foundation, SwiftUI, Observation, Charts, WebKit, Security, OSLog, and XCTest/Swift Testing; these are platform/toolchain components rather than copied third-party packages.
 - Frankfurter is accessed as an HTTP API without an SDK dependency. Its server's MIT license does not replace the data/provider/ECB terms and attribution review.
-- Do not add an SDK for a blocked Market Provider.
+- Do not add a Twelve Data SDK; the selected adapter uses system networking directly in Stage 6.
 - Recommended project source license: **Apache License 2.0**, because its permissive terms and patent grant align with the planned open-source desktop app and the later Apache-2.0 chart dependency. This is a recommendation only: **USER AUTHORIZATION_PENDING**. No LICENSE file is created and no user choice is claimed.
 
 **Rationale**
@@ -735,11 +797,11 @@ flowchart LR
     Domain["Domain Value Types &\nDeterministic Financial Calculations"]
     WealthStore["WealthStore actor"]
     PermanentDB[("Permanent Wealth Store\nApplication Support\naureus.sqlite")]
-    MarketService["Market Data Service\nA-008 production provider BLOCKED"]
+    MarketService["Market Data Service\nTwelve Data · BYOK · plan-aware"]
     CacheStore["MarketCacheStore actor"]
     CacheDB[("Bounded Market Cache\nCaches\nmarket-cache.sqlite")]
     CacheCleanup["TTL · Size · LRU\nCache Cleanup"]
-    ExternalMarket["External Market Provider\nnone selected or authorized"]
+    ExternalMarket["Twelve Data REST API\nStage 6 real-key acceptance"]
     FXService["FX Service"]
     ExternalFX["Frankfurter v2\nECB reference rates"]
     Keychain["Keychain\nProvider secrets"]
@@ -753,7 +815,7 @@ flowchart LR
     MarketService --> CacheStore
     CacheStore --> CacheDB
     CacheCleanup --> CacheStore
-    MarketService -. "only after A-008 resolution" .-> ExternalMarket
+    MarketService -. "Stage 6 only" .-> ExternalMarket
     FXService --> ExternalFX
     Keychain --> MarketService
     Guard -. "constrains" .-> CacheCleanup
@@ -763,7 +825,7 @@ There is deliberately no edge from `CacheCleanup` or `MarketCacheStore` to `Weal
 
 ## 20. Stage 2 Implementation Contract
 
-Stage 2 may rely on the following freeze-candidate contract only after Reviewer acceptance and a separately authorized Stage 2 prompt. Because A-008 remains BLOCKED, the Provider-independent foundation below does not mean Stage 1 passed and does not itself authorize Stage 2:
+Stage 2 may rely on the following Final Freeze Candidate contract only after Reviewer acceptance and a separately authorized Stage 2 prompt. Twelve Data is selected, but Stage 2 remains a Provider-independent foundation and does not implement or validate the production adapter:
 
 ### Required baseline
 
@@ -778,11 +840,11 @@ Stage 2 may rely on the following freeze-candidate contract only after Reviewer 
 9. Define UTC instant, civil date, exchange session, IANA zone, and injected Clock foundations.
 10. Establish feature-first SwiftUI composition with concrete `@Observable` state and manual initializer dependency construction.
 11. Establish Swift Testing and XCUI targets with only synthetic fixtures.
-12. Define the minimal `MarketDataProvider` and `FXRateProvider` contracts plus deterministic synthetic mocks only.
+12. Define the minimal `MarketDataProvider` and `FXRateProvider` contracts, entitlement-state values, a Keychain boundary, and deterministic synthetic mocks only. Do not read the local manual key record.
 
 ### Explicit Stage 2 prohibitions
 
-- No production Market Provider implementation, account, API key, SDK, or vendor network call while A-008 is blocked.
+- No Twelve Data adapter, account operation, real API key ingestion, SDK, credentialed or demo Provider call, entitlement probe, or vendor payload in Stage 2.
 - No multi-provider runtime, plugin system, automatic provider switching, service locator, DI framework, event bus, or per-entity repository protocols.
 - No Lightweight Charts asset, WKWebView chart bridge, Python runtime, analytics service, or speculative package.
 - No feature implementation assigned to Stage 3 or later unless a later authorized prompt says otherwise.

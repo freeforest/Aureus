@@ -19,9 +19,9 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
-The repository is currently at governance bootstrap. It contains the project design and repository-governance baseline, but no buildable app, business implementation, or test target.
+The repository contains the project design and repository-governance baseline, but no buildable app, business implementation, build target, or test target.
 
-Stage 1 now contains a V1 scope, architecture, and research-evidence Freeze Candidate awaiting Reviewer Gate; no implementation stage has begun.
+Stage 1 now contains a Final Freeze Candidate awaiting Reviewer Gate; no implementation stage has begun. Twelve Data is the user-authorized Primary Market Data Provider candidate, using a user-owned API key (BYOK) and plan-aware entitlements: Basic Free is the usable US-focused entry path, while complete US/HK/mainland-China/Japan capability depends on the user's Pro-or-higher entitlement and later Stage 6 verification.
 
 - [V1 Scope Freeze Candidate](docs/V1_SCOPE.md)
 - [V1 Architecture & Technology Freeze Candidate](docs/V1_ARCHITECTURE.md)
