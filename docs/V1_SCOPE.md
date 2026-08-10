@@ -78,7 +78,7 @@ No required module may be removed merely because its implementation occurs in a 
 - Explicit stale, delayed, missing, and offline states.
 - Provider attribution and terms compliance.
 
-The required market scope is not silently narrowed by Stage 1 provider uncertainty. A live Primary Market Data Provider remains a documented architecture blocker because current official evidence does not yet establish one safe provider for the required United States, Hong Kong, mainland China, and Japan coverage with acceptable terms and quotas. The Provider-independent domain, cache, UI, and deterministic mock work may proceed only within the contract in `V1_ARCHITECTURE.md`; live-provider implementation may not proceed until the blocker is resolved by an authorized decision.
+The required market scope is not silently narrowed by Stage 1 provider uncertainty. A production Primary Market Data Provider remains a documented architecture blocker because current official evidence does not establish a free, practically usable provider for the required United States, Hong Kong, mainland China, and Japan coverage with acceptable terms, quotas, and local-cache rights. A Provider-independent foundation is only a bounded architectural direction: it does **not** mean Stage 1 has passed, does **not** authorize Stage 2, and cannot substitute for resolving A-008. Production-provider implementation may not proceed until the blocker is resolved by an authorized decision.
 
 ### 3.4 Portfolio intelligence
 
@@ -120,25 +120,26 @@ The required market scope is not silently narrowed by Stage 1 provider uncertain
 - A successful mock-provider test is not evidence that a real provider, its coverage, or its terms have been accepted.
 - Release readiness includes accessibility, performance, privacy, migration, backup/restore, and offline checks rather than only feature completion.
 
-## 5. Explicit Long-term Non-goals
+## 5. Permanent Long-term Exclusion
 
-The following are long-term product exclusions, not Post-V1 features:
+The only frozen permanent long-term product exclusion is **AI / LLM and every product variant built on it**, including an AI Assistant, AI Agent, AI classification, AI investment advice, automated financial guidance, or any equivalent AI-mediated workflow. This is not a Post-V1 item and cannot enter scope through a later-stage implementation prompt.
 
-- AI or LLM capability of any kind.
-- AI Assistant.
-- AI classification.
-- AI investment advice.
-- AI Agent workflows.
-- Automatic trading.
-- Live order placement.
-- Open Banking integration.
-- Automatic brokerage synchronization.
-- A cloud account system for user wealth data.
-- Social or community features.
-- High-frequency real-time quotes or trading infrastructure.
-- A complex quantitative backtesting platform.
+## 6. V1 Non-goals, Deferred, or Conditional Directions
 
-## 6. Deferred or Conditional Directions
+### 6.1 V1 non-goals
+
+The following capabilities are not developed in V1 and must not be added incidentally anywhere in the current Stage 2–14 route. They are not promised for a future version, and only an explicit user product and architecture decision can bring one into a later scope. Except for AI / LLM above, they are **not** declared permanent long-term exclusions:
+
+- Automatic Trading.
+- Live Order Placement.
+- Open Banking.
+- Automatic Brokerage Synchronization.
+- Cloud Account System.
+- Social or Community Features.
+- High-frequency Real-time Quotes or Trading Infrastructure.
+- Complex Quantitative Backtesting Platform.
+
+### 6.2 Deferred or conditional directions
 
 These directions are not part of the required V1 baseline. They are not permanently cancelled; each requires a later explicit product and architecture decision.
 
@@ -158,19 +159,19 @@ This mapping assigns the frozen capabilities to the existing Stage 2 through Sta
 
 | Stage | V1 ownership |
 |---|---|
-| Stage 2 | App foundation and shell; target/folder baseline; navigation; domain value types; GRDB persistence bootstrap and migrations; separate permanent/cache stores; synthetic fixture policy; initial unit/UI test targets. No live market provider. |
-| Stage 3 | Wealth: Asset Container, Account, Asset, Liability, Bank/Cash, Stock/ETF/Fund, Insurance, Other Asset, CNY/USD valuation foundations. |
-| Stage 4 | Ledger: Income, Expense, Transfer, Buy, Sell, Dividend, Interest, Fee, Category, Tags, deterministic classification, and CSV import/export. |
-| Stage 5 | Snapshots, Net Worth history, Asset Allocation, Cash Flow, Dashboard summaries, and initial Net Worth/Expense heatmaps. |
-| Stage 6 | Markets foundation: Provider contract, deterministic mock, Market Overview, Watchlist, Symbol Search, Historical Prices, bounded cache, attribution/offline states. A live provider requires prior resolution of A-008. |
-| Stage 7 | Professional market visualization: candlestick, volume, zoom, pan, crosshair, tooltip, time ranges, MA/EMA/RSI/MACD/Bollinger Bands, and Market Heatmap. |
-| Stage 8 | Portfolio: Holdings, Trades, Cost Basis, realized/unrealized P&L, Portfolio NAV, Benchmark, and Portfolio Heatmap. |
-| Stage 9 | Analytics: Total Return, CAGR, TWR, XIRR, Volatility, Sharpe, Max Drawdown, formula evidence, and deterministic verification. |
-| Stage 10 | Goals: goal tracking, compound planning, FIRE, and Saving Rate. |
-| Stage 11 | Settings: preferences, cache management, Keychain UX, import/export controls, and privacy surfaces. |
-| Stage 12 | Backup/Restore, migration hardening, data-integrity recovery, privacy boundaries, and security-scoped file workflows. |
-| Stage 13 | Accessibility, performance, offline degradation, large synthetic datasets, and cross-feature hardening. |
-| Stage 14 | Release readiness, distribution checks, licensing evidence, signing/notarization boundaries, documentation, and final privacy review. User-owned release and Git/GitHub actions remain outside Agent authority. |
+| Stage 2 | **App Foundation + Persistence Core:** App shell; Navigation; core domain/value types; GRDB persistence bootstrap; Migration foundation; permanent/cache physical separation; synthetic demo policy; Unit/Integration/UI testing foundation; Provider-independent contracts only. A-008 remains blocked, Stage 1 has not passed by implication, and this mapping does not authorize Stage 2. |
+| Stage 3 | **Wealth + Asset Container.** |
+| Stage 4 | **Ledger + Cash Flow.** |
+| Stage 5 | **Wealth Snapshot + Dashboard + Core Visualization.** |
+| Stage 6 | **Market Data Infrastructure only:** `MarketDataProvider` production boundary; Symbol model and search backend; Historical Prices; FX; Market Cache; Size limit; TTL/LRU; automatic/manual cleanup; retry/error/rate-limit/offline behavior; permanent wealth data safety. Market Overview, Watchlist UI, Heatmap, and single-stock professional chart UI are excluded from Stage 6. |
+| Stage 7 | **Markets Terminal:** Market Overview; Watchlist; Day/Week/Month/Quarter/Year interaction; Market Heatmap; Stock detail; Candlestick; Volume; Zoom/Pan/Crosshair/Tooltip; MA/EMA/RSI/MACD/Bollinger Bands. |
+| Stage 8 | **Portfolio.** |
+| Stage 9 | **Analytics.** |
+| Stage 10 | **Goals + Wealth Intelligence.** |
+| Stage 11 | **Privacy + Settings + Data Lifecycle + Reliability:** Settings; Cache controls; Import/export lifecycle; Backup; Restore; Migration reliability; Keychain; Secret handling; privacy-safe logging; Demo mode; Offline degradation; Data integrity. |
+| Stage 12 | **V1 UX / Performance / Regression Hardening.** |
+| Stage 13 | **V1 Release Candidate Audit.** |
+| Stage 14 | **V1 Release preparation.** Stage 14 does not authorize an Executor to Push, Tag, create a GitHub Release, or publicly publish; the user alone decides and performs Git/GitHub and release actions. |
 
 ## 8. Scope Change Control
 

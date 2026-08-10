@@ -10,7 +10,7 @@ The user's latest explicit instruction and root `AGENTS.md` remain authoritative
 
 After approval, a frozen decision changes only through an explicit architecture change record that identifies the affected decision IDs, reason, alternatives, data/migration impact, privacy impact, testing impact, and approving authority. Repository reality may disprove completion, but it does not silently change requirements.
 
-One core selection cannot be safely frozen: **A-008 Primary Market Data Provider is BLOCKED**. No researched candidate currently has official evidence that simultaneously resolves required United States, Hong Kong, mainland China, and Japan coverage, OHLCV/adjustment needs, quotas, and terms suitable for an open-source local desktop client. This document preserves the required market scope and freezes the provider-independent boundary; it does not represent Stage 1 as complete.
+One core selection cannot be safely frozen: **A-008 Primary Market Data Provider is BLOCKED**. The completed nine-candidate review found no free or practically usable free plan with an official evidence chain that simultaneously resolves required United States, Hong Kong, mainland China, and Japan coverage, Search, OHLCV/adjustment needs, quota, persistent local cache, retention/deletion, attribution, and personal bring-your-own-key desktop use. Paid possibilities remain conditional on user authorization and rights confirmation. This document preserves the required market scope and describes the Provider-independent boundary; that boundary does **not** mean Stage 1 has passed and does **not** authorize Stage 2.
 
 ## 2. Decision Register
 
@@ -19,18 +19,18 @@ One core selection cannot be safely frozen: **A-008 Primary Market Data Provider
 | A-001 | macOS 14.0+, Xcode 26.6 baseline, Swift 6 mode, arm64 V1 | Native Observation/SwiftUI baseline without requiring the latest end-user OS | No macOS 13 or Intel V1 build | Stage 2 and release hardening | [Platform evidence](V1_RESEARCH_EVIDENCE.md#3-deployment-target-evidence) |
 | A-002 | Feature-first SwiftUI with `@Observable`, explicit dependencies, actor ownership | Small native surface with testable boundaries | Requires deliberate state ownership and no implicit service locator | Stage 2 onward | [Apple framework evidence](V1_RESEARCH_EVIDENCE.md#3-deployment-target-evidence) |
 | A-003 | One app target, one unit/integration target, one UI-test target; no internal package/framework | KISS and fast iteration | Weaker compile-time module isolation until scale proves a need | Stage 2 | [Decision trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
-| A-004 | GRDB 7.11.x over system SQLite; separate permanent/cache databases and migrators | Explicit SQL/schema/transaction control with a maintained Swift API | One external Stage 2 dependency and application-owned migrations | Stage 2, 12 | [Persistence matrix](V1_RESEARCH_EVIDENCE.md#4-persistence-comparison-matrix) |
+| A-004 | GRDB 7.11.x over system SQLite; separate permanent/cache databases and migrators | Explicit SQL/schema/transaction control with a maintained Swift API | One external Stage 2 dependency and application-owned migrations | Stage 2 foundation; Stage 11 reliability | [Persistence matrix](V1_RESEARCH_EVIDENCE.md#4-persistence-comparison-matrix) |
 | A-005 | Fixed-point semantic types backed by checked `Int64`; `Decimal` intermediates | Exact storage and explicit scales; no authoritative `Double` | Scale conversions and overflow checks are application responsibilities | Stage 2 onward | [Precision evidence](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-006 | CNY base; USD original + CNY-per-USD rate + converted CNY; immutable snapshot provenance | Reproducible historical valuation | More stored fields and explicit stale-rate handling | Stage 2, 3, 5 | [FX evidence](V1_RESEARCH_EVIDENCE.md#6-fx-provider-comparison-matrix) |
 | A-007 | UTC instants + explicit Gregorian civil dates/IANA zones; exchange-session dates preserved | Avoids local-time and DST ambiguity | Callers must choose instant versus civil-date semantics | Stage 2 onward | [Platform evidence](V1_RESEARCH_EVIDENCE.md#3-deployment-target-evidence) |
-| A-008 | **BLOCKED:** no live Primary Market Data Provider selected; freeze minimal protocol + synthetic mock only | Required coverage and usage rights are not jointly verified | Live market integration cannot begin | Stage 2 mock boundary; live work blocked | [Market matrix](V1_RESEARCH_EVIDENCE.md#5-market-provider-comparison-matrix) |
+| A-008 | **BLOCKED:** no production Primary Market Data Provider or plan selected; Provider-independent contract direction only | No usable free plan jointly verifies four-market coverage, required data, quota, cache/retention, attribution, and BYOK rights | Production market integration cannot begin; paid plan or scope decisions remain user-owned | Descriptive Stage 2 contract only; Stage 6 production work blocked | [Market matrix and Decision Packet](V1_RESEARCH_EVIDENCE.md#5-market-provider-comparison-matrix) |
 | A-009 | Frankfurter v2 filtered to ECB reference rates | No key, historical CNY/USD derivation, clear ECB provenance | Reference rates are working-day valuation data, not executable quotes | Stage 2 boundary; later FX integration | [FX matrix](V1_RESEARCH_EVIDENCE.md#6-fx-provider-comparison-matrix) |
 | A-010 | Dedicated GRDB cache DB; 512 MiB default, typed TTLs, LRU, 80% cleanup watermark | Bounded offline-capable cache with a provable deletion boundary | Stale-data UX and cache metadata add work | Stage 2 storage; Stage 6 UX | [Cache trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-011 | Swift Charts for native statistics/heatmaps; bundled Lightweight Charts 5.2.x in isolated `WKWebView` for K-line | Native accessibility for wealth views and mature financial interactions for markets | Web bridge, attribution, and native accessible fallback for K-line | Stage 5, 7 | [Chart matrix](V1_RESEARCH_EVIDENCE.md#7-chart-technology-comparison-matrix) |
 | A-012 | Swift-only analytics | Meets V1 formulas without runtime/distribution complexity | Advanced quant ecosystems remain outside V1 | Stage 2 domain; Stage 9 | [Runtime comparison](V1_RESEARCH_EVIDENCE.md#8-swift-only-vs-python-comparison) |
-| A-013 | `URLSession` + structured concurrency; actor rate gate; bounded retry/backoff | Native, testable networking with one concurrency owner | Provider-specific quotas still require an approved provider | Stage 2 boundary; Stage 6 live integration | [Networking sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
+| A-013 | `URLSession` + structured concurrency; actor rate gate; bounded retry/backoff | Native, testable networking with one concurrency owner | Provider-specific quotas still require an approved provider | Stage 2 boundary; Stage 6 production integration | [Networking sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
 | A-014 | App Sandbox; Keychain secrets; container-scoped data; security-scoped user files; no app-layer DB encryption in V1 | Local-first privacy with system controls and minimal dependency surface | Database files/backups are not independently encrypted by the app | Stage 2, 11, 12 | [Apple security sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
-| A-015 | Consistent DB backup, manifest/hash verification, five internal generations; unified privacy-redacted logging | Recoverable permanent data without backing up cache or secrets | V1 backups rely on user/system encrypted storage | Stage 12 | [Backup trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
+| A-015 | Consistent DB backup, manifest/hash verification, five internal generations; unified privacy-redacted logging | Recoverable permanent data without backing up cache or secrets | V1 backups rely on user/system encrypted storage | Stage 11; Stage 12 regression hardening | [Backup trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-016 | Swift Testing for unit/integration; XCTest/XCUI for UI; synthetic fixtures and explicit manual provider QA | Modern unit tests plus supported UI automation | Real-provider and macOS interaction acceptance remain separate | Stage 2 onward | [Testing sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
 | A-017 | Stage 2 dependency: GRDB only; later chart dependency: Lightweight Charts; project license authorization pending | Every dependency has a present need and permissive terms | License notices/attribution and user project-license decision remain required | Stage 2, 7, 14 | [Dependency table](V1_RESEARCH_EVIDENCE.md#9-dependency-and-license-table) |
 
@@ -111,7 +111,7 @@ Stage 2 uses one Xcode project and three targets:
 2. `AureusTests` — Swift Testing unit and integration target.
 3. `AureusUITests` — XCTest/XCUI UI-test target.
 
-There is no independent Core target, local Swift package, framework target, helper executable, or Python target in V1 foundation. The high-level tree Stage 2 is authorized to create is:
+There is no independent Core target, local Swift package, framework target, helper executable, or Python target in V1 foundation. The high-level tree a separately authorized Stage 2 prompt may create is:
 
 ```text
 Aureus_Wealth_Terminal/
@@ -330,9 +330,9 @@ Stage 2 establishes instant/date/session value types, Clock injection, and DST/d
 
 ## 10. Market Data Provider — A-008
 
-**Decision status: BLOCKED**
+**Decision status: BLOCKED — Result B**
 
-No live V1 Primary Market Data Provider is selected. Current official evidence does not prove a single candidate satisfies the frozen United States, Hong Kong, mainland China, and Japan scope together with symbol search, historical OHLCV, required adjustment/corporate-action semantics, workable quotas, cache permission, attribution, and open-source desktop-client terms.
+No production V1 Primary Market Data Provider or plan is selected. The review covers Yahoo Finance/yfinance, Alpha Vantage, Stooq, Twelve Data, Marketstack, Tiingo, EODHD, Finnhub, and Financial Modeling Prep (FMP). Current official evidence does not prove a free or practically usable free plan satisfies the frozen United States, Hong Kong, mainland China, and Japan scope together with Symbol Search, historical OHLCV, required adjustment/corporate-action semantics, workable quota, persistent local-cache permission, termination deletion, attribution, and each user's own-key desktop use.
 
 The provider-independent boundary is frozen so foundation work does not depend on a vendor:
 
@@ -347,9 +347,9 @@ protocol MarketDataProvider: Sendable {
 
 This is a type sketch, not production code. Domain-facing values carry symbol, exchange/MIC, currency, interval, timestamps/session dates, provider identifier, adjustment state, and provenance. Provider JSON models never enter Domain. The boundary does not expose a dynamic plugin registry or automatic provider fallback.
 
-Stage 2 creates only the protocol, value contracts needed by compilation, and a deterministic in-memory synthetic provider. It must not create an API account, key, network client for a market vendor, SDK dependency, or production provider implementation.
+If and only if a later Stage 2 prompt is separately authorized after the Reviewer Gate, Stage 2 is limited to the protocol, value contracts needed by compilation, and a deterministic in-memory synthetic provider. This Provider-independent direction is not evidence that Stage 1 passed and is not authorization to enter Stage 2. It must not create an API account, key, network client for a market vendor, SDK dependency, or production provider implementation.
 
-When a live provider is authorized:
+When a production provider is authorized:
 
 - Its API key is stored in Keychain and never source, settings files, logs, fixtures, or backups.
 - The provider's documented quota is enforced by an actor rate gate; the stricter verified limit wins.
@@ -358,10 +358,9 @@ When a live provider is authorized:
 - Required attribution is shown and included with exported provider-derived data when terms require it.
 - A real-provider acceptance run is separate from deterministic provider contract tests.
 
-**Decision required to unblock live market work**
+**Decision boundary required to unblock production market work**
 
-1. Recommended path: the user authorizes a paid personal global-market budget/tier and the intended local/open-source desktop usage model; Reviewer then requires current contract confirmation for all four markets and cache/attribution rights. Twelve Data's global individual tier is the leading conditional candidate, not an accepted provider.
-2. Alternative product decision: the user/Reviewer explicitly narrows online V1 coverage and defines manual-import behavior for excluded markets. This changes frozen product scope and cannot be inferred by the Executor.
+The evidence-backed choices are recorded in the [User Decision Packet](V1_RESEARCH_EVIDENCE.md#57-user-decision-packet). They are: keep the complete market scope and keep A-008 blocked; explicitly authorize a named paid provider/plan followed by current entitlement and rights confirmation; or explicitly approve a V1 market-coverage change. The Executor selects none of these. A paid plan is not authorized by appearing in research, and no market is removed by omission.
 
 **Rationale**
 
@@ -373,15 +372,19 @@ Selecting a convenient endpoint without coverage and rights evidence would turn 
 - Alpha Vantage — rejected: official pages conflict on free quota and do not verify the complete required market/tier/rights matrix.
 - Stooq — unverified: no accessible formal API, pricing/quota, usage, or attribution documentation was established.
 - Twelve Data — rejected as current primary, retained only as conditional leader: full required exchanges are paid-tier features and precise cache/display rights require authorized subscription review.
-- Marketstack — rejected: official pricing/FAQ quota statements conflict and exact four-market tier/rights evidence is incomplete.
+- Marketstack — rejected: the directly readable official FAQ conflicts internally on free quota, the official Pricing page was inaccessible in this execution, and exact four-market tier/rights evidence is incomplete.
+- Tiingo — rejected: Starter explicitly prohibits persistent storage, and the EOD exchange list verifies US and mainland-China A-shares but does not list or establish Hong Kong or Japan.
+- EODHD — rejected on the free plan: 20 calls/day is not practically usable at 30/100-symbol refresh scenarios; the paid All World plan is unauthorized and the current official EOD exchange list does not establish Hong Kong and Tokyo price coverage even though a separate trading-hours endpoint knows `XHKG` and `XTKS`.
+- Finnhub — unverified/rejected as Primary: the official dynamic Pricing and API pages returned no readable body in this execution, while the readable Terms page alone cannot establish a current free or paid four-market capability and entitlement chain.
+- Financial Modeling Prep (FMP) — rejected on the free plan: Basic is a US-limited five-year plan; Global Coverage is on the unauthorized Ultimate plan, and personal-use application/display and cache-deletion terms require an applicable agreement.
 
 **Consequences**
 
-Live market calls and vendor-specific acceptance are blocked. The required Markets feature scope remains in V1 and is not represented as completed by mock data.
+Production market calls and vendor-specific acceptance are blocked. The required Markets feature scope remains in V1 and is not represented as completed by mock data, protocol compilation, or cache tests. A user budget or product-scope decision is required before the blocker can be reviewed again.
 
 **Implementation impact**
 
-Stage 2 may implement only compile-time contracts and synthetic mocks. Any live integration requires a new explicit authorization that resolves this decision and updates A-008 evidence.
+A future, separately authorized Stage 2 may implement only compile-time contracts and synthetic mocks. This statement does not authorize Stage 2 while the Stage 1 Gate is unresolved. Any production integration requires a new explicit authorization that resolves this decision and updates A-008 evidence.
 
 **Evidence:** [Market provider matrix](V1_RESEARCH_EVIDENCE.md#5-market-provider-comparison-matrix) and [conflicts](V1_RESEARCH_EVIDENCE.md#11-unverified-or-conflicting-facts).
 
@@ -446,7 +449,7 @@ Cache metadata consumes space and access updates need batching. Offline views mu
 
 **Implementation impact**
 
-Stage 2 establishes the separate cache database, configuration values, and isolation tests. Fetch caching and Settings UX belong to later authorized stages.
+A separately authorized Stage 2 establishes only the separate cache database foundation, configuration values, and isolation tests. Production fetch caching belongs to Stage 6; Settings cache controls belong to Stage 11.
 
 **Evidence:** [Persistence and cache decision trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability).
 
@@ -528,7 +531,7 @@ Stage 2 creates only calculation structure and foundational numeric tests; Stage
 - Use Foundation `URLSession` async APIs with `Codable` boundary DTOs. No networking SDK or third-party HTTP client.
 - One actor-owned client per approved external service owns request construction, authentication, quota state, in-flight deduplication, and response decoding.
 - Default maximum is **2 concurrent external requests per provider**, reduced when the provider's verified quota requires it.
-- Apply the strictest current official quota. If a quota is unknown or conflicting, live integration remains disabled rather than guessing.
+- Apply the strictest current official quota. If a quota is unknown or conflicting, production integration remains disabled rather than guessing.
 - Request timeout: **30 seconds**; resource timeout: **60 seconds**.
 - Retry only idempotent GET requests after transient network failures, HTTP 408, 429, or 5xx. Maximum **3 retry attempts** after the initial request, with approximately **1, 2, and 4 seconds** exponential delay plus bounded jitter; honor `Retry-After` when present. Do not retry authentication, entitlement, validation, or decoding failures.
 - Cancel work when the owning task is cancelled. Do not detach unstructured tasks for ordinary requests.
@@ -551,7 +554,7 @@ Provider adapters must translate provider-specific pagination and limits into th
 
 **Implementation impact**
 
-Stage 2 may define testable request policy primitives if required by an authorized foundation prompt. It may not implement a live market provider while A-008 is blocked.
+Stage 2 may define testable request policy primitives if required by an authorized foundation prompt. It may not implement a production market provider while A-008 is blocked.
 
 **Evidence:** [Apple URLSession/concurrency and provider sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register).
 
@@ -594,7 +597,7 @@ V1 database/backups depend on host/user disk protection and user handling. File 
 
 **Implementation impact**
 
-Stage 2 configures sandbox paths and a Keychain boundary without adding real keys. Stage 11 adds credential UX; Stage 12 hardens file and backup flows.
+Stage 2 configures sandbox paths and a Keychain boundary without adding real keys. Stage 11 owns credential UX, privacy/data-lifecycle file flows, backup/restore, and migration reliability; Stage 12 owns UX/performance/regression hardening.
 
 **Evidence:** [Apple Sandbox, Keychain, and OSLog sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register).
 
@@ -628,7 +631,7 @@ Restore requires an explicit maintenance state and failure UX. Unencrypted backu
 
 **Implementation impact**
 
-Stage 12 implements and tests this flow; Stage 2 only ensures the permanent/cache path split and migration hooks support it.
+Stage 11 implements and tests this flow; Stage 2 only ensures the permanent/cache path split and migration hooks support it, and Stage 12 performs cross-feature regression hardening.
 
 **Evidence:** [GRDB and Apple privacy evidence](V1_RESEARCH_EVIDENCE.md#9-dependency-and-license-table).
 
@@ -732,11 +735,11 @@ flowchart LR
     Domain["Domain Value Types &\nDeterministic Financial Calculations"]
     WealthStore["WealthStore actor"]
     PermanentDB[("Permanent Wealth Store\nApplication Support\naureus.sqlite")]
-    MarketService["Market Data Service\nA-008 live provider BLOCKED"]
+    MarketService["Market Data Service\nA-008 production provider BLOCKED"]
     CacheStore["MarketCacheStore actor"]
     CacheDB[("Bounded Market Cache\nCaches\nmarket-cache.sqlite")]
     CacheCleanup["TTL · Size · LRU\nCache Cleanup"]
-    ExternalMarket["External Market Provider\nnot selected"]
+    ExternalMarket["External Market Provider\nnone selected or authorized"]
     FXService["FX Service"]
     ExternalFX["Frankfurter v2\nECB reference rates"]
     Keychain["Keychain\nProvider secrets"]
@@ -760,7 +763,7 @@ There is deliberately no edge from `CacheCleanup` or `MarketCacheStore` to `Weal
 
 ## 20. Stage 2 Implementation Contract
 
-Stage 2 may rely on the following freeze-candidate contract only after Reviewer acceptance:
+Stage 2 may rely on the following freeze-candidate contract only after Reviewer acceptance and a separately authorized Stage 2 prompt. Because A-008 remains BLOCKED, the Provider-independent foundation below does not mean Stage 1 passed and does not itself authorize Stage 2:
 
 ### Required baseline
 
@@ -779,7 +782,7 @@ Stage 2 may rely on the following freeze-candidate contract only after Reviewer 
 
 ### Explicit Stage 2 prohibitions
 
-- No live Market Provider implementation, account, API key, SDK, or vendor network call while A-008 is blocked.
+- No production Market Provider implementation, account, API key, SDK, or vendor network call while A-008 is blocked.
 - No multi-provider runtime, plugin system, automatic provider switching, service locator, DI framework, event bus, or per-entity repository protocols.
 - No Lightweight Charts asset, WKWebView chart bridge, Python runtime, analytics service, or speculative package.
 - No feature implementation assigned to Stage 3 or later unless a later authorized prompt says otherwise.
