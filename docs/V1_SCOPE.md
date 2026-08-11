@@ -1,21 +1,21 @@
-# Aureus V1 Scope Freeze Candidate
+# Aureus V1 Scope — Frozen
 
 ## 1. Status and Authority
 
-**Status:** Stage 1 Final Freeze Candidate  
-**Candidate date:** 2026-08-11  
-**Approval boundary:** This document becomes the V1 scope baseline only after a Reviewer Gate decision of PASS.
+**Status:** Stage 1 Frozen / Reviewer Gate PASS — 2026-08-11  
+**Frozen date:** 2026-08-11  
+**Approval boundary:** The Reviewer Gate decision of PASS on 2026-08-11 made this document the V1 scope baseline.
 
 Authority remains, from highest to lowest:
 
 1. The user's latest explicit instruction.
 2. Frozen long-term product decisions.
 3. [`Aureus_Wealth_Terminal_项目设计汇总.md`](../Aureus_Wealth_Terminal_%E9%A1%B9%E7%9B%AE%E8%AE%BE%E8%AE%A1%E6%B1%87%E6%80%BB.md).
-4. The approved V1 scope, once this candidate is accepted.
+4. This approved V1 scope.
 5. The current stage prompt.
 6. Historical plans or discussions.
 
-This file freezes product scope, not implementation details. The technology candidate is in [`V1_ARCHITECTURE.md`](V1_ARCHITECTURE.md), and its research evidence is in [`V1_RESEARCH_EVIDENCE.md`](V1_RESEARCH_EVIDENCE.md). A change after Reviewer approval requires an explicit, documented scope decision; implementation convenience is not authority to add or remove product requirements.
+This file freezes product scope, not implementation details. The frozen technology baseline is in [`V1_ARCHITECTURE.md`](V1_ARCHITECTURE.md), and its research evidence is in [`V1_RESEARCH_EVIDENCE.md`](V1_RESEARCH_EVIDENCE.md). A change after Reviewer approval requires an explicit, documented scope decision; implementation convenience is not authority to add or remove product requirements.
 
 ## 2. Product Boundary
 
@@ -82,7 +82,7 @@ The user authorized **Twelve Data** as the V1 Primary Market Data Provider on 20
 
 Basic Free is a usable, US-focused entry path. It is not represented as complete United States, Hong Kong, mainland-China, and Japan coverage. The required four-market scope remains frozen, but access is plan- and entitlement-dependent: a user may choose Twelve Data Pro or higher, and Stage 6 must verify the actual key's exchange, endpoint, freshness, adjustment, action, quota, cache, deletion, and attribution entitlements. A listed exchange or user-entered plan name is not proof of access.
 
-An unavailable market must be shown as `Plan Required`, `Unsupported by Current Entitlement`, or an equivalently explicit state. It must not be silently hidden, reported as an empty success, or replaced by Mock data. This Provider selection is a Stage 1 Freeze Candidate; it does not prove credentialed API behavior, does not complete Stage 6 acceptance, and does not authorize Stage 2.
+An unavailable market must be shown as `Plan Required`, `Unsupported by Current Entitlement`, or an equivalently explicit state. It must not be silently hidden, reported as an empty success, or replaced by Mock data. This Provider selection is part of the frozen Stage 1 baseline; it does not prove credentialed API behavior or complete Stage 6 acceptance.
 
 ### 3.4 Portfolio intelligence
 
@@ -163,7 +163,7 @@ This mapping assigns the frozen capabilities to the existing Stage 2 through Sta
 
 | Stage | V1 ownership |
 |---|---|
-| Stage 2 | **App Foundation + Persistence Core:** App shell; Navigation; core domain/value types; GRDB persistence bootstrap; Migration foundation; permanent/cache physical separation; synthetic demo policy; Unit/Integration/UI testing foundation; Provider-independent contracts and a Keychain boundary only. Twelve Data is selected, but Stage 2 does not implement its adapter, accept a real key, or make Provider calls; this mapping does not authorize Stage 2. |
+| Stage 2 | **App Foundation + Persistence Core:** App shell; Navigation; core domain/value types; GRDB persistence bootstrap; Migration foundation; permanent/cache physical separation; synthetic demo policy; Unit/Integration/UI testing foundation; Provider-independent contracts and a Keychain boundary only. Twelve Data is selected, but Stage 2 does not implement its adapter, accept a real key, or make Provider calls. |
 | Stage 3 | **Wealth + Asset Container.** |
 | Stage 4 | **Ledger + Cash Flow.** |
 | Stage 5 | **Wealth Snapshot + Dashboard + Core Visualization.** |

@@ -1,0 +1,574 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* AureusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* AureusApp.swift */; };
+		A10000000000000000000002 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* AppModel.swift */; };
+		A10000000000000000000003 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* AppDependencies.swift */; };
+		A10000000000000000000004 /* RuntimePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* RuntimePaths.swift */; };
+		A10000000000000000000005 /* AppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* AppShellView.swift */; };
+		A10000000000000000000006 /* FinancialValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* FinancialValues.swift */; };
+		A10000000000000000000007 /* TimeValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* TimeValues.swift */; };
+		A10000000000000000000008 /* CoreModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* CoreModels.swift */; };
+		A10000000000000000000009 /* ProviderContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* ProviderContracts.swift */; };
+		A1000000000000000000000A /* SyntheticProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* SyntheticProviders.swift */; };
+		A1000000000000000000000B /* DatabaseMigrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* DatabaseMigrations.swift */; };
+		A1000000000000000000000C /* DatabaseQueueFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* DatabaseQueueFactory.swift */; };
+		A1000000000000000000000D /* SyntheticFoundationSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* SyntheticFoundationSeeder.swift */; };
+		A1000000000000000000000E /* WealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* WealthStore.swift */; };
+		A1000000000000000000000F /* MarketCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* MarketCacheStore.swift */; };
+		A10000000000000000000010 /* CachePolicyConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* CachePolicyConfiguration.swift */; };
+		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
+		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
+		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
+		A20000000000000000000003 /* PersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* PersistenceTests.swift */; };
+		A20000000000000000000004 /* CacheIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* CacheIsolationTests.swift */; };
+		A20000000000000000000005 /* ProviderBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* ProviderBoundaryTests.swift */; };
+		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
+		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F20100000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F10000000000000000000001;
+			remoteInfo = Aureus;
+		};
+		F30100000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F10000000000000000000001;
+			remoteInfo = Aureus;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		B10000000000000000000001 /* AureusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* RuntimePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePaths.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* AppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellView.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* FinancialValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValues.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* TimeValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeValues.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* CoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* ProviderContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderContracts.swift; sourceTree = "<group>"; };
+		B1000000000000000000000A /* SyntheticProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticProviders.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* DatabaseMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrations.swift; sourceTree = "<group>"; };
+		B1000000000000000000000C /* DatabaseQueueFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseQueueFactory.swift; sourceTree = "<group>"; };
+		B1000000000000000000000D /* SyntheticFoundationSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticFoundationSeeder.swift; sourceTree = "<group>"; };
+		B1000000000000000000000E /* WealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthStore.swift; sourceTree = "<group>"; };
+		B1000000000000000000000F /* MarketCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketCacheStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* CachePolicyConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachePolicyConfiguration.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* Aureus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Aureus.entitlements; sourceTree = "<group>"; };
+		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000004 /* CacheIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheIsolationTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000005 /* ProviderBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderBoundaryTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
+		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000003 /* AureusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E10000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000020 /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E20000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000020 /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E30000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D00000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				D10000000000000000000001 /* Aureus */,
+				D20000000000000000000001 /* AureusTests */,
+				D30000000000000000000001 /* AureusUITests */,
+				D00000000000000000000002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D00000000000000000000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000001 /* Aureus.app */,
+				C00000000000000000000002 /* AureusTests.xctest */,
+				C00000000000000000000003 /* AureusUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000001 /* Aureus */ = {
+			isa = PBXGroup;
+			children = (
+				D11000000000000000000001 /* App */,
+				D12000000000000000000001 /* Domain */,
+				D13000000000000000000001 /* Persistence */,
+				D14000000000000000000001 /* Features */,
+				B10000000000000000000011 /* Aureus.entitlements */,
+			);
+			path = Aureus;
+			sourceTree = "<group>";
+		};
+		D11000000000000000000001 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* AureusApp.swift */,
+				B10000000000000000000002 /* AppModel.swift */,
+				B10000000000000000000003 /* AppDependencies.swift */,
+				B10000000000000000000004 /* RuntimePaths.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D12000000000000000000001 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				D12100000000000000000001 /* Money */,
+				D12200000000000000000001 /* Time */,
+				D12300000000000000000001 /* Models */,
+				D12400000000000000000001 /* Providers */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		D12100000000000000000001 /* Money */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000006 /* FinancialValues.swift */);
+			path = Money;
+			sourceTree = "<group>";
+		};
+		D12200000000000000000001 /* Time */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000007 /* TimeValues.swift */);
+			path = Time;
+			sourceTree = "<group>";
+		};
+		D12300000000000000000001 /* Models */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000008 /* CoreModels.swift */);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D12400000000000000000001 /* Providers */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000009 /* ProviderContracts.swift */,
+				B1000000000000000000000A /* SyntheticProviders.swift */,
+			);
+			path = Providers;
+			sourceTree = "<group>";
+		};
+		D13000000000000000000001 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				D13100000000000000000001 /* Migrations */,
+				D13200000000000000000001 /* Permanent */,
+				D13300000000000000000001 /* MarketCache */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		D13100000000000000000001 /* Migrations */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000B /* DatabaseMigrations.swift */,
+				B1000000000000000000000C /* DatabaseQueueFactory.swift */,
+				B1000000000000000000000D /* SyntheticFoundationSeeder.swift */,
+			);
+			path = Migrations;
+			sourceTree = "<group>";
+		};
+		D13200000000000000000001 /* Permanent */ = {
+			isa = PBXGroup;
+			children = (B1000000000000000000000E /* WealthStore.swift */);
+			path = Permanent;
+			sourceTree = "<group>";
+		};
+		D13300000000000000000001 /* MarketCache */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000F /* MarketCacheStore.swift */,
+				B10000000000000000000010 /* CachePolicyConfiguration.swift */,
+			);
+			path = MarketCache;
+			sourceTree = "<group>";
+		};
+		D14000000000000000000001 /* Features */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000005 /* AppShellView.swift */);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		D20000000000000000000001 /* AureusTests */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000001 /* FinancialValueTests.swift */,
+				B20000000000000000000002 /* TimeFoundationTests.swift */,
+				B20000000000000000000003 /* PersistenceTests.swift */,
+				B20000000000000000000004 /* CacheIsolationTests.swift */,
+				B20000000000000000000005 /* ProviderBoundaryTests.swift */,
+			);
+			path = AureusTests;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000001 /* AureusUITests */ = {
+			isa = PBXGroup;
+			children = (B30000000000000000000001 /* AureusUITests.swift */);
+			path = AureusUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F10000000000000000000001 /* Aureus */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H10000000000000000000001 /* Build configuration list for PBXNativeTarget "Aureus" */;
+			buildPhases = (
+				E10000000000000000000001 /* Sources */,
+				E10000000000000000000002 /* Frameworks */,
+				E10000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = Aureus;
+			packageProductDependencies = (P10000000000000000000001 /* GRDB */);
+			productName = Aureus;
+			productReference = C00000000000000000000001 /* Aureus.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F20000000000000000000001 /* AureusTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H20000000000000000000001 /* Build configuration list for PBXNativeTarget "AureusTests" */;
+			buildPhases = (
+				E20000000000000000000001 /* Sources */,
+				E20000000000000000000002 /* Frameworks */,
+				E20000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (F20200000000000000000001 /* PBXTargetDependency */);
+			name = AureusTests;
+			packageProductDependencies = (P20000000000000000000001 /* GRDB */);
+			productName = AureusTests;
+			productReference = C00000000000000000000002 /* AureusTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		F30000000000000000000001 /* AureusUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H30000000000000000000001 /* Build configuration list for PBXNativeTarget "AureusUITests" */;
+			buildPhases = (
+				E30000000000000000000001 /* Sources */,
+				E30000000000000000000002 /* Frameworks */,
+				E30000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (F30200000000000000000001 /* PBXTargetDependency */);
+			name = AureusUITests;
+			packageProductDependencies = ();
+			productName = AureusUITests;
+			productReference = C00000000000000000000003 /* AureusUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					F10000000000000000000001 = {CreatedOnToolsVersion = 26.6; };
+					F20000000000000000000001 = {CreatedOnToolsVersion = 26.6; TestTargetID = F10000000000000000000001; };
+					F30000000000000000000001 = {CreatedOnToolsVersion = 26.6; TestTargetID = F10000000000000000000001; };
+				};
+			};
+			buildConfigurationList = H00000000000000000000001 /* Build configuration list for PBXProject "Aureus" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = D00000000000000000000001;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (P00000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D00000000000000000000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F10000000000000000000001 /* Aureus */,
+				F20000000000000000000001 /* AureusTests */,
+				F30000000000000000000001 /* AureusUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E10000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		E20000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		E30000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E10000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* AureusApp.swift in Sources */,
+				A10000000000000000000002 /* AppModel.swift in Sources */,
+				A10000000000000000000003 /* AppDependencies.swift in Sources */,
+				A10000000000000000000004 /* RuntimePaths.swift in Sources */,
+				A10000000000000000000005 /* AppShellView.swift in Sources */,
+				A10000000000000000000006 /* FinancialValues.swift in Sources */,
+				A10000000000000000000007 /* TimeValues.swift in Sources */,
+				A10000000000000000000008 /* CoreModels.swift in Sources */,
+				A10000000000000000000009 /* ProviderContracts.swift in Sources */,
+				A1000000000000000000000A /* SyntheticProviders.swift in Sources */,
+				A1000000000000000000000B /* DatabaseMigrations.swift in Sources */,
+				A1000000000000000000000C /* DatabaseQueueFactory.swift in Sources */,
+				A1000000000000000000000D /* SyntheticFoundationSeeder.swift in Sources */,
+				A1000000000000000000000E /* WealthStore.swift in Sources */,
+				A1000000000000000000000F /* MarketCacheStore.swift in Sources */,
+				A10000000000000000000010 /* CachePolicyConfiguration.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E20000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000001 /* FinancialValueTests.swift in Sources */,
+				A20000000000000000000002 /* TimeFoundationTests.swift in Sources */,
+				A20000000000000000000003 /* PersistenceTests.swift in Sources */,
+				A20000000000000000000004 /* CacheIsolationTests.swift in Sources */,
+				A20000000000000000000005 /* ProviderBoundaryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E30000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A30000000000000000000001 /* AureusUITests.swift in Sources */);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F20200000000000000000001 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = F10000000000000000000001 /* Aureus */; targetProxy = F20100000000000000000001 /* PBXContainerItemProxy */; };
+		F30200000000000000000001 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = F10000000000000000000001 /* Aureus */; targetProxy = F30100000000000000000001 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		G00000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		G00000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		G10000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = Aureus/Aureus.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SELECTED_FILES = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Aureus;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		G10000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = Aureus/Aureus.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_USER_SELECTED_FILES = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Aureus;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		G20000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Aureus.app/Contents/MacOS/Aureus";
+			};
+			name = Debug;
+		};
+		G20000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Aureus.app/Contents/MacOS/Aureus";
+			};
+			name = Release;
+		};
+		G30000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Aureus;
+			};
+			name = Debug;
+		};
+		G30000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Aureus;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		H00000000000000000000001 /* Build configuration list for PBXProject "Aureus" */ = {isa = XCConfigurationList; buildConfigurations = (G00000000000000000000001 /* Debug */, G00000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H10000000000000000000001 /* Build configuration list for PBXNativeTarget "Aureus" */ = {isa = XCConfigurationList; buildConfigurations = (G10000000000000000000001 /* Debug */, G10000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H20000000000000000000001 /* Build configuration list for PBXNativeTarget "AureusTests" */ = {isa = XCConfigurationList; buildConfigurations = (G20000000000000000000001 /* Debug */, G20000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H30000000000000000000001 /* Build configuration list for PBXNativeTarget "AureusUITests" */ = {isa = XCConfigurationList; buildConfigurations = (G30000000000000000000001 /* Debug */, G30000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		P00000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {kind = exactVersion; version = 7.11.1; };
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		P10000000000000000000001 /* GRDB */ = {isa = XCSwiftPackageProductDependency; package = P00000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */; productName = GRDB; };
+		P20000000000000000000001 /* GRDB */ = {isa = XCSwiftPackageProductDependency; package = P00000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */; productName = GRDB; };
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F00000000000000000000001 /* Project object */;
+}

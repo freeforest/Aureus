@@ -1,16 +1,16 @@
-# Aureus V1 Architecture & Technology Freeze Candidate
+# Aureus V1 Architecture & Technology — Frozen
 
 ## 1. Decision Status
 
-**Status:** Stage 1 Final Freeze Candidate  
-**Candidate date:** 2026-08-11  
-**Approval boundary:** These decisions become the V1 technical baseline only after a Reviewer Gate decision of PASS.
+**Status:** Stage 1 Frozen / Reviewer Gate PASS — 2026-08-11  
+**Frozen date:** 2026-08-11  
+**Approval boundary:** The Reviewer Gate decision of PASS on 2026-08-11 made these decisions the V1 technical baseline.
 
 The user's latest explicit instruction and root `AGENTS.md` remain authoritative. [`V1_SCOPE.md`](V1_SCOPE.md) owns product scope; this file owns the proposed implementation baseline; [`V1_RESEARCH_EVIDENCE.md`](V1_RESEARCH_EVIDENCE.md) records supporting research and uncertainty.
 
 After approval, a frozen decision changes only through an explicit architecture change record that identifies the affected decision IDs, reason, alternatives, data/migration impact, privacy impact, testing impact, and approving authority. Repository reality may disprove completion, but it does not silently change requirements.
 
-The user authorized the final missing product decision on 2026-08-10: **A-008 selects Twelve Data with a user-owned BYOK and plan-aware entitlement model**. Basic Free is the usable US-focused entry path. Complete United States, Hong Kong, mainland-China, and Japan capability may depend on a user-selected Pro-or-higher entitlement and remains subject to Stage 6 verification of the actual key, exchange/data rights, freshness, cache, deletion, and attribution obligations. The selection completes the Stage 1 architecture candidate; only the Reviewer may decide its Gate, and this document does not authorize Stage 2.
+The user authorized the final missing product decision on 2026-08-10: **A-008 selects Twelve Data with a user-owned BYOK and plan-aware entitlement model**. Basic Free is the usable US-focused entry path. Complete United States, Hong Kong, mainland-China, and Japan capability may depend on a user-selected Pro-or-higher entitlement and remains subject to Stage 6 verification of the actual key, exchange/data rights, freshness, cache, deletion, and attribution obligations. The Reviewer froze this Stage 1 architecture baseline with a PASS decision on 2026-08-11; the current Stage 2 prompt separately authorizes only the foundation contract below.
 
 ## 2. Decision Register
 
@@ -369,7 +369,7 @@ A user-entered Plan name is display metadata only. Stage 6 must reconcile the ke
 
 ### Market and data capability boundary
 
-| Market or capability | Freeze-candidate boundary |
+| Market or capability | Frozen V1 boundary |
 |---|---|
 | United States | Basic Free is the usable path for real-time US equities/ETFs plus reference and technical data within its quota. Stage 6 must still test Search, history, adjustments, and actions with a real Basic key. |
 | `XHKG` | Official Exchanges lists Pro as the minimum individual plan, while the current EOD guide flags Hong Kong for Provider/licensing confirmation. Treat Pro-or-higher as an allowed entitlement route, not proof that EOD data is active. |
@@ -443,7 +443,7 @@ The architecture has one production Provider and one deterministic synthetic tes
 
 **Implementation impact**
 
-After Reviewer acceptance and a separate Stage 2 prompt, Stage 2 may define only provider-neutral contracts, entitlement value states, a Keychain boundary, and deterministic synthetic mocks. Stage 6 owns the Twelve Data adapter, real key lifecycle, Provider calls, cache/deletion implementation, UI states, and acceptance evidence.
+Under the accepted Stage 1 baseline and an authorized Stage 2 prompt, Stage 2 may define only provider-neutral contracts, entitlement value states, a Keychain boundary, and deterministic synthetic mocks. Stage 6 owns the Twelve Data adapter, real key lifecycle, Provider calls, cache/deletion implementation, UI states, and acceptance evidence.
 
 **Evidence:** [Market provider matrix](V1_RESEARCH_EVIDENCE.md#5-market-provider-comparison-matrix), [Twelve Data refresh](V1_RESEARCH_EVIDENCE.md#58-twelve-data-freeze-refresh--2026-08-11), and [remaining verification limits](V1_RESEARCH_EVIDENCE.md#11-unverified-or-conflicting-facts).
 
@@ -825,7 +825,7 @@ There is deliberately no edge from `CacheCleanup` or `MarketCacheStore` to `Weal
 
 ## 20. Stage 2 Implementation Contract
 
-Stage 2 may rely on the following Final Freeze Candidate contract only after Reviewer acceptance and a separately authorized Stage 2 prompt. Twelve Data is selected, but Stage 2 remains a Provider-independent foundation and does not implement or validate the production adapter:
+Stage 2 may rely on the following frozen contract. Reviewer acceptance was recorded on 2026-08-11, and the current Stage 2 prompt authorizes this foundation only. Twelve Data is selected, but Stage 2 remains Provider-independent and does not implement or validate the production adapter:
 
 ### Required baseline
 

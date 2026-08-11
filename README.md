@@ -19,13 +19,35 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
-The repository contains the project design and repository-governance baseline, but no buildable app, business implementation, build target, or test target.
+Stage 1 is frozen: **Reviewer Gate PASS — 2026-08-11**. Stage 2 foundation work has begun and now provides a native SwiftUI app shell, GRDB-backed persistence foundation, and Unit/UI test targets. Stage 3 wealth-management business features have not begun.
 
-Stage 1 now contains a Final Freeze Candidate awaiting Reviewer Gate; no implementation stage has begun. Twelve Data is the user-authorized Primary Market Data Provider candidate, using a user-owned API key (BYOK) and plan-aware entitlements: Basic Free is the usable US-focused entry path, while complete US/HK/mainland-China/Japan capability depends on the user's Pro-or-higher entitlement and later Stage 6 verification.
+Twelve Data is the frozen Primary Market Data Provider, using a user-owned API key (BYOK) and plan-aware entitlements: Basic Free is the usable US-focused entry path, while complete US/HK/mainland-China/Japan capability depends on the user's Pro-or-higher entitlement and later Stage 6 verification. Stage 2 contains provider-independent contracts only; it does not make live Provider requests.
 
-- [V1 Scope Freeze Candidate](docs/V1_SCOPE.md)
-- [V1 Architecture & Technology Freeze Candidate](docs/V1_ARCHITECTURE.md)
+- [V1 Scope — Frozen](docs/V1_SCOPE.md)
+- [V1 Architecture & Technology — Frozen](docs/V1_ARCHITECTURE.md)
 - [V1 Research Evidence](docs/V1_RESEARCH_EVIDENCE.md)
+
+## Build and Test
+
+Resolve the single external dependency, GRDB 7.11.1:
+
+```sh
+xcodebuild -resolvePackageDependencies -project Aureus.xcodeproj -scheme Aureus
+```
+
+Build the arm64 Debug app and all test products in isolated DerivedData:
+
+```sh
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage2-DerivedData CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage2-DerivedData CODE_SIGNING_ALLOWED=NO build-for-testing
+```
+
+Run the complete Unit/Integration suite, then the UI suite. The UI test runner uses only local ad-hoc signing and does not require a Development Team:
+
+```sh
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage2-DerivedData CODE_SIGNING_ALLOWED=NO test -only-testing:AureusTests
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage2-DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test -only-testing:AureusUITests
+```
 
 The canonical product design source for later stages is [Aureus_Wealth_Terminal_项目设计汇总.md](Aureus_Wealth_Terminal_项目设计汇总.md).
 

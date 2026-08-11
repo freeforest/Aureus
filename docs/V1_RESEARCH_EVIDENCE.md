@@ -2,8 +2,8 @@
 
 ## 1. Purpose, Method, and Evidence Labels
 
-**Status:** Stage 1 Final Freeze Candidate research evidence; original research visited 2026-08-10, Twelve Data decision refresh visited 2026-08-11.  
-**Authority:** This file records evidence and comparison; it does not override [`V1_SCOPE.md`](V1_SCOPE.md) or [`V1_ARCHITECTURE.md`](V1_ARCHITECTURE.md), and no candidate decision is approved until Reviewer Gate PASS.
+**Status:** Stage 1 Frozen / Reviewer Gate PASS — 2026-08-11; original research visited 2026-08-10, Twelve Data decision refresh visited 2026-08-11.  
+**Authority:** This file records evidence and comparison; it does not override the frozen [`V1_SCOPE.md`](V1_SCOPE.md) or [`V1_ARCHITECTURE.md`](V1_ARCHITECTURE.md). The Reviewer Gate decision of PASS was recorded on 2026-08-11.
 
 Research used only primary sources as formal evidence: Apple and Swift documentation, official project documentation/repositories/licenses/releases, and provider-owned API/pricing/terms/attribution/status pages. Search results were used only to locate pages and are not cited as evidence. No account was created, no API key was requested, no credentialed endpoint was called, no dependency was installed, and no package was resolved. The user authorized Twelve Data, BYOK, and the tiered Basic/Pro-or-higher product boundary on 2026-08-10; this evidence records that decision but does not claim the Reviewer Gate or Stage 6 real-Provider acceptance.
 
@@ -12,7 +12,7 @@ Comparison notation:
 - **[F] Fact:** directly observed in an official source.
 - **[I] Inference:** Executor interpretation derived from cited facts; not stated verbatim by the source.
 - **[R] Recommendation:** Executor's single proposed V1 choice.
-- **[C] Candidate:** awaits Reviewer Gate and is not yet a frozen baseline.
+- **[C] Candidate:** marks a recommendation as it stood during research; frozen outcomes are identified by the current status and architecture decision register.
 - **VERIFIED:** the stated fact was directly supported by accessible official material.
 - **UNVERIFIED:** official material did not establish the fact needed by Aureus.
 - **CONFLICTING:** official pages materially disagreed or left incompatible interpretations.
@@ -169,8 +169,8 @@ An active wrapper, documentation page, or point-in-time operational dashboard is
 - EODHD: **REJECT Free; retain All World as paid conditional candidate with material coverage/right confirmations outstanding**.
 - Finnhub: **UNVERIFIED / REJECT as Primary**.
 - FMP: **REJECT Free; paid Global remains conditional and incomplete**.
-- V1 Primary Market Data Provider: **Twelve Data — SELECTED as the Stage 1 Final Freeze Candidate, subject to Reviewer Gate**.
-- Test/mock direction: **ACCEPT only as a deterministic in-memory synthetic test provider conforming to the minimal contract; it is not Twelve Data acceptance and does not authorize Stage 2.**
+- V1 Primary Market Data Provider: **Twelve Data — SELECTED in the Stage 1 frozen baseline after Reviewer Gate PASS on 2026-08-11**.
+- Test/mock direction: **ACCEPT only as a deterministic in-memory synthetic test provider conforming to the minimal contract; it is not Twelve Data acceptance and does not authorize production Provider implementation or Stage 6 acceptance.**
 
 **Selection basis:** [F] Basic Free provides 8 API credits/minute and 800/day with a usable US-focused path. Pro starts at 610 API credits/minute and the official Exchanges page maps the four target exchange codes to Pro as their minimum individual tier. [User decision] The user accepted a tiered model rather than requiring the free tier to cover every market. [Boundary] Actual entitlements, market-specific licensing, cache/deletion duties, and real responses remain Stage 6 acceptance requirements.
 
@@ -419,7 +419,7 @@ Sources P-01 through M-49 were visited on **2026-08-10** unless their row says o
 | Finnhub current plans, quota, history, HK/CN/JP coverage, and app rights | UNVERIFIED | Dynamic official Pricing/API pages returned no readable body; the readable Terms page alone cannot prove capability or entitlement. | Direct readable official plan/API/exchange evidence and applicable rights confirmation. |
 | FMP exact four-market Ultimate entitlement and BYOK application rights | UNVERIFIED | “Global Coverage” and a keyed exchange-list endpoint do not enumerate the required venues publicly; personal terms restrict third-party-accessible application integration. | User authorization plus provider confirmation of exchanges and app/display/cache terms. |
 | Alpha Vantage paid numeric price | UNVERIFIED in the research client | The official premium selector did not expose numeric prices, and no paid Alpha path otherwise satisfies the evidence chain. | Provider pricing confirmation only if reconsidered. |
-| Primary Market Data Provider | **SELECTED — Twelve Data BYOK tiered model** | The user explicitly accepted Basic as the US-focused free entry and Pro-or-higher entitlement as the permitted international route. | Reviewer Gate for the freeze candidate; Stage 6 remains the real Provider acceptance gate. |
+| Primary Market Data Provider | **SELECTED — Twelve Data BYOK tiered model** | The user explicitly accepted Basic as the US-focused free entry and Pro-or-higher entitlement as the permitted international route. | Reviewer Gate PASS froze the selection; Stage 6 remains the real Provider acceptance gate. |
 | Direct ECB API availability | UNVERIFIED during visit | API overview returned 503. | Not core: selected Frankfurter path and ECB dataset evidence remain available; retest before choosing a direct adapter. |
 | Project source license | USER AUTHORIZATION_PENDING | Executor cannot create or choose LICENSE for the user. | User authorization; Apache-2.0 is only a recommendation. |
 | Signing, notarization, Development Team, distribution channel | USER AUTHORIZATION_PENDING | User-owned credentials and release choices are outside Stage 1. | User-authorized release-stage decision. |
@@ -449,4 +449,4 @@ No core architecture item converts an `UNVERIFIED` Provider fact into tested beh
 
 ## 13. Research Boundary
 
-This evidence supports a coherent Stage 1 Final Freeze Candidate including the user-authorized A-008 selection. It does not prove credentialed endpoint behavior, purchase or paid entitlement, four-market access, provider SLA, production latency, signed sandbox behavior, build success, or test success. Provider selection is not Stage 6 acceptance and does not authorize Stage 2. No unsupported market claim is converted into a product-scope reduction, purchased-plan claim, or mock-as-production claim.
+This evidence supports the frozen Stage 1 baseline, including the user-authorized A-008 selection and Reviewer Gate PASS on 2026-08-11. It does not prove credentialed endpoint behavior, purchase or paid entitlement, four-market access, provider SLA, production latency, signed sandbox behavior, build success, or test success. Provider selection is not Stage 6 acceptance and does not by itself authorize implementation; the current Prompt 2 separately authorizes only Stage 2. No unsupported market claim is converted into a product-scope reduction, purchased-plan claim, or mock-as-production claim.
