@@ -90,6 +90,50 @@ struct LedgerDomainTests {
         #expect(first == second)
         #expect(first?.category == category)
     }
+
+    @Test("Classification rules require a condition and a result")
+    func ruleValidation() throws {
+        let empty = ClassificationRule(
+            id: UUID(), name: "Synthetic Empty", priority: 1, isEnabled: true,
+            matchMode: .contains, payeePattern: nil, kind: nil,
+            sourceContainerID: nil, amountDirection: nil,
+            resultCategory: nil, resultTags: []
+        )
+        #expect(throws: LedgerDomainError.ruleRequiresCondition) { try empty.validated() }
+        let noResult = ClassificationRule(
+            id: UUID(), name: "Synthetic No Result", priority: 1, isEnabled: true,
+            matchMode: .contains, payeePattern: "Synthetic", kind: nil,
+            sourceContainerID: nil, amountDirection: nil,
+            resultCategory: nil, resultTags: []
+        )
+        #expect(throws: LedgerDomainError.ruleRequiresResult) { try noResult.validated() }
+    }
+
+    @Test("Category, tag, container, date, kind, and currency combine over one result set")
+    func combinedFilterAndSummary() throws {
+        let context = try LedgerTestContext.make()
+        let category = Category(id: UUID(), parentID: nil, name: "Synthetic Filter")
+        let tag = Tag(id: UUID(), name: "Synthetic Filter Tag")
+        let base = try context.entry(kind: .income)
+        let matching = try LedgerEntry(
+            id: base.id, kind: base.kind, civilDate: base.civilDate, recordedAt: base.recordedAt,
+            description: base.description, category: category, tags: [tag], postings: base.postings
+        )
+        let other = try context.entry(kind: .expense)
+        let filter = LedgerFilter(
+            kind: .income,
+            categoryID: category.id,
+            tagID: tag.id,
+            containerID: context.source.id,
+            currency: .cny,
+            startDate: context.date,
+            endDate: context.date
+        )
+        let visible = [matching, other].filter(filter.includes)
+        #expect(visible.map(\.id) == [matching.id])
+        #expect(try LedgerCashFlow.summarize(visible).ordinaryInflowCNY.minorUnits == 10_000)
+        #expect(LedgerFilter(startDate: try CivilDate(canonical: "2026-08-12"), endDate: context.date).hasInvalidDateRange)
+    }
 }
 
 struct LedgerTestContext {

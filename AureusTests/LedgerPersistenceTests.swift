@@ -71,6 +71,45 @@ struct LedgerPersistenceTests {
         try await store.deleteTag(id: tag.id)
     }
 
+    @Test("Classification rule CRUD, enable state, links, and protected taxonomy are transactional")
+    func classificationRuleLifecycle() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
+        let category = try await store.createCategory(name: "Synthetic Rule Category")
+        let tag = try await store.createTag(name: "Synthetic Rule Tag")
+        let id = UUID()
+        let initial = ClassificationRule(
+            id: id, name: " Synthetic  Import Rule ", priority: 20, isEnabled: true,
+            matchMode: .contains, payeePattern: "Synthetic Payee", kind: .expense,
+            sourceContainerID: context.source.id, amountDirection: .outflow,
+            resultCategory: category, resultTags: [tag]
+        )
+        try await store.createClassificationRule(initial)
+        var fetched = try await store.fetchClassificationRules()
+        #expect(fetched.count == 1)
+        #expect(fetched[0].name == "Synthetic Import Rule")
+        #expect(fetched[0].resultTags == [tag])
+        await #expect(throws: LedgerPersistenceError.categoryInUse) { try await store.deleteCategory(id: category.id) }
+        await #expect(throws: LedgerPersistenceError.tagInUse) { try await store.deleteTag(id: tag.id) }
+
+        try await store.setClassificationRuleEnabled(id: id, enabled: false)
+        #expect(try await store.fetchClassificationRules().first?.isEnabled == false)
+        let updated = ClassificationRule(
+            id: id, name: "Synthetic Updated Rule", priority: 5, isEnabled: true,
+            matchMode: .exact, payeePattern: nil, kind: .income,
+            sourceContainerID: nil, amountDirection: .inflow,
+            resultCategory: category, resultTags: []
+        )
+        try await store.updateClassificationRule(updated)
+        fetched = try await store.fetchClassificationRules()
+        #expect(fetched == [try updated.validated()])
+        try await store.deleteClassificationRule(id: id)
+        #expect(try await store.fetchClassificationRules().isEmpty)
+        try await store.deleteCategory(id: category.id)
+        try await store.deleteTag(id: tag.id)
+    }
+
     @Test("Filtered CNY and USD cash-flow aggregation reproduces after reopen")
     func filteredSummaryAfterReopen() async throws {
         let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
@@ -137,6 +176,58 @@ struct LedgerPersistenceTests {
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wealth_transactions'")
         ) }
         #expect(state.0 == 3); #expect(state.1 == 1); #expect(state.2 == 1)
+    }
+
+    @Test("v2 normalization collisions preserve every ID and legacy reference")
+    func normalizationCollisionMigration() throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let queue = try DatabaseQueueFactory.open(at: root.appendingPathComponent("collision/aureus.sqlite"))
+        let migrator = DatabaseMigrations.permanentMigrator()
+        try migrator.migrate(queue, upTo: DatabaseMigrations.permanentV2)
+        let categoryIDs = [
+            "10000000-0000-4000-8000-000000000001",
+            "10000000-0000-4000-8000-000000000002",
+            "10000000-0000-4000-8000-000000000003",
+            "10000000-0000-4000-8000-000000000004"
+        ]
+        let tagIDs = [
+            "20000000-0000-4000-8000-000000000001",
+            "20000000-0000-4000-8000-000000000002",
+            "20000000-0000-4000-8000-000000000003",
+            "20000000-0000-4000-8000-000000000004"
+        ]
+        try queue.write { db in
+            try db.execute(sql: "INSERT INTO accounts (id, name, kind, currency_code) VALUES ('legacy-account', 'Synthetic Legacy', 'cash', 'CNY')")
+            try db.execute(sql: "INSERT INTO wealth_transactions (id, account_id, civil_date, amount_minor, currency_code, type) VALUES ('legacy-transaction', 'legacy-account', '2026-01-01', 100, 'CNY', 'income')")
+            let categoryNames = ["Food Place", " food  place ", "FOOD PLACE", "Fóód Place"]
+            for (id, name) in zip(categoryIDs, categoryNames) {
+                try db.execute(sql: "INSERT INTO categories (id, parent_id, name) VALUES (?, NULL, ?)", arguments: [id, name])
+            }
+            try db.execute(sql: "INSERT INTO categories (id, parent_id, name) VALUES ('10000000-0000-4000-8000-000000000099', ?, 'Synthetic Child')", arguments: [categoryIDs[1]])
+            let tagNames = ["Café", " cafe\u{301} ", "CAFÉ", "CAFE"]
+            for (id, name) in zip(tagIDs, tagNames) {
+                try db.execute(sql: "INSERT INTO tags (id, name) VALUES (?, ?)", arguments: [id, name])
+            }
+            try db.execute(sql: "INSERT INTO transaction_tags (transaction_id, tag_id) VALUES ('legacy-transaction', ?)", arguments: [tagIDs[1]])
+        }
+        try migrator.migrate(queue)
+        try migrator.migrate(queue)
+        let evidence = try queue.read { db in
+            (
+                try String.fetchAll(db, sql: "SELECT id FROM categories WHERE id IN (?, ?, ?, ?) ORDER BY id", arguments: StatementArguments(categoryIDs)),
+                try String.fetchAll(db, sql: "SELECT id FROM tags WHERE id IN (?, ?, ?, ?) ORDER BY id", arguments: StatementArguments(tagIDs)),
+                try String.fetchOne(db, sql: "SELECT parent_id FROM categories WHERE id = '10000000-0000-4000-8000-000000000099'"),
+                try String.fetchOne(db, sql: "SELECT tag_id FROM transaction_tags WHERE transaction_id = 'legacy-transaction'"),
+                try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT normalized_name) FROM categories WHERE id IN (?, ?, ?, ?)", arguments: StatementArguments(categoryIDs)),
+                try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT normalized_name) FROM tags WHERE id IN (?, ?, ?, ?)", arguments: StatementArguments(tagIDs))
+            )
+        }
+        #expect(evidence.0 == categoryIDs)
+        #expect(evidence.1 == tagIDs)
+        #expect(evidence.2 == categoryIDs[1])
+        #expect(evidence.3 == tagIDs[1])
+        #expect(evidence.4 == 4)
+        #expect(evidence.5 == 4)
     }
 
     @Test("Cache reset leaves Ledger and wealth unchanged")

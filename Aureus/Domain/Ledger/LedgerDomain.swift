@@ -12,6 +12,8 @@ enum LedgerDomainError: Error, Equatable, Sendable {
     case categoryNotAllowedForTransfer
     case duplicateTag
     case invalidName
+    case ruleRequiresCondition
+    case ruleRequiresResult
     case overflow
 }
 
@@ -232,6 +234,11 @@ struct LedgerFilter: Equatable, Sendable {
 
     static let all = LedgerFilter()
 
+    var hasInvalidDateRange: Bool {
+        guard let startDate, let endDate else { return false }
+        return endDate < startDate
+    }
+
     func includes(_ entry: LedgerEntry) -> Bool {
         if let kind, entry.kind != kind { return false }
         if let categoryID, entry.category?.id != categoryID { return false }
@@ -261,6 +268,33 @@ struct ClassificationRule: Identifiable, Equatable, Sendable {
     let amountDirection: LedgerAmountDirection?
     let resultCategory: Category?
     let resultTags: [Tag]
+
+    func validated() throws -> ClassificationRule {
+        let normalizedName = try LedgerNameNormalization.displayName(name)
+        let normalizedPattern = try payeePattern.map(LedgerNameNormalization.displayName)
+        guard normalizedPattern != nil || kind != nil || sourceContainerID != nil || amountDirection != nil else {
+            throw LedgerDomainError.ruleRequiresCondition
+        }
+        guard resultCategory != nil || !resultTags.isEmpty else {
+            throw LedgerDomainError.ruleRequiresResult
+        }
+        guard Set(resultTags.map(\.id)).count == resultTags.count else {
+            throw LedgerDomainError.duplicateTag
+        }
+        return ClassificationRule(
+            id: id,
+            name: normalizedName,
+            priority: priority,
+            isEnabled: isEnabled,
+            matchMode: matchMode,
+            payeePattern: normalizedPattern,
+            kind: kind,
+            sourceContainerID: sourceContainerID,
+            amountDirection: amountDirection,
+            resultCategory: resultCategory,
+            resultTags: resultTags.sorted { $0.id.uuidString < $1.id.uuidString }
+        )
+    }
 }
 
 struct ClassificationInput: Equatable, Sendable {
@@ -321,7 +355,8 @@ enum DeterministicLedgerClassifier {
 
 enum LedgerNameNormalization {
     static func displayName(_ raw: String) throws -> String {
-        let pieces = raw.split(whereSeparator: \.isWhitespace)
+        let canonical = raw.precomposedStringWithCanonicalMapping
+        let pieces = canonical.split(whereSeparator: \.isWhitespace)
         let value = pieces.joined(separator: " ")
         guard !value.isEmpty else { throw LedgerDomainError.invalidName }
         return value
@@ -331,6 +366,6 @@ enum LedgerNameNormalization {
         try displayName(raw).folding(
             options: [.caseInsensitive, .diacriticInsensitive],
             locale: Locale(identifier: "en_US_POSIX")
-        )
+        ).precomposedStringWithCanonicalMapping
     }
 }

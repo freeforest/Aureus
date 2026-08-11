@@ -6,6 +6,7 @@ struct LedgerView: View {
     @State private var showingImport = false
     @State private var showingExport = false
     @State private var showingTaxonomy = false
+    @State private var showingRules = false
     @State private var categoryName = ""
     @State private var tagName = ""
     let mode: AppDataMode
@@ -38,6 +39,8 @@ struct LedgerView: View {
                     .accessibilityIdentifier("ledger.add")
                 Button { showingTaxonomy = true } label: { Label("Categories & Tags", systemImage: "tag") }
                     .accessibilityIdentifier("ledger.taxonomy")
+                Button { showingRules = true } label: { Label("Classification Rules", systemImage: "list.bullet.clipboard") }
+                    .accessibilityIdentifier("ledger.rules")
                 Button { showingImport = true } label: { Label("Import CSV", systemImage: "square.and.arrow.down") }
                     .accessibilityIdentifier("ledger.import")
                 Button { showingExport = true } label: { Label("Export CSV", systemImage: "square.and.arrow.up") }
@@ -51,6 +54,9 @@ struct LedgerView: View {
         }
         .sheet(isPresented: $showingTaxonomy) {
             taxonomySheet
+        }
+        .sheet(isPresented: $showingRules) {
+            rulesSheet
         }
         .sheet(isPresented: Binding(get: { model.importPreview != nil }, set: { if !$0 { model.importPreview = nil } })) {
             if let preview = model.importPreview { importPreviewSheet(preview) }
@@ -133,21 +139,56 @@ struct LedgerView: View {
     }
 
     private var filterBar: some View {
-        HStack {
-            Picker("Kind", selection: Binding(get: { model.filter.kind?.rawValue ?? "all" }, set: { model.filter.kind = $0 == "all" ? nil : TransactionKind(rawValue: $0); model.applyFilter() })) {
-                Text("All Kinds").tag("all")
-                ForEach(TransactionKind.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
-            }.frame(width: 180).accessibilityIdentifier("ledger.filter.kind")
-            Picker("Currency", selection: Binding(get: { model.filter.currency?.rawValue ?? "all" }, set: { model.filter.currency = $0 == "all" ? nil : CurrencyCode(rawValue: $0); model.applyFilter() })) {
-                Text("All Currencies").tag("all")
-                ForEach(CurrencyCode.allCases, id: \.rawValue) { Text($0.rawValue).tag($0.rawValue) }
-            }.frame(width: 180).accessibilityIdentifier("ledger.filter.currency")
-            Spacer()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Picker("Kind", selection: Binding(get: { model.filter.kind?.rawValue ?? "all" }, set: { model.filter.kind = $0 == "all" ? nil : TransactionKind(rawValue: $0); model.applyFilter() })) {
+                    Text("All Kinds").tag("all")
+                    ForEach(TransactionKind.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+                }.frame(width: 150).accessibilityIdentifier("ledger.filter.kind")
+                Picker("Category", selection: Binding(get: { model.filter.categoryID?.uuidString ?? "all" }, set: { model.filter.categoryID = UUID(uuidString: $0); model.applyFilter() })) {
+                    Text("All Categories").tag("all")
+                    ForEach(model.categories) { Text($0.name).tag($0.id.uuidString) }
+                }.frame(width: 170).accessibilityIdentifier("ledger.filter.category")
+                Picker("Tag", selection: Binding(get: { model.filter.tagID?.uuidString ?? "all" }, set: { model.filter.tagID = UUID(uuidString: $0); model.applyFilter() })) {
+                    Text("All Tags").tag("all")
+                    ForEach(model.tags) { Text($0.name).tag($0.id.uuidString) }
+                }.frame(width: 150).accessibilityIdentifier("ledger.filter.tag")
+                Picker("Container", selection: Binding(get: { model.filter.containerID?.uuidString ?? "all" }, set: { model.filter.containerID = UUID(uuidString: $0); model.applyFilter() })) {
+                    Text("All Containers").tag("all")
+                    ForEach(model.containers) { Text($0.container.name).tag($0.id.uuidString) }
+                }.frame(width: 180).accessibilityIdentifier("ledger.filter.container")
+                Picker("Currency", selection: Binding(get: { model.filter.currency?.rawValue ?? "all" }, set: { model.filter.currency = $0 == "all" ? nil : CurrencyCode(rawValue: $0); model.applyFilter() })) {
+                    Text("All Currencies").tag("all")
+                    ForEach(CurrencyCode.allCases, id: \.rawValue) { Text($0.rawValue).tag($0.rawValue) }
+                }.frame(width: 140).accessibilityIdentifier("ledger.filter.currency")
+            }
+            HStack {
+                TextField("Start Date (YYYY-MM-DD)", text: $model.filterStartDateText)
+                    .frame(width: 190).accessibilityIdentifier("ledger.filter.startDate")
+                TextField("End Date (YYYY-MM-DD)", text: $model.filterEndDateText)
+                    .frame(width: 190).accessibilityIdentifier("ledger.filter.endDate")
+                Button("Apply Dates") { model.applyFilter() }
+                    .accessibilityIdentifier("ledger.filter.applyDates")
+                Button("Clear Filters") { model.clearFilters() }
+                    .accessibilityIdentifier("ledger.filter.clear")
+                if let message = model.filterValidationMessage {
+                    Text(message).foregroundStyle(.red).accessibilityIdentifier("ledger.filter.validation")
+                }
+                Spacer()
+            }
         }.padding(.horizontal, 16).padding(.bottom, 8)
     }
 
     private var transactionTable: some View {
-        List(model.visibleEntries) { entry in
+        Group {
+            if model.visibleEntries.isEmpty {
+                ContentUnavailableView(
+                    "No Matching Transactions",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    description: Text("No Ledger transactions match the current filters.")
+                ).accessibilityIdentifier("ledger.filter.empty")
+            } else {
+                List(model.visibleEntries) { entry in
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.description).font(.headline)
@@ -170,8 +211,101 @@ struct LedgerView: View {
                     .accessibilityLabel("Delete \(entry.kind.title) transaction")
             }
             .accessibilityIdentifier("ledger.row.\(entry.id.uuidString)")
+                }
+                .accessibilityIdentifier("ledger.history")
+            }
         }
-        .accessibilityIdentifier("ledger.history")
+    }
+
+    private var rulesSheet: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Deterministic Classification Rules").font(.title2)
+                Spacer()
+                Button("New Rule") { model.beginCreateRule() }
+                    .accessibilityIdentifier("ledger.rule.add")
+            }
+            Text("Rules apply only to CSV Import Preview. Lower priority numbers run first.")
+                .foregroundStyle(.secondary)
+            List(model.rules) { rule in
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text(rule.name).font(.headline)
+                        Text("Priority \(rule.priority) · \(rule.matchMode.rawValue)")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Toggle("Enabled", isOn: Binding(
+                        get: { rule.isEnabled },
+                        set: { enabled in Task { await model.setRuleEnabled(rule, enabled: enabled) } }
+                    ))
+                    .toggleStyle(.switch)
+                    .accessibilityIdentifier("ledger.rule.enabled.\(rule.id.uuidString)")
+                    Button("Edit") { model.beginEditRule(rule) }
+                        .accessibilityIdentifier("ledger.rule.edit.\(rule.id.uuidString)")
+                    Button("Delete", role: .destructive) { Task { await model.deleteRule(rule) } }
+                        .accessibilityIdentifier("ledger.rule.delete.\(rule.id.uuidString)")
+                }
+            }
+            if model.ruleFormMode != nil {
+                Divider()
+                ruleEditor
+            }
+            HStack { Spacer(); Button("Done") { showingRules = false } }
+        }
+        .padding(24)
+        .frame(minWidth: 760, minHeight: 620)
+    }
+
+    private var ruleEditor: some View {
+        Form {
+            TextField("Rule name", text: $model.ruleDraft.name)
+                .accessibilityIdentifier("ledger.rule.name")
+            TextField("Priority", text: $model.ruleDraft.priority)
+                .accessibilityIdentifier("ledger.rule.priority")
+            Toggle("Enabled", isOn: $model.ruleDraft.isEnabled)
+                .accessibilityIdentifier("ledger.rule.enabled")
+            Picker("Match", selection: $model.ruleDraft.matchMode) {
+                ForEach(ClassificationMatchMode.allCases, id: \.rawValue) { Text($0.rawValue.capitalized).tag($0) }
+            }.accessibilityIdentifier("ledger.rule.matchMode")
+            TextField("Payee/Description pattern (optional)", text: $model.ruleDraft.payeePattern)
+                .accessibilityIdentifier("ledger.rule.pattern")
+            Picker("Transaction Kind", selection: $model.ruleDraft.kind) {
+                Text("Any Kind").tag(nil as TransactionKind?)
+                ForEach(TransactionKind.allCases, id: \.rawValue) { Text($0.title).tag($0 as TransactionKind?) }
+            }.accessibilityIdentifier("ledger.rule.kind")
+            Picker("Source Container", selection: $model.ruleDraft.sourceContainerID) {
+                Text("Any Container").tag(nil as UUID?)
+                ForEach(model.containers) { Text($0.container.name).tag($0.id as UUID?) }
+            }.accessibilityIdentifier("ledger.rule.container")
+            Picker("Amount Direction", selection: $model.ruleDraft.amountDirection) {
+                Text("Any Direction").tag(nil as LedgerAmountDirection?)
+                ForEach(LedgerAmountDirection.allCases, id: \.rawValue) { Text($0.rawValue.capitalized).tag($0 as LedgerAmountDirection?) }
+            }.accessibilityIdentifier("ledger.rule.direction")
+            Picker("Result Category", selection: $model.ruleDraft.resultCategoryID) {
+                Text("No Category").tag(nil as UUID?)
+                ForEach(model.categories) { Text($0.name).tag($0.id as UUID?) }
+            }.accessibilityIdentifier("ledger.rule.category")
+            if !model.tags.isEmpty {
+                Text("Result Tags")
+                ForEach(model.tags) { tag in
+                    Toggle(tag.name, isOn: Binding(
+                        get: { model.ruleDraft.resultTagIDs.contains(tag.id) },
+                        set: { enabled in
+                            if enabled { model.ruleDraft.resultTagIDs.insert(tag.id) }
+                            else { model.ruleDraft.resultTagIDs.remove(tag.id) }
+                        }
+                    )).accessibilityIdentifier("ledger.rule.tag.\(tag.id.uuidString)")
+                }
+            }
+            HStack {
+                Spacer()
+                Button("Cancel") { model.ruleFormMode = nil }
+                Button("Save Rule") { Task { await model.saveRule() } }
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("ledger.rule.save")
+            }
+        }
     }
 
     private var taxonomySheet: some View {
@@ -217,9 +351,22 @@ struct LedgerView: View {
                     Text("Row \(row.id)")
                     Text(row.entry?.description ?? row.error ?? "Invalid row")
                     Spacer()
-                    if row.isDuplicate { Text("Duplicate").foregroundStyle(.orange) }
+                    if row.isDuplicate {
+                        Text("Duplicate: \(row.duplicateReasons.map(\.rawValue).joined(separator: ", "))")
+                            .foregroundStyle(.orange)
+                    }
                     else if row.error != nil { Text("Invalid").foregroundStyle(.red) }
-                    else if row.appliedRuleID != nil { Text("Rule applied").foregroundStyle(.secondary) }
+                    else if let application = row.ruleApplication {
+                        VStack(alignment: .trailing) {
+                            Text("Rule: \(application.ruleName)")
+                            Text("Category: \(application.finalCategoryName ?? "None") (\(application.categorySource.rawValue))")
+                            Text("Tags: \(application.finalTagNames.joined(separator: ", ").isEmpty ? "None" : application.finalTagNames.joined(separator: ", ")) (\(application.tagsSource.rawValue))")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("ledger.import.ruleResult.\(row.id)")
+                    }
                     else { Text("Ready").foregroundStyle(.green) }
                 }
             }
@@ -289,6 +436,7 @@ private struct LedgerEntryForm: View {
                     Text("Tags")
                     ForEach(model.tags) { tag in
                         Toggle(tag.name, isOn: Binding(get: { model.draft.tagIDs.contains(tag.id) }, set: { value in if value { model.draft.tagIDs.insert(tag.id) } else { model.draft.tagIDs.remove(tag.id) } }))
+                            .accessibilityIdentifier("ledger.form.tag.\(tag.id.uuidString)")
                     }
                 }
                 TextField("Note", text: $model.draft.note).accessibilityIdentifier("ledger.form.note")

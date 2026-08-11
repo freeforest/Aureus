@@ -9,8 +9,14 @@ enum LedgerPersistenceError: Error, Equatable, Sendable {
     case duplicateName
     case categoryInUse
     case tagInUse
-    case duplicateImport
+    case duplicateTransactionID
+    case duplicateFingerprint
     case corruptRecord
+}
+
+struct LedgerImportIdentities: Equatable, Sendable {
+    let transactionIDs: Set<UUID>
+    let fingerprints: Set<String>
 }
 
 struct LedgerTransactionRow: Codable, FetchableRecord, PersistableRecord {
@@ -182,14 +188,37 @@ extension WealthStore {
         }
     }
 
+    func existingImportIdentities() throws -> LedgerImportIdentities {
+        try queue.read { db in
+            let ids = Set(try String.fetchAll(db, sql: "SELECT id FROM ledger_transactions").compactMap(UUID.init(uuidString:)))
+            let fingerprints = Set(try String.fetchAll(
+                db,
+                sql: "SELECT import_fingerprint FROM ledger_transactions WHERE import_fingerprint IS NOT NULL"
+            ))
+            return LedgerImportIdentities(transactionIDs: ids, fingerprints: fingerprints)
+        }
+    }
+
     func importLedgerEntries(_ entries: [LedgerEntry], batchID: UUID, importedAt: UTCInstant) throws {
         try queue.write { db in
             guard !entries.isEmpty else { return }
             for entry in entries {
-                do { try Self.insertLedgerEntry(entry, in: db) }
-                catch is DatabaseError {
-                    throw LedgerPersistenceError.duplicateImport
+                if try Int.fetchOne(
+                    db,
+                    sql: "SELECT COUNT(*) FROM ledger_transactions WHERE id = ?",
+                    arguments: [entry.id.uuidString]
+                ) == 1 {
+                    throw LedgerPersistenceError.duplicateTransactionID
                 }
+                if let fingerprint = entry.importFingerprint,
+                   try Int.fetchOne(
+                       db,
+                       sql: "SELECT COUNT(*) FROM ledger_transactions WHERE import_fingerprint = ?",
+                       arguments: [fingerprint]
+                   ) == 1 {
+                    throw LedgerPersistenceError.duplicateFingerprint
+                }
+                try Self.insertLedgerEntry(entry, in: db)
             }
             try db.execute(
                 sql: "INSERT INTO ledger_import_batches (id, schema_version, imported_at_ms, transaction_count) VALUES (?, 'AUREUS_LEDGER_V1', ?, ?)",
@@ -295,18 +324,39 @@ extension WealthStore {
     }
 
     func createClassificationRule(_ rule: ClassificationRule) throws {
+        let rule = try rule.validated()
         try queue.write { db in
-            try ClassificationRuleRow(
-                id: rule.id.uuidString, name: rule.name, priority: rule.priority,
-                isEnabled: rule.isEnabled, matchMode: rule.matchMode.rawValue,
-                payeePattern: rule.payeePattern, kind: rule.kind?.rawValue,
-                sourceContainerID: rule.sourceContainerID?.uuidString,
-                amountDirection: rule.amountDirection?.rawValue,
-                resultCategoryID: rule.resultCategory?.id.uuidString
-            ).insert(db)
-            for tag in rule.resultTags {
-                try db.execute(sql: "INSERT INTO classification_rule_tags (rule_id, tag_id) VALUES (?, ?)", arguments: [rule.id.uuidString, tag.id.uuidString])
-            }
+            try Self.insertClassificationRule(rule, in: db)
+        }
+    }
+
+    func updateClassificationRule(_ rule: ClassificationRule) throws {
+        let rule = try rule.validated()
+        try queue.write { db in
+            guard try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM classification_rules WHERE id = ?",
+                arguments: [rule.id.uuidString]
+            ) == 1 else { throw LedgerPersistenceError.ruleNotFound }
+            try db.execute(sql: "DELETE FROM classification_rules WHERE id = ?", arguments: [rule.id.uuidString])
+            try Self.insertClassificationRule(rule, in: db)
+        }
+    }
+
+    func setClassificationRuleEnabled(id: UUID, enabled: Bool) throws {
+        try queue.write { db in
+            try db.execute(
+                sql: "UPDATE classification_rules SET is_enabled = ? WHERE id = ?",
+                arguments: [enabled, id.uuidString]
+            )
+            guard db.changesCount == 1 else { throw LedgerPersistenceError.ruleNotFound }
+        }
+    }
+
+    func deleteClassificationRule(id: UUID) throws {
+        try queue.write { db in
+            try db.execute(sql: "DELETE FROM classification_rules WHERE id = ?", arguments: [id.uuidString])
+            guard db.changesCount == 1 else { throw LedgerPersistenceError.ruleNotFound }
         }
     }
 
@@ -338,6 +388,27 @@ extension WealthStore {
         for posting in entry.postings { try LedgerPostingRow(transactionID: entry.id, posting: posting).insert(db) }
         for tag in entry.tags {
             try db.execute(sql: "INSERT INTO ledger_transaction_tags (transaction_id, tag_id) VALUES (?, ?)", arguments: [entry.id.uuidString, tag.id.uuidString])
+        }
+    }
+
+    private static func insertClassificationRule(_ rule: ClassificationRule, in db: Database) throws {
+        try ClassificationRuleRow(
+            id: rule.id.uuidString,
+            name: rule.name,
+            priority: rule.priority,
+            isEnabled: rule.isEnabled,
+            matchMode: rule.matchMode.rawValue,
+            payeePattern: rule.payeePattern,
+            kind: rule.kind?.rawValue,
+            sourceContainerID: rule.sourceContainerID?.uuidString,
+            amountDirection: rule.amountDirection?.rawValue,
+            resultCategoryID: rule.resultCategory?.id.uuidString
+        ).insert(db)
+        for tag in rule.resultTags {
+            try db.execute(
+                sql: "INSERT INTO classification_rule_tags (rule_id, tag_id) VALUES (?, ?)",
+                arguments: [rule.id.uuidString, tag.id.uuidString]
+            )
         }
     }
 

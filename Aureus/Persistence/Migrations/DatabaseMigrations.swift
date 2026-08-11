@@ -367,8 +367,8 @@ enum DatabaseMigrations {
             // Stage 4's active Ledger source of truth starts with ledger_transactions.
             try db.execute(sql: "ALTER TABLE categories ADD COLUMN normalized_name TEXT")
             try db.execute(sql: "ALTER TABLE tags ADD COLUMN normalized_name TEXT")
-            try db.execute(sql: "UPDATE categories SET normalized_name = lower(trim(name))")
-            try db.execute(sql: "UPDATE tags SET normalized_name = lower(trim(name))")
+            try backfillNormalizedNames(in: db, table: "categories")
+            try backfillNormalizedNames(in: db, table: "tags")
             try db.execute(sql: "CREATE UNIQUE INDEX categories_normalized_name_unique ON categories(normalized_name)")
             try db.execute(sql: "CREATE UNIQUE INDEX tags_normalized_name_unique ON tags(normalized_name)")
 
@@ -479,6 +479,26 @@ enum DatabaseMigrations {
             try db.execute(sql: "UPDATE schema_metadata SET version = 3 WHERE store_kind = 'permanent'")
         }
         return migrator
+    }
+
+    private static func backfillNormalizedNames(in db: Database, table: String) throws {
+        precondition(table == "categories" || table == "tags")
+        let rows = try Row.fetchAll(db, sql: "SELECT id, name FROM \(table) ORDER BY id")
+        var used = Set<String>()
+        for row in rows {
+            let id: String = row["id"]
+            let name: String = row["name"]
+            let base = (try? LedgerNameNormalization.key(name)) ?? "legacy-empty"
+            var key = base
+            if used.contains(key) {
+                key = "\(base)\u{1f}legacy:\(id.lowercased())"
+            }
+            used.insert(key)
+            try db.execute(
+                sql: "UPDATE \(table) SET normalized_name = ? WHERE id = ?",
+                arguments: [key, id]
+            )
+        }
     }
 
     static func cacheMigrator() -> DatabaseMigrator {

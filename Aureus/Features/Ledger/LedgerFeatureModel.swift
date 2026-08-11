@@ -2,6 +2,35 @@ import Foundation
 import Observation
 
 enum LedgerFormMode: Equatable { case create, edit(UUID) }
+enum ClassificationRuleFormMode: Equatable { case create, edit(UUID) }
+
+struct ClassificationRuleDraft: Equatable {
+    var name = ""
+    var priority = "100"
+    var isEnabled = true
+    var matchMode: ClassificationMatchMode = .contains
+    var payeePattern = ""
+    var kind: TransactionKind?
+    var sourceContainerID: UUID?
+    var amountDirection: LedgerAmountDirection?
+    var resultCategoryID: UUID?
+    var resultTagIDs: Set<UUID> = []
+
+    static func editing(_ rule: ClassificationRule) -> ClassificationRuleDraft {
+        ClassificationRuleDraft(
+            name: rule.name,
+            priority: String(rule.priority),
+            isEnabled: rule.isEnabled,
+            matchMode: rule.matchMode,
+            payeePattern: rule.payeePattern ?? "",
+            kind: rule.kind,
+            sourceContainerID: rule.sourceContainerID,
+            amountDirection: rule.amountDirection,
+            resultCategoryID: rule.resultCategory?.id,
+            resultTagIDs: Set(rule.resultTags.map(\.id))
+        )
+    }
+}
 
 struct LedgerDraft: Equatable {
     var kind: TransactionKind = .income
@@ -49,8 +78,13 @@ final class LedgerFeatureModel {
     private(set) var summary: CashFlowSummary = .zero
     var importPreview: LedgerImportPreview?
     var filter = LedgerFilter.all
+    var filterStartDateText = ""
+    var filterEndDateText = ""
+    private(set) var filterValidationMessage: String?
     var formMode: LedgerFormMode?
     var draft = LedgerDraft()
+    var ruleFormMode: ClassificationRuleFormMode?
+    var ruleDraft = ClassificationRuleDraft()
     var errorMessage: String?
     var pendingDeletion: LedgerEntry?
 
@@ -79,9 +113,33 @@ final class LedgerFeatureModel {
     }
 
     func applyFilter() {
+        do {
+            filter.startDate = filterStartDateText.isEmpty ? nil : try CivilDate(canonical: filterStartDateText)
+            filter.endDate = filterEndDateText.isEmpty ? nil : try CivilDate(canonical: filterEndDateText)
+            guard !filter.hasInvalidDateRange else {
+                filterValidationMessage = "Start Date must be on or before End Date."
+                visibleEntries = []
+                summary = .zero
+                return
+            }
+            filterValidationMessage = nil
+        } catch {
+            filterValidationMessage = "Dates must use YYYY-MM-DD."
+            visibleEntries = []
+            summary = .zero
+            return
+        }
         visibleEntries = entries.filter(filter.includes)
         do { summary = try LedgerCashFlow.summarize(visibleEntries) }
         catch { errorMessage = "Cash flow could not be calculated." }
+    }
+
+    func clearFilters() {
+        filter = .all
+        filterStartDateText = ""
+        filterEndDateText = ""
+        filterValidationMessage = nil
+        applyFilter()
     }
 
     func beginCreate() {
@@ -145,12 +203,73 @@ final class LedgerFeatureModel {
         catch { errorMessage = "Tag was not renamed." }
     }
 
+    func beginCreateRule() {
+        ruleDraft = ClassificationRuleDraft(
+            sourceContainerID: nil,
+            resultCategoryID: categories.first?.id
+        )
+        ruleFormMode = .create
+    }
+
+    func beginEditRule(_ rule: ClassificationRule) {
+        ruleDraft = .editing(rule)
+        ruleFormMode = .edit(rule.id)
+    }
+
+    func saveRule() async {
+        do {
+            guard let priority = Int(ruleDraft.priority) else {
+                throw LedgerCSVError.invalidField("rule priority")
+            }
+            let id: UUID
+            if case .edit(let existing) = ruleFormMode { id = existing } else { id = UUID() }
+            let rule = ClassificationRule(
+                id: id,
+                name: ruleDraft.name,
+                priority: priority,
+                isEnabled: ruleDraft.isEnabled,
+                matchMode: ruleDraft.matchMode,
+                payeePattern: ruleDraft.payeePattern.isEmpty ? nil : ruleDraft.payeePattern,
+                kind: ruleDraft.kind,
+                sourceContainerID: ruleDraft.sourceContainerID,
+                amountDirection: ruleDraft.amountDirection,
+                resultCategory: categories.first { $0.id == ruleDraft.resultCategoryID },
+                resultTags: tags.filter { ruleDraft.resultTagIDs.contains($0.id) }
+            )
+            switch ruleFormMode {
+            case .create: try await store.createClassificationRule(rule)
+            case .edit: try await store.updateClassificationRule(rule)
+            case nil: return
+            }
+            ruleFormMode = nil
+            await load()
+        } catch {
+            errorMessage = "Classification rule was not saved: \(error.localizedDescription)"
+        }
+    }
+
+    func setRuleEnabled(_ rule: ClassificationRule, enabled: Bool) async {
+        do {
+            try await store.setClassificationRuleEnabled(id: rule.id, enabled: enabled)
+            await load()
+        } catch { errorMessage = "Classification rule state was not changed." }
+    }
+
+    func deleteRule(_ rule: ClassificationRule) async {
+        do {
+            try await store.deleteClassificationRule(id: rule.id)
+            await load()
+        } catch { errorMessage = "Classification rule was not deleted." }
+    }
+
     func prepareImport(data: Data) async {
         do {
-            let fingerprints = try await store.existingImportFingerprints()
+            let identities = try await store.existingImportIdentities()
             importPreview = try LedgerCSV.preview(
                 data: data, containers: containers, categories: categories, tags: tags,
-                rules: rules, existingFingerprints: fingerprints
+                rules: rules,
+                existingFingerprints: identities.fingerprints,
+                existingTransactionIDs: identities.transactionIDs
             )
         } catch { errorMessage = "CSV preview failed: \(error)" }
     }

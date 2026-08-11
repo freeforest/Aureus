@@ -31,8 +31,32 @@ struct LedgerImportPreviewRow: Identifiable, Equatable, Sendable {
     let id: Int
     let entry: LedgerEntry?
     let error: String?
-    let isDuplicate: Bool
-    let appliedRuleID: UUID?
+    let duplicateReasons: [LedgerImportDuplicateReason]
+    let ruleApplication: LedgerImportRuleApplication?
+
+    var isDuplicate: Bool { !duplicateReasons.isEmpty }
+}
+
+enum LedgerImportDuplicateReason: String, Equatable, Sendable {
+    case existingFingerprint
+    case fileFingerprint
+    case existingTransactionID
+    case fileTransactionID
+}
+
+enum LedgerImportValueSource: String, Equatable, Sendable {
+    case csv = "CSV"
+    case rule = "Rule fallback"
+    case none = "None"
+}
+
+struct LedgerImportRuleApplication: Equatable, Sendable {
+    let ruleID: UUID
+    let ruleName: String
+    let finalCategoryName: String?
+    let finalTagNames: [String]
+    let categorySource: LedgerImportValueSource
+    let tagsSource: LedgerImportValueSource
 }
 
 struct LedgerImportPreview: Equatable, Sendable {
@@ -71,7 +95,8 @@ enum LedgerCSV {
         categories: [Category],
         tags: [Tag],
         rules: [ClassificationRule],
-        existingFingerprints: Set<String>
+        existingFingerprints: Set<String>,
+        existingTransactionIDs: Set<UUID> = []
     ) throws -> LedgerImportPreview {
         guard let text = String(data: data, encoding: .utf8) else { throw LedgerCSVError.invalidUTF8 }
         let records = try parseRecords(text)
@@ -79,7 +104,8 @@ enum LedgerCSV {
         let containerMap = Dictionary(uniqueKeysWithValues: containers.map { ($0.id.uuidString, $0) })
         let categoryMap = Dictionary(uniqueKeysWithValues: categories.map { (try! LedgerNameNormalization.key($0.name), $0) })
         let tagMap = Dictionary(uniqueKeysWithValues: tags.map { (try! LedgerNameNormalization.key($0.name), $0) })
-        var seen = existingFingerprints
+        var fileFingerprints = Set<String>()
+        var fileTransactionIDs = Set<UUID>()
         var previewRows: [LedgerImportPreviewRow] = []
         for (offset, fields) in records.dropFirst().enumerated() {
             let line = offset + 2
@@ -99,11 +125,28 @@ enum LedgerCSV {
                     postings: parsed.entry.postings, note: parsed.entry.note,
                     importFingerprint: fingerprint
                 )
-                let duplicate = seen.contains(fingerprint)
-                seen.insert(fingerprint)
-                previewRows.append(LedgerImportPreviewRow(id: line, entry: entry, error: nil, isDuplicate: duplicate, appliedRuleID: parsed.ruleID))
+                var duplicateReasons: [LedgerImportDuplicateReason] = []
+                if existingFingerprints.contains(fingerprint) { duplicateReasons.append(.existingFingerprint) }
+                if fileFingerprints.contains(fingerprint) { duplicateReasons.append(.fileFingerprint) }
+                if existingTransactionIDs.contains(entry.id) { duplicateReasons.append(.existingTransactionID) }
+                if fileTransactionIDs.contains(entry.id) { duplicateReasons.append(.fileTransactionID) }
+                fileFingerprints.insert(fingerprint)
+                fileTransactionIDs.insert(entry.id)
+                previewRows.append(LedgerImportPreviewRow(
+                    id: line,
+                    entry: entry,
+                    error: nil,
+                    duplicateReasons: duplicateReasons,
+                    ruleApplication: parsed.ruleApplication
+                ))
             } catch {
-                previewRows.append(LedgerImportPreviewRow(id: line, entry: nil, error: String(describing: error), isDuplicate: false, appliedRuleID: nil))
+                previewRows.append(LedgerImportPreviewRow(
+                    id: line,
+                    entry: nil,
+                    error: String(describing: error),
+                    duplicateReasons: [],
+                    ruleApplication: nil
+                ))
             }
         }
         return LedgerImportPreview(rows: previewRows)
@@ -115,7 +158,7 @@ enum LedgerCSV {
         categories: [String: Category],
         tags: [String: Tag],
         rules: [ClassificationRule]
-    ) throws -> (entry: LedgerEntry, ruleID: UUID?) {
+    ) throws -> (entry: LedgerEntry, ruleApplication: LedgerImportRuleApplication?) {
         guard let id = UUID(uuidString: fields["transaction_id"] ?? ""),
               let kind = TransactionKind(rawValue: fields["kind"] ?? ""),
               let date = try? CivilDate(canonical: fields["civil_date"] ?? ""),
@@ -133,7 +176,7 @@ enum LedgerCSV {
         }
         var entryTags: [Tag] = []
         if let tagText = fields["tags"], !tagText.isEmpty {
-            let names = try JSONDecoder().decode([String].self, from: Data(tagText.utf8))
+            let names = try JSONDecoder().decode([String].self, from: Data(tagText.utf8)).map(unprotect)
             entryTags = try names.map { name in
                 guard let match = tags[try LedgerNameNormalization.key(name)] else { throw LedgerCSVError.unknownTag(name) }
                 return match
@@ -145,8 +188,22 @@ enum LedgerCSV {
             ClassificationInput(payee: payee.isEmpty ? nil : payee, description: description, kind: kind, sourceContainerID: source.containerID),
             rules: rules
         )
+        let categorySource: LedgerImportValueSource = category == nil && result?.category != nil ? .rule : (category == nil ? .none : .csv)
+        let tagsSource: LedgerImportValueSource = entryTags.isEmpty && !(result?.tags.isEmpty ?? true) ? .rule : (entryTags.isEmpty ? .none : .csv)
         if category == nil { category = result?.category }
         if entryTags.isEmpty { entryTags = result?.tags ?? [] }
+        let appliedRule = result.flatMap { result in
+            rules.first(where: { $0.id == result.ruleID }).map { rule in
+                LedgerImportRuleApplication(
+                    ruleID: result.ruleID,
+                    ruleName: rule.name,
+                    finalCategoryName: category?.name,
+                    finalTagNames: entryTags.map(\.name),
+                    categorySource: categorySource,
+                    tagsSource: tagsSource
+                )
+            }
+        }
         return (
             try LedgerEntry(
                 id: id, kind: kind, civilDate: date,
@@ -154,7 +211,7 @@ enum LedgerCSV {
                 description: description, payee: payee, category: category,
                 tags: entryTags, postings: postings, note: unprotect(fields["note"] ?? "")
             ),
-            result?.ruleID
+            appliedRule
         )
     }
 
@@ -179,7 +236,7 @@ enum LedgerCSV {
         let valuation = try FXValuation(
             original: original, rate: rate, referenceDate: referenceDate,
             fetchedAt: UTCInstant(millisecondsSince1970: fxRecorded),
-            providerIdentifier: fields["\(prefix)_fx_source"] ?? "",
+            providerIdentifier: unprotect(fields["\(prefix)_fx_source"] ?? ""),
             isManualOverride: manual, isStale: stale
         )
         guard valuation.convertedCNY == (try Money(decimal: convertedDecimal, currency: .cny)) else { throw LedgerCSVError.convertedValueMismatch }
@@ -189,21 +246,21 @@ enum LedgerCSV {
     private static func exportRecord(_ entry: LedgerEntry) -> [String] {
         let source = entry.kind == .transfer ? entry.transferSource! : entry.primaryPosting!
         let target = entry.transferTarget
-        let tagData = try! JSONEncoder().encode(entry.tags.map(\.name))
+        let tagData = try! JSONEncoder().encode(entry.tags.map { protect($0.name) })
         return [
             schemaVersion, entry.id.uuidString, entry.kind.rawValue, entry.civilDate.description,
             String(entry.recordedAt.millisecondsSince1970), protect(entry.description),
             protect(entry.payee ?? ""), protect(entry.category?.name ?? ""), String(decoding: tagData, as: UTF8.self),
             source.containerID.uuidString, source.valuation.original.currency.rawValue,
             decimal(source.valuation.original.decimal), decimal(source.valuation.rate.decimal),
-            decimal(source.valuation.convertedCNY.decimal), source.valuation.providerIdentifier,
+            decimal(source.valuation.convertedCNY.decimal), protect(source.valuation.providerIdentifier),
             source.valuation.referenceDate.description, String(source.valuation.fetchedAt.millisecondsSince1970),
             bool(source.valuation.isManualOverride), bool(source.valuation.isStale),
             target?.containerID.uuidString ?? "", target?.valuation.original.currency.rawValue ?? "",
             target.map { decimal($0.valuation.original.decimal) } ?? "",
             target.map { decimal($0.valuation.rate.decimal) } ?? "",
             target.map { decimal($0.valuation.convertedCNY.decimal) } ?? "",
-            target?.valuation.providerIdentifier ?? "", target?.valuation.referenceDate.description ?? "",
+            protect(target?.valuation.providerIdentifier ?? ""), target?.valuation.referenceDate.description ?? "",
             target.map { String($0.valuation.fetchedAt.millisecondsSince1970) } ?? "",
             target.map { bool($0.valuation.isManualOverride) } ?? "",
             target.map { bool($0.valuation.isStale) } ?? "", protect(entry.note ?? "")

@@ -148,10 +148,44 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["ledger.empty"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["ledger.taxonomy"].exists)
 
+        app.descendants(matching: .any)["ledger.taxonomy"].click()
+        replaceText(in: app.descendants(matching: .any)["ledger.category.name"], with: "Synthetic UI Category")
+        app.descendants(matching: .any)["ledger.category.add"].click()
+        replaceText(in: app.descendants(matching: .any)["ledger.tag.name"], with: "Synthetic UI Tag")
+        app.descendants(matching: .any)["ledger.tag.add"].click()
+        XCTAssertTrue(app.staticTexts["Synthetic UI Category"].waitForExistence(timeout: 5) || app.textFields.matching(NSPredicate(format: "value == %@", "Synthetic UI Category")).firstMatch.waitForExistence(timeout: 5))
+        app.buttons["Done"].click()
+
+        app.descendants(matching: .any)["ledger.rules"].click()
+        app.descendants(matching: .any)["ledger.rule.add"].click()
+        replaceText(in: app.descendants(matching: .any)["ledger.rule.name"], with: "Synthetic UI Rule")
+        replaceText(in: app.descendants(matching: .any)["ledger.rule.priority"], with: "7")
+        replaceText(in: app.descendants(matching: .any)["ledger.rule.pattern"], with: "Synthetic UI Payee")
+        selectPicker(app: app, identifier: "ledger.rule.kind", title: "Expense")
+        selectPicker(app: app, identifier: "ledger.rule.category", title: "Synthetic UI Category")
+        let ruleTag = app.checkBoxes["Synthetic UI Tag"]
+        XCTAssertTrue(ruleTag.waitForExistence(timeout: 5)); ruleTag.click()
+        app.descendants(matching: .any)["ledger.rule.save"].click()
+        XCTAssertTrue(app.staticTexts["Synthetic UI Rule"].waitForExistence(timeout: 5))
+        let enabled = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "ledger.rule.enabled."))
+            .firstMatch
+        XCTAssertTrue(enabled.waitForExistence(timeout: 5)); enabled.click(); enabled.click()
+        app.buttons["Edit"].firstMatch.click()
+        replaceText(in: app.descendants(matching: .any)["ledger.rule.name"], with: "Synthetic UI Rule Updated")
+        app.descendants(matching: .any)["ledger.rule.save"].click()
+        XCTAssertTrue(app.staticTexts["Synthetic UI Rule Updated"].waitForExistence(timeout: 5))
+        app.buttons["Delete"].firstMatch.click()
+        XCTAssertFalse(app.staticTexts["Synthetic UI Rule Updated"].waitForExistence(timeout: 2))
+        app.buttons["Done"].click()
+
         addLedgerEntry(app: app, kind: "Income", description: "Synthetic UI Income", amount: "100.00")
         assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "100.00", transfers: "0")
 
-        addLedgerEntry(app: app, kind: "Expense", description: "Synthetic UI Expense", amount: "30.00")
+        addLedgerEntry(
+            app: app, kind: "Expense", description: "Synthetic UI Expense", amount: "30.00",
+            category: "Synthetic UI Category", tag: "Synthetic UI Tag"
+        )
         assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "30.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "70.00", transfers: "0")
 
         addLedgerEntry(app: app, kind: "Transfer", description: "Synthetic UI Transfer", amount: "50.00", targetAmount: "50.00")
@@ -173,12 +207,43 @@ final class AureusUITests: XCTestCase {
         deleteLedgerEntry(app: app, kind: "Buy")
         selectLedgerKindFilter(app: app, title: "All Kinds")
         assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "60.00", transfers: "1")
+
+        selectPicker(app: app, identifier: "ledger.filter.category", title: "Synthetic UI Category")
+        assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-40.00", transfers: "0")
+        app.descendants(matching: .any)["ledger.filter.clear"].click()
+        selectPicker(app: app, identifier: "ledger.filter.tag", title: "Synthetic UI Tag")
+        assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-40.00", transfers: "0")
+        app.descendants(matching: .any)["ledger.filter.clear"].click()
+        selectPicker(app: app, identifier: "ledger.filter.container", title: "Synthetic Ledger Cash A")
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.history"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["ledger.filter.clear"].click()
+        replaceText(in: app.descendants(matching: .any)["ledger.filter.startDate"], with: "2026-01-15")
+        replaceText(in: app.descendants(matching: .any)["ledger.filter.endDate"], with: "2026-01-15")
+        app.descendants(matching: .any)["ledger.filter.applyDates"].click()
+        assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "60.00", transfers: "1")
+        selectLedgerKindFilter(app: app, title: "Expense")
+        selectPicker(app: app, identifier: "ledger.filter.category", title: "Synthetic UI Category")
+        selectPicker(app: app, identifier: "ledger.filter.tag", title: "Synthetic UI Tag")
+        selectPicker(app: app, identifier: "ledger.filter.currency", title: "CNY")
+        assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-40.00", transfers: "0")
+        app.descendants(matching: .any)["ledger.filter.clear"].click()
+        replaceText(in: app.descendants(matching: .any)["ledger.filter.startDate"], with: "2026-02-01")
+        replaceText(in: app.descendants(matching: .any)["ledger.filter.endDate"], with: "2026-01-01")
+        app.descendants(matching: .any)["ledger.filter.applyDates"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.filter.validation"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["ledger.filter.clear"].click()
+        assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "60.00", transfers: "1")
     }
 
     @MainActor
     func testLedgerNativeCSVImportPreviewConfirmationAndExport() throws {
-        let importURL = URL(fileURLWithPath: "/private/tmp/Aureus-Stage4-UI-Import.csv")
-        let exportURL = URL(fileURLWithPath: "/private/tmp/Aureus-Stage4-UI-Export.csv")
+        let root = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+            .appendingPathComponent("Aureus-Stage4A-CSV-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let importURL = root.appendingPathComponent("Synthetic-Import.csv")
+        let exportURL = root.appendingPathComponent("Synthetic-Export.csv")
+        try syntheticImportCSV(transactionID: UUID()).write(to: importURL, options: .atomic)
 
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
@@ -191,13 +256,19 @@ final class AureusUITests: XCTestCase {
         let preview = app.descendants(matching: .any)["ledger.import.preview.summary"]
         XCTAssertTrue(preview.waitForExistence(timeout: 10))
         XCTAssertTrue(waitForValueOrLabel(preview, containing: "1 rows", timeout: 5))
+        let ruleResult = app.descendants(matching: .any)["ledger.import.ruleResult.2"]
+        XCTAssertTrue(ruleResult.waitForExistence(timeout: 5), "Import Preview did not expose the matched rule result")
+        XCTAssertTrue(waitForValueOrLabel(ruleResult, containing: "Synthetic exact payee rule", timeout: 5))
+        XCTAssertTrue(waitForValueOrLabel(ruleResult, containing: "Synthetic Daily", timeout: 5))
+        XCTAssertTrue(waitForValueOrLabel(ruleResult, containing: "synthetic-demo", timeout: 5))
         app.descendants(matching: .any)["ledger.import.confirm"].click()
-        XCTAssertTrue(app.staticTexts["Synthetic CSV Income"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Synthetic CSV Expense"].waitForExistence(timeout: 10))
 
         app.descendants(matching: .any)["ledger.export"].click()
         saveFile(exportURL.path, in: app)
         XCTAssertTrue(waitForNonexistence(app.sheets.firstMatch, timeout: 5))
         XCTAssertFalse(app.alerts["Ledger Error"].exists)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.path))
     }
 
     @MainActor
@@ -249,7 +320,9 @@ final class AureusUITests: XCTestCase {
         kind: String,
         description: String,
         amount: String,
-        targetAmount: String? = nil
+        targetAmount: String? = nil,
+        category: String? = nil,
+        tag: String? = nil
     ) {
         app.descendants(matching: .any)["ledger.add"].click()
         let descriptionField = app.descendants(matching: .any)["ledger.form.description"]
@@ -265,6 +338,11 @@ final class AureusUITests: XCTestCase {
         if let targetAmount {
             let target = app.descendants(matching: .any)["ledger.form.targetAmount"]
             XCTAssertTrue(target.waitForExistence(timeout: 5)); replaceText(in: target, with: targetAmount)
+        }
+        if let category { selectPicker(app: app, identifier: "ledger.form.category", title: category) }
+        if let tag {
+            let toggle = app.checkBoxes[tag]
+            XCTAssertTrue(toggle.waitForExistence(timeout: 5)); toggle.click()
         }
         app.descendants(matching: .any)["ledger.form.save"].click()
         XCTAssertFalse(app.descendants(matching: .any)["ledger.form.save"].waitForExistence(timeout: 2))
@@ -284,6 +362,16 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 5)); picker.click()
         let item = app.menuItems[title]
         XCTAssertTrue(item.waitForExistence(timeout: 5)); item.click()
+    }
+
+    @MainActor
+    private func selectPicker(app: XCUIApplication, identifier: String, title: String) {
+        let picker = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), "Missing picker \(identifier)")
+        picker.click()
+        let item = app.menuItems[title]
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "Missing picker item \(title) for \(identifier)")
+        item.click()
     }
 
     @MainActor
@@ -411,20 +499,20 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func chooseFile(_ path: String, in app: XCUIApplication) {
-        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 5) || app.dialogs.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path), "Synthetic import fixture was not created")
+        let panel = app.sheets.firstMatch
+        XCTAssertTrue(panel.waitForExistence(timeout: 5) || app.dialogs.firstMatch.waitForExistence(timeout: 5))
         app.typeKey("g", modifierFlags: [.command, .shift])
         let field = app.textFields["PathTextField"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         replaceText(in: field, with: path)
         app.typeKey(.enter, modifierFlags: [])
         XCTAssertTrue(waitForNonexistence(field, timeout: 5))
-        let open = app.buttons["Open"].firstMatch
-        if open.waitForExistence(timeout: 3) {
-            // The system panel's button may report a stale center after several
-            // application launches. Activate its default action from the
-            // keyboard so the real user-selected-file path remains exercised.
-            app.typeKey(.enter, modifierFlags: [])
-        }
+        let open = panel.buttons["Open"].firstMatch
+        XCTAssertTrue(open.waitForExistence(timeout: 5), "Open Panel did not reach file-selection state")
+        XCTAssertTrue(waitForEnabled(open, timeout: 5), "Open button never became enabled")
+        if open.isHittable { open.click() } else { app.typeKey(.enter, modifierFlags: []) }
+        XCTAssertTrue(waitForNonexistence(open, timeout: 5), "Open Panel did not dismiss after selecting the synthetic CSV")
     }
 
     @MainActor
@@ -440,9 +528,14 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(fileNameField.waitForExistence(timeout: 5))
         replaceText(in: fileNameField, with: URL(fileURLWithPath: path).lastPathComponent)
         let save = app.sheets.buttons["Export"].firstMatch
-        XCTAssertTrue(save.waitForExistence(timeout: 5)); save.click()
+        XCTAssertTrue(save.waitForExistence(timeout: 5), "Save Panel did not reach export state")
+        XCTAssertTrue(waitForEnabled(save, timeout: 5), "Export button never became enabled")
+        if save.isHittable { save.click() } else { app.typeKey(.enter, modifierFlags: []) }
         let replace = app.sheets.buttons["Replace"].firstMatch
-        if replace.waitForExistence(timeout: 2) { replace.click() }
+        if replace.waitForExistence(timeout: 1) {
+            XCTAssertTrue(replace.isHittable); replace.click()
+        }
+        XCTAssertTrue(waitForNonexistence(save, timeout: 5), "Save Panel did not dismiss after export")
     }
 
     @MainActor
@@ -452,6 +545,39 @@ final class AureusUITests: XCTestCase {
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func waitForEnabled(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    private func syntheticImportCSV(transactionID: UUID) -> Data {
+        let header = [
+            "schema_version", "transaction_id", "kind", "civil_date", "recorded_at_ms",
+            "description", "payee", "category", "tags", "source_container_id",
+            "source_currency", "source_amount", "source_fx_rate", "source_converted_cny",
+            "source_fx_source", "source_fx_reference_date", "source_fx_recorded_at_ms",
+            "source_fx_manual", "source_fx_stale", "target_container_id", "target_currency",
+            "target_amount", "target_fx_rate", "target_converted_cny", "target_fx_source",
+            "target_fx_reference_date", "target_fx_recorded_at_ms", "target_fx_manual",
+            "target_fx_stale", "note"
+        ]
+        let row = [
+            "AUREUS_LEDGER_V1", transactionID.uuidString, "expense", "2026-01-16", "1768521600000",
+            "Synthetic CSV Expense", "Synthetic Payee", "", "", "00000000-0000-4000-8000-000000003001",
+            "CNY", "12.34", "1", "12.34", "identity", "2026-01-16", "1768521600000",
+            "false", "false", "", "", "", "", "", "", "", "", "", "",
+            "Synthetic UI-generated import fixture"
+        ]
+        func encoded(_ fields: [String]) -> String {
+            fields.map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }.joined(separator: ",")
+        }
+        return Data("\(encoded(header))\r\n\(encoded(row))\r\n".utf8)
     }
 
 
