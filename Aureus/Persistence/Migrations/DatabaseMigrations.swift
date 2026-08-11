@@ -1,7 +1,12 @@
 import GRDB
 
+enum WealthMigrationError: Error, Equatable {
+    case unsupportedLegacyContainerKind
+}
+
 enum DatabaseMigrations {
     static let permanentV1 = "permanent_v1_foundation"
+    static let permanentV2 = "permanent_v2_wealth"
     static let cacheV1 = "cache_v1_foundation"
 
     static func permanentMigrator() -> DatabaseMigrator {
@@ -154,6 +159,207 @@ enum DatabaseMigrations {
                     PRIMARY KEY (transaction_id, tag_id)
                 )
                 """)
+        }
+        migrator.registerMigration(permanentV2) { db in
+            try db.execute(sql: """
+                ALTER TABLE asset_containers
+                ADD COLUMN institution TEXT
+                """)
+            try db.execute(sql: """
+                ALTER TABLE asset_containers
+                ADD COLUMN primary_currency_code TEXT NOT NULL DEFAULT 'CNY'
+                    CHECK (primary_currency_code IN ('CNY', 'USD'))
+                """)
+            try db.execute(sql: """
+                ALTER TABLE asset_containers
+                ADD COLUMN notes TEXT
+                """)
+            try db.execute(sql: """
+                ALTER TABLE asset_containers
+                ADD COLUMN created_date TEXT NOT NULL DEFAULT '1970-01-01'
+                    CHECK (length(created_date) = 10)
+                """)
+            try db.execute(sql: """
+                ALTER TABLE asset_containers
+                ADD COLUMN updated_date TEXT NOT NULL DEFAULT '1970-01-01'
+                    CHECK (length(updated_date) = 10)
+                """)
+
+            try db.execute(sql: """
+                UPDATE asset_containers
+                SET primary_currency_code = COALESCE(
+                    (SELECT currency_code FROM accounts WHERE accounts.id = asset_containers.account_id),
+                    (SELECT currency_code FROM assets WHERE assets.container_id = asset_containers.id LIMIT 1),
+                    'CNY'
+                )
+                """)
+            try db.execute(sql: """
+                UPDATE asset_containers
+                SET kind = CASE kind
+                    WHEN 'cash' THEN 'bankCash'
+                    WHEN 'security' THEN 'stock'
+                    WHEN 'other' THEN 'otherAsset'
+                    ELSE kind
+                END
+                """)
+
+            let invalidKindCount = try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT COUNT(*) FROM asset_containers
+                    WHERE kind NOT IN (
+                        'bankCash', 'stock', 'etf', 'fund',
+                        'insurance', 'otherAsset', 'liability'
+                    )
+                    """
+            ) ?? 0
+            guard invalidKindCount == 0 else {
+                throw WealthMigrationError.unsupportedLegacyContainerKind
+            }
+
+            try db.execute(sql: """
+                CREATE TRIGGER asset_containers_kind_insert
+                BEFORE INSERT ON asset_containers
+                WHEN NEW.kind NOT IN (
+                    'bankCash', 'stock', 'etf', 'fund',
+                    'insurance', 'otherAsset', 'liability'
+                )
+                BEGIN
+                    SELECT RAISE(ABORT, 'invalid asset container kind');
+                END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER asset_containers_kind_update
+                BEFORE UPDATE OF kind ON asset_containers
+                WHEN NEW.kind NOT IN (
+                    'bankCash', 'stock', 'etf', 'fund',
+                    'insurance', 'otherAsset', 'liability'
+                )
+                BEGIN
+                    SELECT RAISE(ABORT, 'invalid asset container kind');
+                END
+                """)
+
+            try db.execute(sql: """
+                CREATE TABLE wealth_records (
+                    container_id TEXT PRIMARY KEY NOT NULL
+                        REFERENCES asset_containers(id) ON DELETE CASCADE,
+                    record_kind TEXT NOT NULL CHECK (record_kind IN (
+                        'bankCash', 'stock', 'etf', 'fund',
+                        'insurance', 'otherAsset', 'liability'
+                    )),
+                    original_minor INTEGER NOT NULL CHECK (original_minor >= 0),
+                    original_currency_code TEXT NOT NULL
+                        CHECK (original_currency_code IN ('CNY', 'USD')),
+                    converted_cny_minor INTEGER NOT NULL CHECK (converted_cny_minor >= 0),
+                    fx_coefficient INTEGER NOT NULL CHECK (fx_coefficient > 0),
+                    fx_source_currency_code TEXT NOT NULL
+                        CHECK (fx_source_currency_code IN ('CNY', 'USD')),
+                    fx_target_currency_code TEXT NOT NULL
+                        CHECK (fx_target_currency_code = 'CNY'),
+                    fx_source TEXT NOT NULL CHECK (length(fx_source) > 0),
+                    fx_reference_date TEXT NOT NULL CHECK (length(fx_reference_date) = 10),
+                    fx_recorded_at_ms INTEGER NOT NULL,
+                    fx_is_manual INTEGER NOT NULL CHECK (fx_is_manual IN (0, 1)),
+                    fx_is_stale INTEGER NOT NULL CHECK (fx_is_stale IN (0, 1)),
+                    interest_rate_coefficient INTEGER CHECK (
+                        interest_rate_coefficient IS NULL OR interest_rate_coefficient >= 0
+                    ),
+                    ticker TEXT,
+                    mic TEXT CHECK (mic IS NULL OR length(mic) = 4),
+                    quantity_coefficient INTEGER CHECK (
+                        quantity_coefficient IS NULL OR quantity_coefficient >= 0
+                    ),
+                    manual_price_coefficient INTEGER CHECK (
+                        manual_price_coefficient IS NULL OR manual_price_coefficient >= 0
+                    ),
+                    insurance_company TEXT,
+                    insurance_product_name TEXT,
+                    premium_minor INTEGER CHECK (premium_minor IS NULL OR premium_minor >= 0),
+                    payment_frequency TEXT CHECK (
+                        payment_frequency IS NULL OR payment_frequency IN (
+                            'monthly', 'quarterly', 'semiAnnual', 'annual', 'single'
+                        )
+                    ),
+                    coverage_minor INTEGER CHECK (coverage_minor IS NULL OR coverage_minor >= 0),
+                    start_date TEXT CHECK (start_date IS NULL OR length(start_date) = 10),
+                    maturity_date TEXT CHECK (maturity_date IS NULL OR length(maturity_date) = 10),
+                    category_description TEXT,
+                    CHECK (
+                        (original_currency_code = 'CNY'
+                            AND fx_source_currency_code = 'CNY'
+                            AND fx_coefficient = 10000000000
+                            AND converted_cny_minor = original_minor
+                            AND fx_source = 'identity'
+                            AND fx_is_manual = 0)
+                        OR
+                        (original_currency_code = 'USD'
+                            AND fx_source_currency_code = 'USD'
+                            AND fx_is_manual = 1
+                            AND instr(lower(fx_source), 'manual') > 0)
+                    ),
+                    CHECK (
+                        (record_kind = 'bankCash')
+                        OR
+                        (record_kind IN ('stock', 'etf', 'fund')
+                            AND ticker IS NOT NULL AND length(ticker) > 0
+                            AND quantity_coefficient IS NOT NULL
+                            AND manual_price_coefficient IS NOT NULL)
+                        OR
+                        (record_kind = 'insurance'
+                            AND insurance_company IS NOT NULL AND length(insurance_company) > 0
+                            AND insurance_product_name IS NOT NULL AND length(insurance_product_name) > 0
+                            AND premium_minor IS NOT NULL
+                            AND payment_frequency IS NOT NULL
+                            AND coverage_minor IS NOT NULL
+                            AND start_date IS NOT NULL)
+                        OR
+                        (record_kind = 'otherAsset'
+                            AND category_description IS NOT NULL
+                            AND length(category_description) > 0)
+                        OR
+                        (record_kind = 'liability')
+                    )
+                )
+                """)
+
+            try db.execute(sql: """
+                CREATE TRIGGER wealth_records_kind_insert
+                BEFORE INSERT ON wealth_records
+                WHEN (SELECT kind FROM asset_containers WHERE id = NEW.container_id) != NEW.record_kind
+                BEGIN
+                    SELECT RAISE(ABORT, 'wealth record kind does not match container');
+                END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER wealth_records_kind_update
+                BEFORE UPDATE OF record_kind, container_id ON wealth_records
+                WHEN (SELECT kind FROM asset_containers WHERE id = NEW.container_id) != NEW.record_kind
+                BEGIN
+                    SELECT RAISE(ABORT, 'wealth record kind does not match container');
+                END
+                """)
+
+            try db.execute(sql: """
+                CREATE INDEX asset_containers_kind_index
+                ON asset_containers(kind)
+                """)
+            try db.execute(sql: """
+                CREATE INDEX asset_containers_currency_index
+                ON asset_containers(primary_currency_code)
+                """)
+            try db.execute(sql: """
+                CREATE INDEX asset_containers_updated_date_index
+                ON asset_containers(updated_date DESC)
+                """)
+            try db.execute(sql: """
+                CREATE INDEX wealth_records_kind_index
+                ON wealth_records(record_kind)
+                """)
+
+            try db.execute(
+                sql: "UPDATE schema_metadata SET version = 2 WHERE store_kind = 'permanent'"
+            )
         }
         return migrator
     }

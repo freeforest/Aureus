@@ -23,12 +23,19 @@
 		A1000000000000000000000E /* WealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* WealthStore.swift */; };
 		A1000000000000000000000F /* MarketCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* MarketCacheStore.swift */; };
 		A10000000000000000000010 /* CachePolicyConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* CachePolicyConfiguration.swift */; };
+		A10000000000000000000011 /* WealthDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* WealthDomain.swift */; };
+		A10000000000000000000012 /* WealthPersistenceRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* WealthPersistenceRows.swift */; };
+		A10000000000000000000013 /* SyntheticWealthSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SyntheticWealthSeeder.swift */; };
+		A10000000000000000000014 /* WealthFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* WealthFeatureModel.swift */; };
+		A10000000000000000000015 /* WealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* WealthView.swift */; };
 		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
 		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
 		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
 		A20000000000000000000003 /* PersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* PersistenceTests.swift */; };
 		A20000000000000000000004 /* CacheIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* CacheIsolationTests.swift */; };
 		A20000000000000000000005 /* ProviderBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* ProviderBoundaryTests.swift */; };
+		A20000000000000000000006 /* WealthDomainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* WealthDomainTests.swift */; };
+		A20000000000000000000007 /* WealthPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000007 /* WealthPersistenceTests.swift */; };
 		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
 		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
 /* End PBXBuildFile section */
@@ -68,11 +75,18 @@
 		B1000000000000000000000F /* MarketCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketCacheStore.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* CachePolicyConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachePolicyConfiguration.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* Aureus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Aureus.entitlements; sourceTree = "<group>"; };
+		B10000000000000000000012 /* WealthDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthDomain.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* WealthPersistenceRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthPersistenceRows.swift; sourceTree = "<group>"; };
+		B10000000000000000000014 /* SyntheticWealthSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticWealthSeeder.swift; sourceTree = "<group>"; };
+		B10000000000000000000015 /* WealthFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000016 /* WealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthView.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000004 /* CacheIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheIsolationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000005 /* ProviderBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderBoundaryTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000006 /* WealthDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthDomainTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000007 /* WealthPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthPersistenceTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
 		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -156,6 +170,7 @@
 				D12200000000000000000001 /* Time */,
 				D12300000000000000000001 /* Models */,
 				D12400000000000000000001 /* Providers */,
+				D12500000000000000000001 /* Wealth */,
 			);
 			path = Domain;
 			sourceTree = "<group>";
@@ -187,6 +202,12 @@
 			path = Providers;
 			sourceTree = "<group>";
 		};
+		D12500000000000000000001 /* Wealth */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000012 /* WealthDomain.swift */);
+			path = Wealth;
+			sourceTree = "<group>";
+		};
 		D13000000000000000000001 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
@@ -203,13 +224,17 @@
 				B1000000000000000000000B /* DatabaseMigrations.swift */,
 				B1000000000000000000000C /* DatabaseQueueFactory.swift */,
 				B1000000000000000000000D /* SyntheticFoundationSeeder.swift */,
+				B10000000000000000000014 /* SyntheticWealthSeeder.swift */,
 			);
 			path = Migrations;
 			sourceTree = "<group>";
 		};
 		D13200000000000000000001 /* Permanent */ = {
 			isa = PBXGroup;
-			children = (B1000000000000000000000E /* WealthStore.swift */);
+			children = (
+				B1000000000000000000000E /* WealthStore.swift */,
+				B10000000000000000000013 /* WealthPersistenceRows.swift */,
+			);
 			path = Permanent;
 			sourceTree = "<group>";
 		};
@@ -224,8 +249,20 @@
 		};
 		D14000000000000000000001 /* Features */ = {
 			isa = PBXGroup;
-			children = (B10000000000000000000005 /* AppShellView.swift */);
+			children = (
+				B10000000000000000000005 /* AppShellView.swift */,
+				D14100000000000000000001 /* Wealth */,
+			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		D14100000000000000000001 /* Wealth */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000015 /* WealthFeatureModel.swift */,
+				B10000000000000000000016 /* WealthView.swift */,
+			);
+			path = Wealth;
 			sourceTree = "<group>";
 		};
 		D20000000000000000000001 /* AureusTests */ = {
@@ -236,6 +273,8 @@
 				B20000000000000000000003 /* PersistenceTests.swift */,
 				B20000000000000000000004 /* CacheIsolationTests.swift */,
 				B20000000000000000000005 /* ProviderBoundaryTests.swift */,
+				B20000000000000000000006 /* WealthDomainTests.swift */,
+				B20000000000000000000007 /* WealthPersistenceTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -359,6 +398,11 @@
 				A1000000000000000000000E /* WealthStore.swift in Sources */,
 				A1000000000000000000000F /* MarketCacheStore.swift in Sources */,
 				A10000000000000000000010 /* CachePolicyConfiguration.swift in Sources */,
+				A10000000000000000000011 /* WealthDomain.swift in Sources */,
+				A10000000000000000000012 /* WealthPersistenceRows.swift in Sources */,
+				A10000000000000000000013 /* SyntheticWealthSeeder.swift in Sources */,
+				A10000000000000000000014 /* WealthFeatureModel.swift in Sources */,
+				A10000000000000000000015 /* WealthView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -371,6 +415,8 @@
 				A20000000000000000000003 /* PersistenceTests.swift in Sources */,
 				A20000000000000000000004 /* CacheIsolationTests.swift in Sources */,
 				A20000000000000000000005 /* ProviderBoundaryTests.swift in Sources */,
+				A20000000000000000000006 /* WealthDomainTests.swift in Sources */,
+				A20000000000000000000007 /* WealthPersistenceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

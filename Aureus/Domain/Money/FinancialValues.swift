@@ -230,6 +230,7 @@ struct FXValuation: Codable, Equatable, Sendable {
     let referenceDate: CivilDate
     let fetchedAt: UTCInstant
     let providerIdentifier: String
+    let isManualOverride: Bool
     let isStale: Bool
 
     init(
@@ -238,6 +239,7 @@ struct FXValuation: Codable, Equatable, Sendable {
         referenceDate: CivilDate,
         fetchedAt: UTCInstant,
         providerIdentifier: String,
+        isManualOverride: Bool = false,
         isStale: Bool
     ) throws {
         guard rate.targetCurrency == .cny else { throw FinancialValueError.directionMismatch }
@@ -247,6 +249,7 @@ struct FXValuation: Codable, Equatable, Sendable {
         self.referenceDate = referenceDate
         self.fetchedAt = fetchedAt
         self.providerIdentifier = providerIdentifier
+        self.isManualOverride = isManualOverride
         self.isStale = isStale
     }
 }

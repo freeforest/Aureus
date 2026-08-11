@@ -41,6 +41,7 @@ struct CacheIsolationTests {
             id: "00000000-0000-4000-8000-000000000501",
             name: "Synthetic Permanent Sentinel"
         )
+        try await wealth.seedSyntheticWealth()
         try await cache.seedSyntheticCache()
         try await wealth.checkpoint()
 
@@ -48,6 +49,7 @@ struct CacheIsolationTests {
         let permanentHashBefore = try sha256(of: permanentURL)
         let permanentSchemaBefore = try await wealth.schemaVersion()
         let sentinelsBefore = try await wealth.isolationSentinels()
+        let wealthRecordsBefore = try await wealth.fetchWealthContainers()
         #expect(try await cache.cachedRowCount() == 2)
 
         try await cache.reset()
@@ -61,12 +63,15 @@ struct CacheIsolationTests {
         let permanentHashAfter = try sha256(of: permanentURL)
         let permanentSchemaAfter = try await wealth.schemaVersion()
         let sentinelsAfter = try await wealth.isolationSentinels()
+        let wealthRecordsAfter = try await wealth.fetchWealthContainers()
 
         #expect(permanentURLBefore == permanentURLAfter)
         #expect(permanentHashBefore == permanentHashAfter)
         #expect(permanentSchemaBefore == permanentSchemaAfter)
         #expect(sentinelsBefore == sentinelsAfter)
         #expect(sentinelsAfter == ["Synthetic Permanent Sentinel"])
+        #expect(wealthRecordsBefore == wealthRecordsAfter)
+        #expect(wealthRecordsAfter.count == 7)
 
         try await reopenedCache.seedSyntheticCache()
         #expect(try await reopenedCache.cachedRowCount() == 2)

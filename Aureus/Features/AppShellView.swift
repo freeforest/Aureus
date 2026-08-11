@@ -41,9 +41,17 @@ struct AppShellView: View {
             .navigationTitle("Aureus")
             .accessibilityLabel("Aureus primary navigation")
         } detail: {
-            VStack(spacing: 0) {
-                ModeBanner(mode: mode)
-                PlaceholderView(destination: model.selection)
+            if model.selection == .wealth, let dependencies = model.dependencies {
+                WealthView(
+                    store: dependencies.wealthStore,
+                    clock: dependencies.clock,
+                    mode: mode
+                )
+            } else {
+                VStack(spacing: 0) {
+                    ModeBanner(mode: mode)
+                    PlaceholderView(destination: model.selection)
+                }
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -59,7 +67,7 @@ private struct ModeBanner: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Empty Local Store")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 2 Foundation")
+            Text("Stage 3 Wealth Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -78,7 +86,7 @@ private struct PlaceholderView: View {
         ContentUnavailableView {
             Label(destination.title, systemImage: destination.systemImage)
         } description: {
-            Text("\(destination.implementationStage) has not been implemented. This screen is an honest Stage 2 placeholder with no financial data or completed business behavior.")
+            Text("\(destination.implementationStage) has not been implemented. This screen remains an honest placeholder with no financial data or completed business behavior.")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("destination.\(destination.rawValue)")

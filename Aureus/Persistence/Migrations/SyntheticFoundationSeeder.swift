@@ -11,8 +11,13 @@ enum SyntheticFoundationSeeder {
             ('00000000-0000-4000-8000-000000000302', 'Synthetic USD Sandbox', 'brokerage', 'USD')
             """)
         try db.execute(sql: """
-            INSERT OR IGNORE INTO asset_containers (id, account_id, name, kind) VALUES
-            ('00000000-0000-4000-8000-000000000303', '00000000-0000-4000-8000-000000000302', 'Synthetic Securities Container', 'security')
+            INSERT OR IGNORE INTO asset_containers (
+                id, account_id, name, kind, primary_currency_code, created_date, updated_date
+            ) VALUES (
+                '00000000-0000-4000-8000-000000000303',
+                '00000000-0000-4000-8000-000000000302',
+                'Synthetic Securities Container', 'stock', 'USD', '2026-01-15', '2026-01-15'
+            )
             """)
         try db.execute(sql: """
             INSERT OR IGNORE INTO market_instrument_references (id, symbol, mic, currency_code) VALUES

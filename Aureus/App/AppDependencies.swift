@@ -6,6 +6,7 @@ struct AppDependencies: Sendable {
     let marketDataProvider: any MarketDataProvider
     let fxRateProvider: any FXRateProvider
     let credentialStoragePolicy: ProductionCredentialStorage
+    let clock: any Clock
 
     static func make(configuration: LaunchConfiguration) async throws -> AppDependencies {
         let paths: RuntimePaths
@@ -20,18 +21,19 @@ struct AppDependencies: Sendable {
         let fixedClock = FixedClock(
             instant: UTCInstant(millisecondsSince1970: 1_768_435_200_000)
         )
+        let clock: any Clock = configuration.usesTemporaryStores ? fixedClock : SystemClock()
 
         if configuration.dataMode == .syntheticDemo {
-            try await wealthStore.seedSyntheticFoundation()
-            try await marketCacheStore.seedSyntheticCache()
+            try await wealthStore.seedSyntheticWealth()
         }
 
         return AppDependencies(
             wealthStore: wealthStore,
             marketCacheStore: marketCacheStore,
-            marketDataProvider: SyntheticMarketDataProvider(scenario: .success, clock: fixedClock),
-            fxRateProvider: SyntheticFXRateProvider(clock: fixedClock),
-            credentialStoragePolicy: ProductionCredentialPolicy.storage
+            marketDataProvider: SyntheticMarketDataProvider(scenario: .success, clock: clock),
+            fxRateProvider: SyntheticFXRateProvider(clock: clock),
+            credentialStoragePolicy: ProductionCredentialPolicy.storage,
+            clock: clock
         )
     }
 }

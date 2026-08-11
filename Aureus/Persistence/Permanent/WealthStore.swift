@@ -114,4 +114,114 @@ actor WealthStore {
             try db.execute(sql: "PRAGMA wal_checkpoint(TRUNCATE)")
         }
     }
+
+    func createWealthContainer(_ record: WealthContainer) throws {
+        try queue.write { db in
+            try AssetContainerPersistenceRow(container: record.container).insert(db)
+            try WealthRecordPersistenceRow(record: record).insert(db)
+        }
+    }
+
+    func fetchWealthContainers() throws -> [WealthContainer] {
+        try queue.read { db in
+            let containerRows = try AssetContainerPersistenceRow.fetchAll(
+                db,
+                sql: """
+                    SELECT asset_containers.*
+                    FROM asset_containers
+                    INNER JOIN wealth_records
+                        ON wealth_records.container_id = asset_containers.id
+                    ORDER BY updated_date DESC, name COLLATE NOCASE, asset_containers.id
+                    """
+            )
+            let recordRows = try WealthRecordPersistenceRow.fetchAll(db)
+            let recordsByContainer = Dictionary(
+                uniqueKeysWithValues: recordRows.map { ($0.containerID, $0) }
+            )
+            return try containerRows.map { containerRow in
+                guard let recordRow = recordsByContainer[containerRow.id] else {
+                    throw WealthPersistenceError.corruptRecord
+                }
+                return try recordRow.domain(container: containerRow.domain())
+            }
+        }
+    }
+
+    func fetchWealthContainer(id: UUID) throws -> WealthContainer? {
+        try fetchWealthContainers().first { $0.id == id }
+    }
+
+    func updateWealthContainer(_ record: WealthContainer) throws {
+        try queue.write { db in
+            let exists = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
+                arguments: [record.id.uuidString]
+            ) ?? 0
+            guard exists == 1 else { throw WealthPersistenceError.containerNotFound }
+            try AssetContainerPersistenceRow(container: record.container).update(db)
+            try WealthRecordPersistenceRow(record: record).update(db)
+        }
+    }
+
+    func deletionImpact(for id: UUID) throws -> ContainerDeletionImpact {
+        try queue.read { db in
+            ContainerDeletionImpact(
+                associatedValuationRecords: try Int.fetchOne(
+                    db,
+                    sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
+                    arguments: [id.uuidString]
+                ) ?? 0
+            )
+        }
+    }
+
+    @discardableResult
+    func deleteWealthContainer(id: UUID) throws -> ContainerDeletionImpact {
+        try queue.write { db in
+            let impact = ContainerDeletionImpact(
+                associatedValuationRecords: try Int.fetchOne(
+                    db,
+                    sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
+                    arguments: [id.uuidString]
+                ) ?? 0
+            )
+            guard impact.associatedValuationRecords == 1 else {
+                throw WealthPersistenceError.containerNotFound
+            }
+            try db.execute(
+                sql: "DELETE FROM asset_containers WHERE id = ?",
+                arguments: [id.uuidString]
+            )
+            guard db.changesCount == 1 else { throw WealthPersistenceError.containerNotFound }
+            return impact
+        }
+    }
+
+    func wealthSummary() throws -> WealthSummary {
+        try WealthValuation.aggregate(fetchWealthContainers())
+    }
+
+    func stage3WealthRecordCount() throws -> Int {
+        try queue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM wealth_records") ?? 0
+        }
+    }
+
+    func seedSyntheticWealth() throws {
+        let records = try SyntheticWealthSeeder.records()
+        try queue.write { db in
+            for record in records {
+                let exists = try Int.fetchOne(
+                    db,
+                    sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
+                    arguments: [record.id.uuidString]
+                ) ?? 0
+                if exists == 0 {
+                    try AssetContainerPersistenceRow(container: record.container).insert(db)
+                    try WealthRecordPersistenceRow(record: record).insert(db)
+                }
+            }
+        }
+    }
 }

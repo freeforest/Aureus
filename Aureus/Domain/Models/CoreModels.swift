@@ -18,13 +18,30 @@ struct Account: Identifiable, Codable, Equatable, Sendable {
     let currency: CurrencyCode
 }
 
-enum AssetContainerKind: String, Codable, Sendable {
-    case cash
-    case security
+enum AssetContainerKind: String, CaseIterable, Codable, Sendable {
+    case bankCash
+    case stock
+    case etf
     case fund
     case insurance
+    case otherAsset
     case liability
-    case other
+
+    var title: String {
+        switch self {
+        case .bankCash: "Bank / Cash"
+        case .stock: "Stock"
+        case .etf: "ETF"
+        case .fund: "Fund"
+        case .insurance: "Insurance"
+        case .otherAsset: "Other Asset"
+        case .liability: "Liability"
+        }
+    }
+
+    var isManualSecurity: Bool {
+        self == .stock || self == .etf || self == .fund
+    }
 }
 
 struct AssetContainer: Identifiable, Codable, Equatable, Sendable {
@@ -32,6 +49,11 @@ struct AssetContainer: Identifiable, Codable, Equatable, Sendable {
     let accountID: UUID?
     let name: String
     let kind: AssetContainerKind
+    let institution: String?
+    let primaryCurrency: CurrencyCode
+    let notes: String?
+    let createdDate: CivilDate
+    let updatedDate: CivilDate
 }
 
 struct MarketInstrument: Identifiable, Codable, Equatable, Sendable {
