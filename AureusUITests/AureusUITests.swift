@@ -23,9 +23,10 @@ final class AureusUITests: XCTestCase {
                 let sidebarItem = app.descendants(matching: .any)["sidebar.\(destination)"]
                 XCTAssertTrue(sidebarItem.waitForExistence(timeout: 5), "Missing \(destination) sidebar item")
                 sidebarItem.click()
-                let expectedIdentifier = destination == "wealth"
-                    ? "wealth.page"
-                    : "destination.\(destination)"
+                let expectedIdentifier: String
+                if destination == "wealth" { expectedIdentifier = "wealth.page" }
+                else if destination == "ledger" { expectedIdentifier = "ledger.empty" }
+                else { expectedIdentifier = "destination.\(destination)" }
                 XCTAssertTrue(
                     app.descendants(matching: .any)[expectedIdentifier].waitForExistence(timeout: 5),
                     "Missing destination content for \(destination)"
@@ -56,6 +57,16 @@ final class AureusUITests: XCTestCase {
                 timeout: 5
             )
         )
+        app.descendants(matching: .any)["sidebar.ledger"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.history"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["ledger.taxonomy"].click()
+        XCTAssertTrue(
+            app.textFields.matching(NSPredicate(format: "value == %@", "Synthetic Income")).firstMatch.waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.textFields.matching(NSPredicate(format: "value == %@", "synthetic-demo")).firstMatch.waitForExistence(timeout: 5)
+        )
+        app.buttons["Done"].click()
     }
 
     @MainActor
@@ -123,6 +134,73 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    func testLedgerDynamicCashFlowTransferInvestmentEditAndDelete() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments()
+        launchApp(app)
+
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.empty.add"].waitForExistence(timeout: 10))
+        addContainer(app: app, name: "Synthetic Ledger Cash A", kind: "Bank / Cash", amount: "1000.00", currency: "CNY", fxRate: nil)
+        addContainer(app: app, name: "Synthetic Ledger Cash B", kind: "Bank / Cash", amount: "500.00", currency: "CNY", fxRate: nil)
+
+        app.descendants(matching: .any)["sidebar.ledger"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.empty"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.taxonomy"].exists)
+
+        addLedgerEntry(app: app, kind: "Income", description: "Synthetic UI Income", amount: "100.00")
+        assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "100.00", transfers: "0")
+
+        addLedgerEntry(app: app, kind: "Expense", description: "Synthetic UI Expense", amount: "30.00")
+        assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "30.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "70.00", transfers: "0")
+
+        addLedgerEntry(app: app, kind: "Transfer", description: "Synthetic UI Transfer", amount: "50.00", targetAmount: "50.00")
+        assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "30.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "70.00", transfers: "1")
+
+        addLedgerEntry(app: app, kind: "Buy", description: "Synthetic UI Buy", amount: "10.00")
+        assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "30.00", investmentInflow: "0.00", investmentOutflow: "10.00", net: "60.00", transfers: "1")
+
+        selectLedgerKindFilter(app: app, title: "Expense")
+        let editExpense = app.buttons["Edit Expense transaction"]
+        XCTAssertTrue(editExpense.waitForExistence(timeout: 5)); editExpense.click()
+        let amount = app.descendants(matching: .any)["ledger.form.sourceAmount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5)); replaceText(in: amount, with: "40.00")
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        selectLedgerKindFilter(app: app, title: "All Kinds")
+        assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "10.00", net: "50.00", transfers: "1")
+
+        selectLedgerKindFilter(app: app, title: "Buy")
+        deleteLedgerEntry(app: app, kind: "Buy")
+        selectLedgerKindFilter(app: app, title: "All Kinds")
+        assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "60.00", transfers: "1")
+    }
+
+    @MainActor
+    func testLedgerNativeCSVImportPreviewConfirmationAndExport() throws {
+        let importURL = URL(fileURLWithPath: "/private/tmp/Aureus-Stage4-UI-Import.csv")
+        let exportURL = URL(fileURLWithPath: "/private/tmp/Aureus-Stage4-UI-Export.csv")
+
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+        app.descendants(matching: .any)["sidebar.ledger"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.history"].waitForExistence(timeout: 10))
+
+        app.descendants(matching: .any)["ledger.import"].click()
+        chooseFile(importURL.path, in: app)
+        let preview = app.descendants(matching: .any)["ledger.import.preview.summary"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValueOrLabel(preview, containing: "1 rows", timeout: 5))
+        app.descendants(matching: .any)["ledger.import.confirm"].click()
+        XCTAssertTrue(app.staticTexts["Synthetic CSV Income"].waitForExistence(timeout: 10))
+
+        app.descendants(matching: .any)["ledger.export"].click()
+        saveFile(exportURL.path, in: app)
+        XCTAssertTrue(waitForNonexistence(app.sheets.firstMatch, timeout: 5))
+        XCTAssertFalse(app.alerts["Ledger Error"].exists)
+    }
+
+    @MainActor
     private func addContainer(
         app: XCUIApplication,
         name: String,
@@ -163,6 +241,77 @@ final class AureusUITests: XCTestCase {
         }
         app.descendants(matching: .any)["wealth.form.save"].click()
         XCTAssertFalse(app.descendants(matching: .any)["wealth.form.save"].waitForExistence(timeout: 2))
+    }
+
+    @MainActor
+    private func addLedgerEntry(
+        app: XCUIApplication,
+        kind: String,
+        description: String,
+        amount: String,
+        targetAmount: String? = nil
+    ) {
+        app.descendants(matching: .any)["ledger.add"].click()
+        let descriptionField = app.descendants(matching: .any)["ledger.form.description"]
+        XCTAssertTrue(descriptionField.waitForExistence(timeout: 5))
+        replaceText(in: descriptionField, with: description)
+        if kind != "Income" {
+            let picker = app.descendants(matching: .any)["ledger.form.kind"]
+            XCTAssertTrue(picker.waitForExistence(timeout: 5)); picker.click()
+            let item = app.menuItems[kind]
+            XCTAssertTrue(item.waitForExistence(timeout: 5)); item.click()
+        }
+        replaceText(in: app.descendants(matching: .any)["ledger.form.sourceAmount"], with: amount)
+        if let targetAmount {
+            let target = app.descendants(matching: .any)["ledger.form.targetAmount"]
+            XCTAssertTrue(target.waitForExistence(timeout: 5)); replaceText(in: target, with: targetAmount)
+        }
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertFalse(app.descendants(matching: .any)["ledger.form.save"].waitForExistence(timeout: 2))
+    }
+
+    @MainActor
+    private func deleteLedgerEntry(app: XCUIApplication, kind: String) {
+        let button = app.buttons["Delete \(kind) transaction"]
+        XCTAssertTrue(button.waitForExistence(timeout: 5)); button.click()
+        let confirm = app.descendants(matching: .any)["ledger.delete.confirm"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.click()
+    }
+
+    @MainActor
+    private func selectLedgerKindFilter(app: XCUIApplication, title: String) {
+        let picker = app.descendants(matching: .any)["ledger.filter.kind"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5)); picker.click()
+        let item = app.menuItems[title]
+        XCTAssertTrue(item.waitForExistence(timeout: 5)); item.click()
+    }
+
+    @MainActor
+    private func assertLedgerSummary(
+        app: XCUIApplication,
+        ordinaryInflow: String,
+        ordinaryOutflow: String,
+        investmentInflow: String,
+        investmentOutflow: String,
+        net: String,
+        transfers: String
+    ) {
+        let values = [
+            ("ledger.summary.ordinaryInflow", ordinaryInflow),
+            ("ledger.summary.ordinaryOutflow", ordinaryOutflow),
+            ("ledger.summary.investmentInflow", investmentInflow),
+            ("ledger.summary.investmentOutflow", investmentOutflow),
+            ("ledger.summary.net", net),
+            ("ledger.summary.transfers", transfers)
+        ]
+        for (identifier, expected) in values {
+            XCTAssertTrue(waitForValue(app.descendants(matching: .any)[identifier], containing: expected, timeout: 5), "Expected \(identifier) to contain \(expected)")
+        }
+    }
+
+    @MainActor
+    private func replaceText(in field: XCUIElement, with value: String) {
+        field.click(); field.typeKey("a", modifierFlags: .command); field.typeText(value)
     }
 
     @MainActor
@@ -236,12 +385,75 @@ final class AureusUITests: XCTestCase {
         timeout: TimeInterval
     ) -> Bool {
         guard element.waitForExistence(timeout: timeout) else { return false }
+        if String(describing: element.value ?? "").localizedCaseInsensitiveContains(text) { return true }
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value CONTAINS[c] %@", text),
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
+
+    @MainActor
+    private func waitForValueOrLabel(
+        _ element: XCUIElement,
+        containing text: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        guard element.waitForExistence(timeout: timeout) else { return false }
+        if String(describing: element.value ?? "").localizedCaseInsensitiveContains(text)
+            || element.label.localizedCaseInsensitiveContains(text) { return true }
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@", text, text),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func chooseFile(_ path: String, in app: XCUIApplication) {
+        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 5) || app.dialogs.firstMatch.waitForExistence(timeout: 5))
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        let field = app.textFields["PathTextField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        replaceText(in: field, with: path)
+        app.typeKey(.enter, modifierFlags: [])
+        XCTAssertTrue(waitForNonexistence(field, timeout: 5))
+        let open = app.buttons["Open"].firstMatch
+        if open.waitForExistence(timeout: 3) {
+            // The system panel's button may report a stale center after several
+            // application launches. Activate its default action from the
+            // keyboard so the real user-selected-file path remains exercised.
+            app.typeKey(.enter, modifierFlags: [])
+        }
+    }
+
+    @MainActor
+    private func saveFile(_ path: String, in app: XCUIApplication) {
+        XCTAssertTrue(app.sheets.firstMatch.waitForExistence(timeout: 5) || app.dialogs.firstMatch.waitForExistence(timeout: 5))
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        let goToField = app.textFields["PathTextField"]
+        XCTAssertTrue(goToField.waitForExistence(timeout: 5))
+        replaceText(in: goToField, with: URL(fileURLWithPath: path).deletingLastPathComponent().path)
+        app.typeKey(.enter, modifierFlags: [])
+        XCTAssertTrue(waitForNonexistence(app.sheets["GoToWindow"], timeout: 5))
+        let fileNameField = app.textFields["saveAsNameTextField"]
+        XCTAssertTrue(fileNameField.waitForExistence(timeout: 5))
+        replaceText(in: fileNameField, with: URL(fileURLWithPath: path).lastPathComponent)
+        let save = app.sheets.buttons["Export"].firstMatch
+        XCTAssertTrue(save.waitForExistence(timeout: 5)); save.click()
+        let replace = app.sheets.buttons["Replace"].firstMatch
+        if replace.waitForExistence(timeout: 2) { replace.click() }
+    }
+
+    @MainActor
+    private func waitForNonexistence(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
 
     private func uiTestingArguments(demo: Bool = false) -> [String] {
         var arguments = [
@@ -258,14 +470,11 @@ final class AureusUITests: XCTestCase {
         app.launch()
         app.activate()
         if !app.descendants(matching: .any)["sidebar.dashboard"].waitForExistence(timeout: 3) {
-            let fileMenu = app.menuBars.menuBarItems["File"]
-            if fileMenu.waitForExistence(timeout: 2) {
-                fileMenu.click()
-                let newWindow = app.menuItems["New Aureus Window"]
-                if newWindow.waitForExistence(timeout: 2) {
-                    newWindow.click()
-                }
-            }
+            // macOS may restore the process without a visible WindowGroup
+            // window after repeated UI-test launches. Use the native New
+            // Window command without depending on transient menu geometry.
+            app.typeKey("n", modifierFlags: [.command])
+            XCTAssertTrue(app.descendants(matching: .any)["sidebar.dashboard"].waitForExistence(timeout: 5))
         }
     }
 }

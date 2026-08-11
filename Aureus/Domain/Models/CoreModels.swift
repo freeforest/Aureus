@@ -72,7 +72,7 @@ struct Asset: Identifiable, Codable, Equatable, Sendable {
     let instrumentID: UUID?
 }
 
-enum TransactionKind: String, Codable, Sendable {
+enum TransactionKind: String, Codable, CaseIterable, Equatable, Sendable {
     case income
     case expense
     case transfer

@@ -1,0 +1,154 @@
+import Foundation
+import GRDB
+import Testing
+@testable import Aureus
+
+@Suite("Stage 4 ledger persistence")
+struct LedgerPersistenceTests {
+    @Test("Fresh v3, reopen, CRUD, atomic transfer, and INTEGER storage")
+    func crudAndReopen() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("permanent/aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        for record in try SyntheticWealthSeeder.records().prefix(2) { try await store.createWealthContainer(record) }
+        let context = try LedgerTestContext.make()
+        let income = try context.entry(kind: .income)
+        let transfer = try context.transfer()
+        try await store.createLedgerEntry(income)
+        try await store.createLedgerEntry(transfer)
+        #expect(try await store.schemaVersion() == 3)
+        #expect(try await store.ledgerTransactionCount() == 2)
+        #expect(try await store.ledgerFinancialStorageClasses() == ["integer"])
+
+        let updated = try context.entry(kind: .expense, id: income.id, description: "Synthetic Edited Expense")
+        try await store.updateLedgerEntry(updated)
+        let reopened = try WealthStore(databaseURL: url)
+        #expect(try await reopened.fetchLedgerEntries().contains(updated))
+        try await reopened.deleteLedgerEntry(id: transfer.id)
+        #expect(try await reopened.ledgerTransactionCount() == 1)
+        #expect(try await reopened.fetchWealthContainers().count == 2)
+    }
+
+    @Test("Transfer failure rolls back header and both sides")
+    func transferFailureRollback() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make()
+        try await store.createWealthContainer(context.source)
+        let invalid = try LedgerEntry(
+            kind: .transfer, civilDate: context.date, recordedAt: context.instant, description: "Synthetic Invalid Transfer",
+            postings: [
+                try context.posting(10_000, role: .transferSource),
+                try context.posting(10_000, role: .transferTarget, containerID: UUID())
+            ]
+        )
+        await #expect(throws: (any Error).self) { try await store.createLedgerEntry(invalid) }
+        #expect(try await store.ledgerTransactionCount() == 0)
+    }
+
+    @Test("Category and tag normalization and in-use deletion protection")
+    func taxonomySafety() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
+        let category = try await store.createCategory(name: "  Synthetic   Food ")
+        let tag = try await store.createTag(name: "Synthetic Tag")
+        await #expect(throws: LedgerPersistenceError.duplicateName) { _ = try await store.createCategory(name: "synthetic food") }
+        let renamedCategory = try await store.updateCategory(id: category.id, name: "Synthetic Dining")
+        let renamedTag = try await store.updateTag(id: tag.id, name: "Synthetic Reviewed")
+        #expect(renamedCategory.name == "Synthetic Dining")
+        #expect(renamedTag.name == "Synthetic Reviewed")
+        let base = try context.entry(kind: .expense)
+        let entry = try LedgerEntry(
+            id: base.id, kind: base.kind, civilDate: base.civilDate, recordedAt: base.recordedAt,
+            description: base.description, category: renamedCategory, tags: [renamedTag], postings: base.postings
+        )
+        try await store.createLedgerEntry(entry)
+        await #expect(throws: LedgerPersistenceError.categoryInUse) { try await store.deleteCategory(id: category.id) }
+        await #expect(throws: LedgerPersistenceError.tagInUse) { try await store.deleteTag(id: tag.id) }
+        try await store.deleteLedgerEntry(id: entry.id)
+        try await store.deleteCategory(id: category.id)
+        try await store.deleteTag(id: tag.id)
+    }
+
+    @Test("Filtered CNY and USD cash-flow aggregation reproduces after reopen")
+    func filteredSummaryAfterReopen() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let context = try LedgerTestContext.make()
+        try await store.createWealthContainer(context.source)
+        try await store.createWealthContainer(context.target)
+        let income = try context.entry(kind: .income)
+        let usdBase = try context.entry(kind: .expense)
+        let usdExpense = try LedgerEntry(
+            id: usdBase.id, kind: .expense, civilDate: usdBase.civilDate, recordedAt: usdBase.recordedAt,
+            description: "Synthetic USD Expense",
+            postings: [try LedgerPosting(role: .primary, containerID: context.target.id, valuation: context.valuation("10.00", currency: .usd))]
+        )
+        let transfer = try context.transfer()
+        try await store.createLedgerEntry(income)
+        try await store.createLedgerEntry(usdExpense)
+        try await store.createLedgerEntry(transfer)
+
+        let reopened = try WealthStore(databaseURL: url)
+        let summary = try await reopened.ledgerSummary()
+        #expect(summary.ordinaryInflowCNY.minorUnits == 10_000)
+        #expect(summary.ordinaryOutflowCNY.minorUnits == 7_000)
+        #expect(summary.netCashFlowCNY.minorUnits == 3_000)
+        #expect(summary.transferCount == 1)
+        let expenses = try await reopened.fetchLedgerEntries(filter: LedgerFilter(kind: .expense))
+        #expect(expenses.map(\.id) == [usdExpense.id])
+        let usdOnly = try await reopened.fetchLedgerEntries(filter: LedgerFilter(currency: .usd))
+        #expect(usdOnly.map(\.id) == [usdExpense.id])
+    }
+
+    @Test("Ledger posting protects Container and deleting Ledger never deletes Container")
+    func containerProtection() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
+        let entry = try context.entry(kind: .income); try await store.createLedgerEntry(entry)
+        let impact = try await store.deletionImpact(for: context.source.id)
+        #expect(impact.linkedLedgerPostingCount == 1)
+        await #expect(throws: WealthPersistenceError.protectedPermanentDependents) { _ = try await store.deleteWealthContainer(id: context.source.id) }
+        #expect(try await store.ledgerTransactionCount() == 1)
+        #expect(try await store.fetchWealthContainer(id: context.source.id) != nil)
+        try await store.deleteLedgerEntry(id: entry.id)
+        #expect(try await store.fetchWealthContainer(id: context.source.id) != nil)
+    }
+
+    @Test("v1 to v2 to v3 preserves Stage 3 and legacy foundation rows")
+    func migrationPreservesData() throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("migration/aureus.sqlite")
+        let queue = try DatabaseQueueFactory.open(at: url)
+        let migrator = DatabaseMigrations.permanentMigrator()
+        try migrator.migrate(queue, upTo: DatabaseMigrations.permanentV2)
+        try queue.write { db in
+            try db.execute(sql: "INSERT INTO asset_containers (id, name, kind, primary_currency_code, created_date, updated_date) VALUES ('legacy-stage3', 'Synthetic Preserved', 'bankCash', 'CNY', '2026-01-01', '2026-01-01')")
+            try db.execute(sql: "INSERT INTO wealth_records (container_id, record_kind, original_minor, original_currency_code, converted_cny_minor, fx_coefficient, fx_source_currency_code, fx_target_currency_code, fx_source, fx_reference_date, fx_recorded_at_ms, fx_is_manual, fx_is_stale) VALUES ('legacy-stage3', 'bankCash', 100, 'CNY', 100, 10000000000, 'CNY', 'CNY', 'identity', '2026-01-01', 0, 0, 0)")
+        }
+        try migrator.migrate(queue)
+        try migrator.migrate(queue)
+        let state = try queue.read { db in (
+            try Int.fetchOne(db, sql: "SELECT version FROM schema_metadata WHERE store_kind = 'permanent'"),
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = 'legacy-stage3'"),
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wealth_transactions'")
+        ) }
+        #expect(state.0 == 3); #expect(state.1 == 1); #expect(state.2 == 1)
+    }
+
+    @Test("Cache reset leaves Ledger and wealth unchanged")
+    func cacheIsolation() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let wealth = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache/market.sqlite"))
+        let context = try LedgerTestContext.make(); try await wealth.createWealthContainer(context.source)
+        try await wealth.createLedgerEntry(context.entry(kind: .dividend)); try await cache.seedSyntheticCache()
+        try await cache.reset()
+        #expect(try await wealth.ledgerTransactionCount() == 1)
+        #expect(try await wealth.fetchWealthContainer(id: context.source.id) != nil)
+        #expect(try await cache.cachedRowCount() == 0)
+    }
+}

@@ -7,6 +7,7 @@ enum WealthMigrationError: Error, Equatable {
 enum DatabaseMigrations {
     static let permanentV1 = "permanent_v1_foundation"
     static let permanentV2 = "permanent_v2_wealth"
+    static let permanentV3 = "permanent_v3_ledger"
     static let cacheV1 = "cache_v1_foundation"
 
     static func permanentMigrator() -> DatabaseMigrator {
@@ -360,6 +361,122 @@ enum DatabaseMigrations {
             try db.execute(
                 sql: "UPDATE schema_metadata SET version = 2 WHERE store_kind = 'permanent'"
             )
+        }
+        migrator.registerMigration(permanentV3) { db in
+            // The v1 wealth_transactions table remains an immutable foundation artifact.
+            // Stage 4's active Ledger source of truth starts with ledger_transactions.
+            try db.execute(sql: "ALTER TABLE categories ADD COLUMN normalized_name TEXT")
+            try db.execute(sql: "ALTER TABLE tags ADD COLUMN normalized_name TEXT")
+            try db.execute(sql: "UPDATE categories SET normalized_name = lower(trim(name))")
+            try db.execute(sql: "UPDATE tags SET normalized_name = lower(trim(name))")
+            try db.execute(sql: "CREATE UNIQUE INDEX categories_normalized_name_unique ON categories(normalized_name)")
+            try db.execute(sql: "CREATE UNIQUE INDEX tags_normalized_name_unique ON tags(normalized_name)")
+
+            try db.execute(sql: """
+                CREATE TABLE ledger_transactions (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    kind TEXT NOT NULL CHECK (kind IN (
+                        'income', 'expense', 'transfer', 'buy', 'sell',
+                        'dividend', 'interest', 'fee'
+                    )),
+                    civil_date TEXT NOT NULL CHECK (length(civil_date) = 10),
+                    recorded_at_ms INTEGER NOT NULL,
+                    description TEXT NOT NULL CHECK (length(trim(description)) > 0),
+                    payee TEXT,
+                    category_id TEXT REFERENCES categories(id) ON DELETE RESTRICT,
+                    note TEXT,
+                    import_fingerprint TEXT UNIQUE,
+                    created_at_ms INTEGER NOT NULL,
+                    updated_at_ms INTEGER NOT NULL,
+                    CHECK (kind != 'transfer' OR category_id IS NULL)
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TABLE ledger_postings (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    transaction_id TEXT NOT NULL
+                        REFERENCES ledger_transactions(id) ON DELETE CASCADE,
+                    role TEXT NOT NULL CHECK (role IN ('primary', 'transferSource', 'transferTarget')),
+                    container_id TEXT NOT NULL
+                        REFERENCES asset_containers(id) ON DELETE RESTRICT,
+                    original_minor INTEGER NOT NULL CHECK (original_minor > 0),
+                    original_currency_code TEXT NOT NULL
+                        CHECK (original_currency_code IN ('CNY', 'USD')),
+                    converted_cny_minor INTEGER NOT NULL CHECK (converted_cny_minor > 0),
+                    fx_coefficient INTEGER NOT NULL CHECK (fx_coefficient > 0),
+                    fx_source_currency_code TEXT NOT NULL
+                        CHECK (fx_source_currency_code IN ('CNY', 'USD')),
+                    fx_target_currency_code TEXT NOT NULL CHECK (fx_target_currency_code = 'CNY'),
+                    fx_source TEXT NOT NULL CHECK (length(fx_source) > 0),
+                    fx_reference_date TEXT NOT NULL CHECK (length(fx_reference_date) = 10),
+                    fx_recorded_at_ms INTEGER NOT NULL,
+                    fx_is_manual INTEGER NOT NULL CHECK (fx_is_manual IN (0, 1)),
+                    fx_is_stale INTEGER NOT NULL CHECK (fx_is_stale IN (0, 1)),
+                    UNIQUE(transaction_id, role),
+                    CHECK (
+                        (original_currency_code = 'CNY'
+                            AND fx_source_currency_code = 'CNY'
+                            AND fx_coefficient = 10000000000
+                            AND converted_cny_minor = original_minor
+                            AND fx_source = 'identity'
+                            AND fx_is_manual = 0)
+                        OR
+                        (original_currency_code = 'USD'
+                            AND fx_source_currency_code = 'USD'
+                            AND fx_is_manual = 1
+                            AND instr(lower(fx_source), 'manual') > 0)
+                    )
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TABLE ledger_transaction_tags (
+                    transaction_id TEXT NOT NULL
+                        REFERENCES ledger_transactions(id) ON DELETE CASCADE,
+                    tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE RESTRICT,
+                    PRIMARY KEY (transaction_id, tag_id)
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TABLE classification_rules (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+                    priority INTEGER NOT NULL,
+                    is_enabled INTEGER NOT NULL CHECK (is_enabled IN (0, 1)),
+                    match_mode TEXT NOT NULL CHECK (match_mode IN ('exact', 'contains')),
+                    payee_pattern TEXT,
+                    kind TEXT CHECK (kind IS NULL OR kind IN (
+                        'income', 'expense', 'transfer', 'buy', 'sell',
+                        'dividend', 'interest', 'fee'
+                    )),
+                    source_container_id TEXT
+                        REFERENCES asset_containers(id) ON DELETE RESTRICT,
+                    amount_direction TEXT CHECK (
+                        amount_direction IS NULL OR amount_direction IN ('inflow', 'outflow')
+                    ),
+                    result_category_id TEXT REFERENCES categories(id) ON DELETE RESTRICT,
+                    UNIQUE(priority, id)
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TABLE classification_rule_tags (
+                    rule_id TEXT NOT NULL REFERENCES classification_rules(id) ON DELETE CASCADE,
+                    tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE RESTRICT,
+                    PRIMARY KEY (rule_id, tag_id)
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TABLE ledger_import_batches (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    schema_version TEXT NOT NULL CHECK (schema_version = 'AUREUS_LEDGER_V1'),
+                    imported_at_ms INTEGER NOT NULL,
+                    transaction_count INTEGER NOT NULL CHECK (transaction_count > 0)
+                )
+                """)
+            try db.execute(sql: "CREATE INDEX ledger_transactions_date_index ON ledger_transactions(civil_date DESC, id)")
+            try db.execute(sql: "CREATE INDEX ledger_transactions_kind_index ON ledger_transactions(kind)")
+            try db.execute(sql: "CREATE INDEX ledger_postings_container_index ON ledger_postings(container_id)")
+            try db.execute(sql: "CREATE INDEX ledger_transaction_tags_tag_index ON ledger_transaction_tags(tag_id)")
+            try db.execute(sql: "UPDATE schema_metadata SET version = 3 WHERE store_kind = 'permanent'")
         }
         return migrator
     }

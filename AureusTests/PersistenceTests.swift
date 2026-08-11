@@ -20,7 +20,7 @@ struct PersistenceTests {
         let cache = try MarketCacheStore(databaseURL: cacheURL)
 
         #expect(permanentURL != cacheURL)
-        #expect(try await wealth.schemaVersion() == 2)
+        #expect(try await wealth.schemaVersion() == 3)
         #expect(try await cache.schemaVersion() == 1)
         #expect(try await wealth.foreignKeysEnabled())
         #expect(try await cache.foreignKeysEnabled())
@@ -39,7 +39,7 @@ struct PersistenceTests {
 
         let reopened = try WealthStore(databaseURL: permanentURL)
         try await reopened.migrate()
-        #expect(try await reopened.schemaVersion() == 2)
+        #expect(try await reopened.schemaVersion() == 3)
         #expect(try await reopened.foundationTableCounts() == firstCounts)
     }
 

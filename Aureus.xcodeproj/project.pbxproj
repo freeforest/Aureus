@@ -28,6 +28,12 @@
 		A10000000000000000000013 /* SyntheticWealthSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SyntheticWealthSeeder.swift */; };
 		A10000000000000000000014 /* WealthFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* WealthFeatureModel.swift */; };
 		A10000000000000000000015 /* WealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* WealthView.swift */; };
+		A10000000000000000000016 /* LedgerDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* LedgerDomain.swift */; };
+		A10000000000000000000017 /* LedgerCSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* LedgerCSV.swift */; };
+		A10000000000000000000018 /* LedgerPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019 /* LedgerPersistence.swift */; };
+		A10000000000000000000019 /* SyntheticLedgerSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001A /* SyntheticLedgerSeeder.swift */; };
+		A1000000000000000000001A /* LedgerFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001B /* LedgerFeatureModel.swift */; };
+		A1000000000000000000001B /* LedgerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001C /* LedgerView.swift */; };
 		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
 		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
 		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
@@ -36,6 +42,9 @@
 		A20000000000000000000005 /* ProviderBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* ProviderBoundaryTests.swift */; };
 		A20000000000000000000006 /* WealthDomainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* WealthDomainTests.swift */; };
 		A20000000000000000000007 /* WealthPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000007 /* WealthPersistenceTests.swift */; };
+		A20000000000000000000008 /* LedgerDomainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000008 /* LedgerDomainTests.swift */; };
+		A20000000000000000000009 /* LedgerPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* LedgerPersistenceTests.swift */; };
+		A2000000000000000000000A /* LedgerCSVTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000A /* LedgerCSVTests.swift */; };
 		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
 		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
 /* End PBXBuildFile section */
@@ -80,6 +89,12 @@
 		B10000000000000000000014 /* SyntheticWealthSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticWealthSeeder.swift; sourceTree = "<group>"; };
 		B10000000000000000000015 /* WealthFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthFeatureModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* WealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthView.swift; sourceTree = "<group>"; };
+		B10000000000000000000017 /* LedgerDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerDomain.swift; sourceTree = "<group>"; };
+		B10000000000000000000018 /* LedgerCSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCSV.swift; sourceTree = "<group>"; };
+		B10000000000000000000019 /* LedgerPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerPersistence.swift; sourceTree = "<group>"; };
+		B1000000000000000000001A /* SyntheticLedgerSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticLedgerSeeder.swift; sourceTree = "<group>"; };
+		B1000000000000000000001B /* LedgerFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerFeatureModel.swift; sourceTree = "<group>"; };
+		B1000000000000000000001C /* LedgerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerView.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
@@ -87,6 +102,9 @@
 		B20000000000000000000005 /* ProviderBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderBoundaryTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000006 /* WealthDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthDomainTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000007 /* WealthPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthPersistenceTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000008 /* LedgerDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerDomainTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000009 /* LedgerPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerPersistenceTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000A /* LedgerCSVTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCSVTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
 		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -171,6 +189,7 @@
 				D12300000000000000000001 /* Models */,
 				D12400000000000000000001 /* Providers */,
 				D12500000000000000000001 /* Wealth */,
+				D12600000000000000000001 /* Ledger */,
 			);
 			path = Domain;
 			sourceTree = "<group>";
@@ -208,6 +227,15 @@
 			path = Wealth;
 			sourceTree = "<group>";
 		};
+		D12600000000000000000001 /* Ledger */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000017 /* LedgerDomain.swift */,
+				B10000000000000000000018 /* LedgerCSV.swift */,
+			);
+			path = Ledger;
+			sourceTree = "<group>";
+		};
 		D13000000000000000000001 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
@@ -225,6 +253,7 @@
 				B1000000000000000000000C /* DatabaseQueueFactory.swift */,
 				B1000000000000000000000D /* SyntheticFoundationSeeder.swift */,
 				B10000000000000000000014 /* SyntheticWealthSeeder.swift */,
+				B1000000000000000000001A /* SyntheticLedgerSeeder.swift */,
 			);
 			path = Migrations;
 			sourceTree = "<group>";
@@ -234,6 +263,7 @@
 			children = (
 				B1000000000000000000000E /* WealthStore.swift */,
 				B10000000000000000000013 /* WealthPersistenceRows.swift */,
+				B10000000000000000000019 /* LedgerPersistence.swift */,
 			);
 			path = Permanent;
 			sourceTree = "<group>";
@@ -252,6 +282,7 @@
 			children = (
 				B10000000000000000000005 /* AppShellView.swift */,
 				D14100000000000000000001 /* Wealth */,
+				D14200000000000000000001 /* Ledger */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -265,6 +296,15 @@
 			path = Wealth;
 			sourceTree = "<group>";
 		};
+		D14200000000000000000001 /* Ledger */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000001B /* LedgerFeatureModel.swift */,
+				B1000000000000000000001C /* LedgerView.swift */,
+			);
+			path = Ledger;
+			sourceTree = "<group>";
+		};
 		D20000000000000000000001 /* AureusTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -275,6 +315,9 @@
 				B20000000000000000000005 /* ProviderBoundaryTests.swift */,
 				B20000000000000000000006 /* WealthDomainTests.swift */,
 				B20000000000000000000007 /* WealthPersistenceTests.swift */,
+				B20000000000000000000008 /* LedgerDomainTests.swift */,
+				B20000000000000000000009 /* LedgerPersistenceTests.swift */,
+				B2000000000000000000000A /* LedgerCSVTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -403,6 +446,12 @@
 				A10000000000000000000013 /* SyntheticWealthSeeder.swift in Sources */,
 				A10000000000000000000014 /* WealthFeatureModel.swift in Sources */,
 				A10000000000000000000015 /* WealthView.swift in Sources */,
+				A10000000000000000000016 /* LedgerDomain.swift in Sources */,
+				A10000000000000000000017 /* LedgerCSV.swift in Sources */,
+				A10000000000000000000018 /* LedgerPersistence.swift in Sources */,
+				A10000000000000000000019 /* SyntheticLedgerSeeder.swift in Sources */,
+				A1000000000000000000001A /* LedgerFeatureModel.swift in Sources */,
+				A1000000000000000000001B /* LedgerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -417,6 +466,9 @@
 				A20000000000000000000005 /* ProviderBoundaryTests.swift in Sources */,
 				A20000000000000000000006 /* WealthDomainTests.swift in Sources */,
 				A20000000000000000000007 /* WealthPersistenceTests.swift in Sources */,
+				A20000000000000000000008 /* LedgerDomainTests.swift in Sources */,
+				A20000000000000000000009 /* LedgerPersistenceTests.swift in Sources */,
+				A2000000000000000000000A /* LedgerCSVTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -478,7 +530,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SELECTED_FILES = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Aureus;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
@@ -504,7 +556,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
-				ENABLE_USER_SELECTED_FILES = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Aureus;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";

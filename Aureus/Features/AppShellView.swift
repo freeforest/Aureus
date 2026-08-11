@@ -47,6 +47,12 @@ struct AppShellView: View {
                     clock: dependencies.clock,
                     mode: mode
                 )
+            } else if model.selection == .ledger, let dependencies = model.dependencies {
+                LedgerView(
+                    store: dependencies.wealthStore,
+                    clock: dependencies.clock,
+                    mode: mode
+                )
             } else {
                 VStack(spacing: 0) {
                     ModeBanner(mode: mode)
@@ -67,7 +73,7 @@ private struct ModeBanner: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Empty Local Store")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 3 Wealth Candidate")
+            Text("Stage 4 Ledger Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

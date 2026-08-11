@@ -1,0 +1,281 @@
+import CryptoKit
+import Foundation
+
+enum LedgerCSVError: Error, Equatable, Sendable, CustomStringConvertible {
+    case invalidUTF8
+    case malformedCSV(String)
+    case invalidHeader
+    case unsupportedSchema(String)
+    case invalidField(String)
+    case unknownContainer(String)
+    case unknownCategory(String)
+    case unknownTag(String)
+    case convertedValueMismatch
+
+    var description: String {
+        switch self {
+        case .invalidUTF8: "The file is not valid UTF-8."
+        case .malformedCSV(let reason): "Malformed CSV: \(reason)"
+        case .invalidHeader: "The CSV columns do not match Aureus Ledger V1."
+        case .unsupportedSchema(let version): "Unsupported CSV schema: \(version)."
+        case .invalidField(let field): "Invalid value for \(field)."
+        case .unknownContainer(let value): "Unknown container: \(value)."
+        case .unknownCategory(let value): "Unknown category: \(value)."
+        case .unknownTag(let value): "Unknown tag: \(value)."
+        case .convertedValueMismatch: "Converted CNY does not match the amount and FX rate."
+        }
+    }
+}
+
+struct LedgerImportPreviewRow: Identifiable, Equatable, Sendable {
+    let id: Int
+    let entry: LedgerEntry?
+    let error: String?
+    let isDuplicate: Bool
+    let appliedRuleID: UUID?
+}
+
+struct LedgerImportPreview: Equatable, Sendable {
+    let rows: [LedgerImportPreviewRow]
+    var validEntries: [LedgerEntry] { rows.filter { !$0.isDuplicate && $0.error == nil }.compactMap(\.entry) }
+    var errorCount: Int { rows.count { $0.error != nil } }
+    var duplicateCount: Int { rows.count { $0.isDuplicate } }
+    var canImport: Bool { !validEntries.isEmpty && errorCount == 0 && duplicateCount == 0 }
+}
+
+enum LedgerCSV {
+    static let schemaVersion = "AUREUS_LEDGER_V1"
+    static let header = [
+        "schema_version", "transaction_id", "kind", "civil_date", "recorded_at_ms",
+        "description", "payee", "category", "tags", "source_container_id",
+        "source_currency", "source_amount", "source_fx_rate", "source_converted_cny",
+        "source_fx_source", "source_fx_reference_date", "source_fx_recorded_at_ms",
+        "source_fx_manual", "source_fx_stale", "target_container_id", "target_currency",
+        "target_amount", "target_fx_rate", "target_converted_cny", "target_fx_source",
+        "target_fx_reference_date", "target_fx_recorded_at_ms", "target_fx_manual",
+        "target_fx_stale", "note"
+    ]
+
+    static func export(_ entries: [LedgerEntry]) -> Data {
+        var records = [header]
+        records.append(contentsOf: entries.sorted { lhs, rhs in
+            lhs.civilDate == rhs.civilDate ? lhs.id.uuidString < rhs.id.uuidString : lhs.civilDate < rhs.civilDate
+        }.map(exportRecord))
+        let text = records.map { $0.map(quote).joined(separator: ",") }.joined(separator: "\r\n") + "\r\n"
+        return Data(text.utf8)
+    }
+
+    static func preview(
+        data: Data,
+        containers: [WealthContainer],
+        categories: [Category],
+        tags: [Tag],
+        rules: [ClassificationRule],
+        existingFingerprints: Set<String>
+    ) throws -> LedgerImportPreview {
+        guard let text = String(data: data, encoding: .utf8) else { throw LedgerCSVError.invalidUTF8 }
+        let records = try parseRecords(text)
+        guard let first = records.first, first == header else { throw LedgerCSVError.invalidHeader }
+        let containerMap = Dictionary(uniqueKeysWithValues: containers.map { ($0.id.uuidString, $0) })
+        let categoryMap = Dictionary(uniqueKeysWithValues: categories.map { (try! LedgerNameNormalization.key($0.name), $0) })
+        let tagMap = Dictionary(uniqueKeysWithValues: tags.map { (try! LedgerNameNormalization.key($0.name), $0) })
+        var seen = existingFingerprints
+        var previewRows: [LedgerImportPreviewRow] = []
+        for (offset, fields) in records.dropFirst().enumerated() {
+            let line = offset + 2
+            do {
+                guard fields.count == header.count else { throw LedgerCSVError.malformedCSV("row \(line) has \(fields.count) columns") }
+                let dictionary = Dictionary(uniqueKeysWithValues: zip(header, fields))
+                guard dictionary["schema_version"] == schemaVersion else { throw LedgerCSVError.unsupportedSchema(dictionary["schema_version"] ?? "") }
+                let parsed = try importedEntry(
+                    dictionary, containers: containerMap, categories: categoryMap,
+                    tags: tagMap, rules: rules
+                )
+                let fingerprint = fingerprint(for: fields)
+                let entry = try LedgerEntry(
+                    id: parsed.entry.id, kind: parsed.entry.kind, civilDate: parsed.entry.civilDate,
+                    recordedAt: parsed.entry.recordedAt, description: parsed.entry.description,
+                    payee: parsed.entry.payee, category: parsed.entry.category, tags: parsed.entry.tags,
+                    postings: parsed.entry.postings, note: parsed.entry.note,
+                    importFingerprint: fingerprint
+                )
+                let duplicate = seen.contains(fingerprint)
+                seen.insert(fingerprint)
+                previewRows.append(LedgerImportPreviewRow(id: line, entry: entry, error: nil, isDuplicate: duplicate, appliedRuleID: parsed.ruleID))
+            } catch {
+                previewRows.append(LedgerImportPreviewRow(id: line, entry: nil, error: String(describing: error), isDuplicate: false, appliedRuleID: nil))
+            }
+        }
+        return LedgerImportPreview(rows: previewRows)
+    }
+
+    private static func importedEntry(
+        _ fields: [String: String],
+        containers: [String: WealthContainer],
+        categories: [String: Category],
+        tags: [String: Tag],
+        rules: [ClassificationRule]
+    ) throws -> (entry: LedgerEntry, ruleID: UUID?) {
+        guard let id = UUID(uuidString: fields["transaction_id"] ?? ""),
+              let kind = TransactionKind(rawValue: fields["kind"] ?? ""),
+              let date = try? CivilDate(canonical: fields["civil_date"] ?? ""),
+              let recordedAt = Int64(fields["recorded_at_ms"] ?? "") else { throw LedgerCSVError.invalidField("identity/date") }
+        let source = try posting(prefix: "source", role: kind == .transfer ? .transferSource : .primary, fields: fields, containers: containers)
+        var postings = [source]
+        if kind == .transfer {
+            postings.append(try posting(prefix: "target", role: .transferTarget, fields: fields, containers: containers))
+        }
+        var category: Category?
+        let categoryText = unprotect(fields["category"] ?? "")
+        if !categoryText.isEmpty {
+            guard let match = categories[try LedgerNameNormalization.key(categoryText)] else { throw LedgerCSVError.unknownCategory(categoryText) }
+            category = match
+        }
+        var entryTags: [Tag] = []
+        if let tagText = fields["tags"], !tagText.isEmpty {
+            let names = try JSONDecoder().decode([String].self, from: Data(tagText.utf8))
+            entryTags = try names.map { name in
+                guard let match = tags[try LedgerNameNormalization.key(name)] else { throw LedgerCSVError.unknownTag(name) }
+                return match
+            }
+        }
+        let description = unprotect(fields["description"] ?? "")
+        let payee = unprotect(fields["payee"] ?? "")
+        let result = DeterministicLedgerClassifier.classify(
+            ClassificationInput(payee: payee.isEmpty ? nil : payee, description: description, kind: kind, sourceContainerID: source.containerID),
+            rules: rules
+        )
+        if category == nil { category = result?.category }
+        if entryTags.isEmpty { entryTags = result?.tags ?? [] }
+        return (
+            try LedgerEntry(
+                id: id, kind: kind, civilDate: date,
+                recordedAt: UTCInstant(millisecondsSince1970: recordedAt),
+                description: description, payee: payee, category: category,
+                tags: entryTags, postings: postings, note: unprotect(fields["note"] ?? "")
+            ),
+            result?.ruleID
+        )
+    }
+
+    private static func posting(
+        prefix: String,
+        role: LedgerPostingRole,
+        fields: [String: String],
+        containers: [String: WealthContainer]
+    ) throws -> LedgerPosting {
+        let containerText = fields["\(prefix)_container_id"] ?? ""
+        guard let container = containers[containerText] else { throw LedgerCSVError.unknownContainer(containerText) }
+        guard let currency = CurrencyCode(rawValue: fields["\(prefix)_currency"] ?? ""),
+              let amountDecimal = try? FixedPointMath.parseCanonical(fields["\(prefix)_amount"] ?? ""),
+              let rateDecimal = try? FixedPointMath.parseCanonical(fields["\(prefix)_fx_rate"] ?? ""),
+              let convertedDecimal = try? FixedPointMath.parseCanonical(fields["\(prefix)_converted_cny"] ?? ""),
+              let referenceDate = try? CivilDate(canonical: fields["\(prefix)_fx_reference_date"] ?? ""),
+              let fxRecorded = Int64(fields["\(prefix)_fx_recorded_at_ms"] ?? ""),
+              let manual = parseBool(fields["\(prefix)_fx_manual"] ?? ""),
+              let stale = parseBool(fields["\(prefix)_fx_stale"] ?? "") else { throw LedgerCSVError.invalidField(prefix) }
+        let original = try Money(decimal: amountDecimal, currency: currency)
+        let rate = try FXRate(decimal: rateDecimal, sourceCurrency: currency, targetCurrency: .cny)
+        let valuation = try FXValuation(
+            original: original, rate: rate, referenceDate: referenceDate,
+            fetchedAt: UTCInstant(millisecondsSince1970: fxRecorded),
+            providerIdentifier: fields["\(prefix)_fx_source"] ?? "",
+            isManualOverride: manual, isStale: stale
+        )
+        guard valuation.convertedCNY == (try Money(decimal: convertedDecimal, currency: .cny)) else { throw LedgerCSVError.convertedValueMismatch }
+        return try LedgerPosting(role: role, containerID: container.id, valuation: valuation)
+    }
+
+    private static func exportRecord(_ entry: LedgerEntry) -> [String] {
+        let source = entry.kind == .transfer ? entry.transferSource! : entry.primaryPosting!
+        let target = entry.transferTarget
+        let tagData = try! JSONEncoder().encode(entry.tags.map(\.name))
+        return [
+            schemaVersion, entry.id.uuidString, entry.kind.rawValue, entry.civilDate.description,
+            String(entry.recordedAt.millisecondsSince1970), protect(entry.description),
+            protect(entry.payee ?? ""), protect(entry.category?.name ?? ""), String(decoding: tagData, as: UTF8.self),
+            source.containerID.uuidString, source.valuation.original.currency.rawValue,
+            decimal(source.valuation.original.decimal), decimal(source.valuation.rate.decimal),
+            decimal(source.valuation.convertedCNY.decimal), source.valuation.providerIdentifier,
+            source.valuation.referenceDate.description, String(source.valuation.fetchedAt.millisecondsSince1970),
+            bool(source.valuation.isManualOverride), bool(source.valuation.isStale),
+            target?.containerID.uuidString ?? "", target?.valuation.original.currency.rawValue ?? "",
+            target.map { decimal($0.valuation.original.decimal) } ?? "",
+            target.map { decimal($0.valuation.rate.decimal) } ?? "",
+            target.map { decimal($0.valuation.convertedCNY.decimal) } ?? "",
+            target?.valuation.providerIdentifier ?? "", target?.valuation.referenceDate.description ?? "",
+            target.map { String($0.valuation.fetchedAt.millisecondsSince1970) } ?? "",
+            target.map { bool($0.valuation.isManualOverride) } ?? "",
+            target.map { bool($0.valuation.isStale) } ?? "", protect(entry.note ?? "")
+        ]
+    }
+
+    private static func decimal(_ value: Decimal) -> String { NSDecimalNumber(decimal: value).stringValue }
+    private static func bool(_ value: Bool) -> String { value ? "true" : "false" }
+    private static func parseBool(_ value: String) -> Bool? {
+        switch value { case "true": true; case "false": false; default: nil }
+    }
+
+    private static func protect(_ value: String) -> String {
+        guard let first = value.first else { return value }
+        if first == "'" { return "'" + value }
+        return ["=", "+", "-", "@"].contains(first) ? "'" + value : value
+    }
+
+    private static func unprotect(_ value: String) -> String {
+        if value.hasPrefix("''") { return String(value.dropFirst()) }
+        if value.hasPrefix("'"), let next = value.dropFirst().first, ["=", "+", "-", "@"].contains(next) {
+            return String(value.dropFirst())
+        }
+        return value
+    }
+
+    private static func quote(_ value: String) -> String {
+        "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    private static func fingerprint(for fields: [String]) -> String {
+        let canonical = fields.enumerated().filter { $0.offset != 1 }.map(\.element).joined(separator: "\u{1f}")
+        return SHA256.hash(data: Data(canonical.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func parseRecords(_ text: String) throws -> [[String]] {
+        let text = text.replacingOccurrences(of: "\r\n", with: "\n")
+        var records: [[String]] = []
+        var record: [String] = []
+        var field = ""
+        var inQuotes = false
+        var index = text.startIndex
+        while index < text.endIndex {
+            let character = text[index]
+            if inQuotes {
+                if character == "\"" {
+                    let next = text.index(after: index)
+                    if next < text.endIndex, text[next] == "\"" {
+                        field.append("\"")
+                        index = text.index(after: next)
+                        continue
+                    }
+                    inQuotes = false
+                } else {
+                    field.append(character)
+                }
+            } else {
+                switch character {
+                case "\"" where field.isEmpty: inQuotes = true
+                case ",": record.append(field); field = ""
+                case "\n":
+                    if field.last == "\r" { field.removeLast() }
+                    record.append(field); field = ""
+                    if !(record.count == 1 && record[0].isEmpty) { records.append(record) }
+                    record = []
+                default: field.append(character)
+                }
+            }
+            index = text.index(after: index)
+        }
+        guard !inQuotes else { throw LedgerCSVError.malformedCSV("unterminated quoted field") }
+        if !field.isEmpty || !record.isEmpty { record.append(field); records.append(record) }
+        return records
+    }
+}

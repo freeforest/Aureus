@@ -375,7 +375,7 @@ final class WealthFeatureModel {
             if let impact = try? await store.deletionImpact(for: confirmation.record.id) {
                 deletionProtectionMessage = protectedDeletionMessage(impact)
             } else {
-                deletionProtectionMessage = "This Container has protected permanent dependents and cannot be deleted in Stage 3."
+                deletionProtectionMessage = "This Container has protected permanent dependents and cannot be deleted."
             }
         } catch {
             self.pendingDeletion = nil
@@ -386,7 +386,8 @@ final class WealthFeatureModel {
     private func protectedDeletionMessage(_ impact: ContainerDeletionImpact) -> String {
         "Cannot delete this Container in Stage 3: "
             + "\(impact.linkedAssetCount) linked Asset record(s) and "
-            + "\(impact.linkedInsurancePolicyCount) linked Insurance Policy record(s) are protected. "
+            + "\(impact.linkedInsurancePolicyCount) linked Insurance Policy record(s), and "
+            + "\(impact.linkedLedgerPostingCount) linked Ledger posting(s) are protected. "
             + "No permanent record was deleted."
     }
 

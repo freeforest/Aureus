@@ -19,9 +19,9 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
-Stage 1 and Stage 2 are frozen after Reviewer Gate PASS. The current state is **Stage 3 Implementation Candidate — Awaiting Reviewer Gate**. The native Wealth workspace now supports persistent Container CRUD for bank/cash, stock, ETF, fund, insurance cash value, other assets, and liabilities; CNY aggregation; and manual USD → CNY valuation with retained FX provenance. All market-security values are explicitly manual—no live Provider is connected.
+Stages 1 through 3 are frozen after Reviewer Gate PASS. The current state is **Stage 4 Implementation Candidate — Awaiting Reviewer Gate**. The native Wealth workspace supports persistent Container CRUD, CNY aggregation, and manual USD → CNY valuation with retained FX provenance. The Ledger workspace now supports the eight frozen transaction kinds, transfer-neutral cash-flow summaries, Categories and Tags, deterministic local classification rules, and previewed/atomic Aureus Ledger V1 CSV import plus native CSV export. Ledger activity remains separate from Stage 3 manual wealth valuations.
 
-Twelve Data is the frozen Primary Market Data Provider, using a user-owned API key (BYOK) and plan-aware entitlements: Basic Free is the usable US-focused entry path, while complete US/HK/mainland-China/Japan capability depends on the user's Pro-or-higher entitlement and later Stage 6 verification. Provider integration remains outside Stage 3; the app contains provider-independent contracts only and does not make live Provider requests.
+Twelve Data is the frozen Primary Market Data Provider, using a user-owned API key (BYOK) and plan-aware entitlements: Basic Free is the usable US-focused entry path, while complete US/HK/mainland-China/Japan capability depends on the user's Pro-or-higher entitlement and later Stage 6 verification. Provider integration remains outside Stage 4; the app contains provider-independent contracts only and does not make live Provider requests.
 
 - [V1 Scope — Frozen](docs/V1_SCOPE.md)
 - [V1 Architecture & Technology — Frozen](docs/V1_ARCHITECTURE.md)
@@ -38,15 +38,15 @@ xcodebuild -resolvePackageDependencies -project Aureus.xcodeproj -scheme Aureus
 Build the arm64 Debug app and all test products in isolated DerivedData:
 
 ```sh
-xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage3-DerivedData CODE_SIGNING_ALLOWED=NO build
-xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage3-DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build-for-testing
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage4-DerivedData CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage4-DerivedData CODE_SIGNING_ALLOWED=NO build-for-testing
 ```
 
 Run the complete Unit/Integration suite, then the UI suite. The UI test runner uses only local ad-hoc signing and does not require a Development Team:
 
 ```sh
-xcodebuild test-without-building -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage3-DerivedData -only-testing:AureusTests CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-
-xcodebuild test-without-building -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage3-DerivedData -only-testing:AureusUITests CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-
+xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage4-DerivedData -only-testing:AureusTests CODE_SIGNING_ALLOWED=NO
+xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage4-DerivedData -only-testing:AureusUITests
 ```
 
 The canonical product design source for later stages is [Aureus_Wealth_Terminal_项目设计汇总.md](Aureus_Wealth_Terminal_项目设计汇总.md).

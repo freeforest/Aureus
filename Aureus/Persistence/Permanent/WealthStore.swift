@@ -4,7 +4,7 @@ import GRDB
 actor WealthStore {
     nonisolated let databaseURL: URL
 
-    private let queue: DatabaseQueue
+    let queue: DatabaseQueue
     private let migrator: DatabaseMigrator
 
     init(databaseURL: URL) throws {
@@ -213,6 +213,11 @@ actor WealthStore {
                     INNER JOIN assets ON assets.id = insurance_policies.asset_id
                     WHERE assets.container_id = ?
                     """,
+                arguments: arguments
+            ) ?? 0,
+            linkedLedgerPostingCount: try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM ledger_postings WHERE container_id = ?",
                 arguments: arguments
             ) ?? 0
         )
