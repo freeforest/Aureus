@@ -166,27 +166,18 @@ actor WealthStore {
 
     func deletionImpact(for id: UUID) throws -> ContainerDeletionImpact {
         try queue.read { db in
-            ContainerDeletionImpact(
-                associatedValuationRecords: try Int.fetchOne(
-                    db,
-                    sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
-                    arguments: [id.uuidString]
-                ) ?? 0
-            )
+            try Self.deletionImpact(in: db, containerID: id.uuidString)
         }
     }
 
     @discardableResult
     func deleteWealthContainer(id: UUID) throws -> ContainerDeletionImpact {
         try queue.write { db in
-            let impact = ContainerDeletionImpact(
-                associatedValuationRecords: try Int.fetchOne(
-                    db,
-                    sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
-                    arguments: [id.uuidString]
-                ) ?? 0
-            )
-            guard impact.associatedValuationRecords == 1 else {
+            let impact = try Self.deletionImpact(in: db, containerID: id.uuidString)
+            guard !impact.hasProtectedPermanentDependents else {
+                throw WealthPersistenceError.protectedPermanentDependents
+            }
+            guard impact.wealthRecordCount == 1 else {
                 throw WealthPersistenceError.containerNotFound
             }
             try db.execute(
@@ -196,6 +187,35 @@ actor WealthStore {
             guard db.changesCount == 1 else { throw WealthPersistenceError.containerNotFound }
             return impact
         }
+    }
+
+    private static func deletionImpact(
+        in db: Database,
+        containerID: String
+    ) throws -> ContainerDeletionImpact {
+        let arguments: StatementArguments = [containerID]
+        return ContainerDeletionImpact(
+            wealthRecordCount: try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
+                arguments: arguments
+            ) ?? 0,
+            linkedAssetCount: try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM assets WHERE container_id = ?",
+                arguments: arguments
+            ) ?? 0,
+            linkedInsurancePolicyCount: try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT COUNT(*)
+                    FROM insurance_policies
+                    INNER JOIN assets ON assets.id = insurance_policies.asset_id
+                    WHERE assets.container_id = ?
+                    """,
+                arguments: arguments
+            ) ?? 0
+        )
     }
 
     func wealthSummary() throws -> WealthSummary {

@@ -3,6 +3,7 @@ import GRDB
 
 enum WealthPersistenceError: Error, Equatable, Sendable {
     case containerNotFound
+    case protectedPermanentDependents
     case corruptIdentifier
     case corruptCurrency
     case corruptKind

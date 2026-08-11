@@ -59,85 +59,74 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
-    func testWealthCNYUSDCreateEditDeleteAndTotals() throws {
+    func testWealthCNYUSDLiabilityCRUDAndDynamicTotals() throws {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments()
         launchApp(app)
         app.descendants(matching: .any)["sidebar.wealth"].click()
         XCTAssertTrue(app.descendants(matching: .any)["wealth.empty.add"].waitForExistence(timeout: 10))
+        assertSummary(app: app, assets: "0.00", liabilities: "0.00", netWorth: "0.00")
 
-        addCash(
+        addContainer(
             app: app,
             name: "Synthetic CNY Wallet",
+            kind: "Bank / Cash",
             amount: "100.00",
             currency: "CNY",
             fxRate: nil
         )
         XCTAssertTrue(waitForRowCount(1, in: app, timeout: 5))
-        XCTAssertTrue(
-            waitForValue(
-                app.descendants(matching: .any)["wealth.summary.assets"],
-                containing: "100.00",
-                timeout: 5
-            )
-        )
+        assertSummary(app: app, assets: "100.00", liabilities: "0.00", netWorth: "100.00")
 
-        addCash(
+        addContainer(
             app: app,
             name: "Synthetic USD Wallet",
+            kind: "Bank / Cash",
             amount: "10.00",
             currency: "USD",
             fxRate: "7.00"
         )
         XCTAssertTrue(waitForRowCount(2, in: app, timeout: 5))
-        XCTAssertTrue(
-            waitForValue(
-                app.descendants(matching: .any)["wealth.summary.assets"],
-                containing: "170.00",
-                timeout: 5
-            )
-        )
+        assertSummary(app: app, assets: "170.00", liabilities: "0.00", netWorth: "170.00")
 
-        let cnyRow = wealthRows(in: app).element(boundBy: 0)
-        cnyRow.click()
+        addContainer(
+            app: app,
+            name: "Synthetic CNY Liability",
+            kind: "Liability",
+            amount: "30.00",
+            currency: "CNY",
+            fxRate: nil
+        )
+        XCTAssertTrue(waitForRowCount(3, in: app, timeout: 5))
+        assertSummary(app: app, assets: "170.00", liabilities: "30.00", netWorth: "140.00")
+
+        selectRow(app: app, kind: "liability", currency: "cny")
         app.descendants(matching: .any)["wealth.edit"].click()
-        let nameField = app.descendants(matching: .any)["wealth.form.name"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
-        nameField.click()
-        nameField.typeKey("a", modifierFlags: .command)
-        nameField.typeText("Synthetic CNY Wallet Edited")
+        let amountField = app.descendants(matching: .any)["wealth.form.amount"]
+        XCTAssertTrue(amountField.waitForExistence(timeout: 5))
+        amountField.click()
+        amountField.typeKey("a", modifierFlags: .command)
+        amountField.typeText("40.00")
         app.descendants(matching: .any)["wealth.form.save"].click()
         XCTAssertFalse(app.descendants(matching: .any)["wealth.form.save"].waitForExistence(timeout: 2))
-        XCTAssertTrue(waitForRowCount(2, in: app, timeout: 5))
+        assertSummary(app: app, assets: "170.00", liabilities: "40.00", netWorth: "130.00")
 
-        let rowsAfterEdit = wealthRows(in: app)
-        let usdIndex = (elementValue(rowsAfterEdit.element(boundBy: 0)).contains("USD")) ? 0 : 1
-        rowsAfterEdit.element(boundBy: usdIndex).click()
-        app.descendants(matching: .any)["wealth.delete"].click()
-        let confirmDelete = app.descendants(matching: .any)["wealth.delete.confirm"]
-        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
-        confirmDelete.click()
+        selectRow(app: app, kind: "liability", currency: "cny")
+        deleteSelectedContainer(app: app)
+        XCTAssertTrue(waitForRowCount(2, in: app, timeout: 5))
+        assertSummary(app: app, assets: "170.00", liabilities: "0.00", netWorth: "170.00")
+
+        selectRow(app: app, kind: "bankCash", currency: "usd")
+        deleteSelectedContainer(app: app)
         XCTAssertTrue(waitForRowCount(1, in: app, timeout: 5))
-        XCTAssertTrue(
-            waitForValue(
-                app.descendants(matching: .any)["wealth.summary.assets"],
-                containing: "100.00",
-                timeout: 5
-            )
-        )
-        XCTAssertTrue(
-            waitForValue(
-                app.descendants(matching: .any)["wealth.summary.liabilities"],
-                containing: "0.00",
-                timeout: 5
-            )
-        )
+        assertSummary(app: app, assets: "100.00", liabilities: "0.00", netWorth: "100.00")
     }
 
     @MainActor
-    private func addCash(
+    private func addContainer(
         app: XCUIApplication,
         name: String,
+        kind: String,
         amount: String,
         currency: String,
         fxRate: String?
@@ -147,6 +136,14 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
         nameField.click()
         nameField.typeText(name)
+        if kind != "Bank / Cash" {
+            let typePicker = app.descendants(matching: .any)["wealth.form.type"]
+            XCTAssertTrue(typePicker.waitForExistence(timeout: 5))
+            typePicker.click()
+            let kindItem = app.menuItems[kind]
+            XCTAssertTrue(kindItem.waitForExistence(timeout: 5))
+            kindItem.click()
+        }
         if currency == "USD" {
             let usd = app.descendants(matching: .any)["wealth.form.currency.usd"]
             if usd.exists {
@@ -166,6 +163,51 @@ final class AureusUITests: XCTestCase {
         }
         app.descendants(matching: .any)["wealth.form.save"].click()
         XCTAssertFalse(app.descendants(matching: .any)["wealth.form.save"].waitForExistence(timeout: 2))
+    }
+
+    @MainActor
+    private func selectRow(app: XCUIApplication, kind: String, currency: String) {
+        let row = app.descendants(matching: .any)["wealth.row.\(kind).\(currency)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.click()
+    }
+
+    @MainActor
+    private func deleteSelectedContainer(app: XCUIApplication) {
+        app.descendants(matching: .any)["wealth.delete"].click()
+        let confirmDelete = app.descendants(matching: .any)["wealth.delete.confirm"]
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
+        confirmDelete.click()
+    }
+
+    @MainActor
+    private func assertSummary(
+        app: XCUIApplication,
+        assets: String,
+        liabilities: String,
+        netWorth: String
+    ) {
+        XCTAssertTrue(
+            waitForValue(
+                app.descendants(matching: .any)["wealth.summary.assets"],
+                containing: assets,
+                timeout: 5
+            )
+        )
+        XCTAssertTrue(
+            waitForValue(
+                app.descendants(matching: .any)["wealth.summary.liabilities"],
+                containing: liabilities,
+                timeout: 5
+            )
+        )
+        XCTAssertTrue(
+            waitForValue(
+                app.descendants(matching: .any)["wealth.summary.netWorth"],
+                containing: netWorth,
+                timeout: 5
+            )
+        )
     }
 
     @MainActor
@@ -199,11 +241,6 @@ final class AureusUITests: XCTestCase {
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
-    }
-
-    @MainActor
-    private func elementValue(_ element: XCUIElement) -> String {
-        String(describing: element.staticTexts.firstMatch.value)
     }
 
     private func uiTestingArguments(demo: Bool = false) -> [String] {

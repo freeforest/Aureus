@@ -33,14 +33,17 @@ struct WealthPersistenceTests {
             try await store.updateWealthContainer(updated)
             let reopened = try WealthStore(databaseURL: url)
             #expect(try await reopened.fetchWealthContainer(id: original.id) == updated)
-            #expect(try await reopened.deletionImpact(for: original.id).associatedValuationRecords == 1)
+            let impact = try await reopened.deletionImpact(for: original.id)
+            #expect(impact.wealthRecordCount == 1)
+            #expect(impact.linkedAssetCount == 0)
+            #expect(impact.linkedInsurancePolicyCount == 0)
             _ = try await reopened.deleteWealthContainer(id: original.id)
             #expect(try await reopened.fetchWealthContainer(id: original.id) == nil)
         }
         #expect(try await store.stage3WealthRecordCount() == 0)
     }
 
-    @Test("Delete cascades only selected valuation and preserves unrelated permanent rows")
+    @Test("Safe delete removes only the selected Stage 3 record and Container")
     func atomicDeleteBoundary() async throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -56,10 +59,114 @@ struct WealthPersistenceTests {
 
         let selected = records[2]
         let impact = try await store.deleteWealthContainer(id: selected.id)
-        #expect(impact.associatedValuationRecords == 1)
+        #expect(impact.wealthRecordCount == 1)
+        #expect(impact.linkedAssetCount == 0)
+        #expect(impact.linkedInsurancePolicyCount == 0)
         #expect(try await store.fetchWealthContainer(id: selected.id) == nil)
         #expect(try await store.stage3WealthRecordCount() == records.count - 1)
         #expect(try await store.isolationSentinels() == ["Synthetic Unrelated Permanent Row"])
+    }
+
+    @Test("Linked Asset protects every permanent row from Container deletion")
+    func linkedAssetProtectsDeletion() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("permanent/aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let records = try SyntheticWealthSeeder.records()
+        let protectedRecord = records[0]
+        let unrelatedRecord = records[1]
+        try await store.createWealthContainer(protectedRecord)
+        try await store.createWealthContainer(unrelatedRecord)
+        let assetID = "synthetic-protected-asset"
+        let queue = try DatabaseQueueFactory.open(at: url)
+        try insertSyntheticAsset(
+            in: queue,
+            assetID: assetID,
+            containerID: protectedRecord.id.uuidString
+        )
+
+        let impact = try await store.deletionImpact(for: protectedRecord.id)
+        #expect(impact.wealthRecordCount == 1)
+        #expect(impact.linkedAssetCount == 1)
+        #expect(impact.linkedInsurancePolicyCount == 0)
+
+        var rejection: WealthPersistenceError?
+        do {
+            _ = try await store.deleteWealthContainer(id: protectedRecord.id)
+        } catch let error as WealthPersistenceError {
+            rejection = error
+        }
+        #expect(rejection == .protectedPermanentDependents)
+        #expect(try await store.fetchWealthContainer(id: protectedRecord.id) == protectedRecord)
+        #expect(try await store.fetchWealthContainer(id: unrelatedRecord.id) == unrelatedRecord)
+        #expect(try await store.stage3WealthRecordCount() == 2)
+        #expect(try assetCount(in: queue, id: assetID) == 1)
+    }
+
+    @Test("Linked Insurance Policy protects Container, Wealth Record, Asset, and Policy")
+    func linkedInsurancePolicyProtectsDeletion() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("permanent/aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let protectedRecord = try SyntheticWealthSeeder.records()[4]
+        try await store.createWealthContainer(protectedRecord)
+        let assetID = "synthetic-policy-asset"
+        let policyID = "synthetic-protected-policy"
+        let queue = try DatabaseQueueFactory.open(at: url)
+        try insertSyntheticAsset(
+            in: queue,
+            assetID: assetID,
+            containerID: protectedRecord.id.uuidString
+        )
+        try insertSyntheticPolicy(in: queue, policyID: policyID, assetID: assetID)
+
+        let impact = try await store.deletionImpact(for: protectedRecord.id)
+        #expect(impact.wealthRecordCount == 1)
+        #expect(impact.linkedAssetCount == 1)
+        #expect(impact.linkedInsurancePolicyCount == 1)
+
+        var rejection: WealthPersistenceError?
+        do {
+            _ = try await store.deleteWealthContainer(id: protectedRecord.id)
+        } catch let error as WealthPersistenceError {
+            rejection = error
+        }
+        #expect(rejection == .protectedPermanentDependents)
+        #expect(try await store.fetchWealthContainer(id: protectedRecord.id) == protectedRecord)
+        #expect(try await store.stage3WealthRecordCount() == 1)
+        #expect(try assetCount(in: queue, id: assetID) == 1)
+        #expect(try policyCount(in: queue, id: policyID) == 1)
+    }
+
+    @Test("Protected deletion creates no confirmation and reports dependent counts")
+    @MainActor
+    func protectedDeletionPresentation() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("permanent/aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let record = try SyntheticWealthSeeder.records()[0]
+        try await store.createWealthContainer(record)
+        let queue = try DatabaseQueueFactory.open(at: url)
+        try insertSyntheticAsset(
+            in: queue,
+            assetID: "synthetic-ui-protected-asset",
+            containerID: record.id.uuidString
+        )
+
+        let model = WealthFeatureModel(
+            store: store,
+            clock: FixedClock(instant: UTCInstant(millisecondsSince1970: 0))
+        )
+        await model.loadIfNeeded()
+        model.selection = record.id
+        await model.requestDelete()
+
+        #expect(model.pendingDeletion == nil)
+        #expect(model.deletionProtectionMessage?.contains("1 linked Asset") == true)
+        #expect(model.deletionProtectionMessage?.contains("0 linked Insurance Policy") == true)
     }
 
     @Test("Append-only v1 to v2 migration preserves legacy rows")
@@ -209,5 +316,59 @@ struct WealthPersistenceTests {
         #expect(try await ordinary.stage3WealthRecordCount() == 0)
         #expect(try await demo.wealthSummary().netWorthCNY.minorUnits == 15_067_206)
         #expect(try await ordinary.wealthSummary() == .zero)
+    }
+
+    private func insertSyntheticAsset(
+        in queue: DatabaseQueue,
+        assetID: String,
+        containerID: String
+    ) throws {
+        try queue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO assets (
+                        id, container_id, name, currency_code, instrument_reference_id
+                    ) VALUES (?, ?, 'Synthetic Protected Asset', 'CNY', NULL)
+                    """,
+                arguments: [assetID, containerID]
+            )
+        }
+    }
+
+    private func insertSyntheticPolicy(
+        in queue: DatabaseQueue,
+        policyID: String,
+        assetID: String
+    ) throws {
+        try queue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO insurance_policies (
+                        id, asset_id, name, premium_minor, currency_code
+                    ) VALUES (?, ?, 'Synthetic Protected Policy', 100, 'CNY')
+                    """,
+                arguments: [policyID, assetID]
+            )
+        }
+    }
+
+    private func assetCount(in queue: DatabaseQueue, id: String) throws -> Int {
+        try queue.read { db in
+            try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM assets WHERE id = ?",
+                arguments: [id]
+            ) ?? 0
+        }
+    }
+
+    private func policyCount(in queue: DatabaseQueue, id: String) throws -> Int {
+        try queue.read { db in
+            try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM insurance_policies WHERE id = ?",
+                arguments: [id]
+            ) ?? 0
+        }
     }
 }

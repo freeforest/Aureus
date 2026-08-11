@@ -244,5 +244,11 @@ enum WealthValuation {
 }
 
 struct ContainerDeletionImpact: Equatable, Sendable {
-    let associatedValuationRecords: Int
+    let wealthRecordCount: Int
+    let linkedAssetCount: Int
+    let linkedInsurancePolicyCount: Int
+
+    var hasProtectedPermanentDependents: Bool {
+        linkedAssetCount > 0 || linkedInsurancePolicyCount > 0
+    }
 }

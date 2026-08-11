@@ -264,6 +264,7 @@ final class WealthFeatureModel {
     var pendingDeletion: WealthDeleteConfirmation?
     var editorErrorMessage: String?
     var persistenceErrorMessage: String?
+    var deletionProtectionMessage: String?
 
     @ObservationIgnored private let store: WealthStore
     @ObservationIgnored private let clock: any Clock
@@ -350,6 +351,12 @@ final class WealthFeatureModel {
         guard let selectedRecord else { return }
         do {
             let impact = try await store.deletionImpact(for: selectedRecord.id)
+            guard !impact.hasProtectedPermanentDependents else {
+                pendingDeletion = nil
+                deletionProtectionMessage = protectedDeletionMessage(impact)
+                return
+            }
+            deletionProtectionMessage = nil
             pendingDeletion = WealthDeleteConfirmation(record: selectedRecord, impact: impact)
         } catch {
             persistenceErrorMessage = "Delete impact could not be read. Nothing was deleted."
@@ -360,12 +367,27 @@ final class WealthFeatureModel {
         do {
             _ = try await store.deleteWealthContainer(id: confirmation.record.id)
             self.pendingDeletion = nil
+            deletionProtectionMessage = nil
             selection = nil
             await reload()
+        } catch WealthPersistenceError.protectedPermanentDependents {
+            self.pendingDeletion = nil
+            if let impact = try? await store.deletionImpact(for: confirmation.record.id) {
+                deletionProtectionMessage = protectedDeletionMessage(impact)
+            } else {
+                deletionProtectionMessage = "This Container has protected permanent dependents and cannot be deleted in Stage 3."
+            }
         } catch {
             self.pendingDeletion = nil
             persistenceErrorMessage = "The Container could not be deleted. No unrelated wealth record was changed."
         }
+    }
+
+    private func protectedDeletionMessage(_ impact: ContainerDeletionImpact) -> String {
+        "Cannot delete this Container in Stage 3: "
+            + "\(impact.linkedAssetCount) linked Asset record(s) and "
+            + "\(impact.linkedInsurancePolicyCount) linked Insurance Policy record(s) are protected. "
+            + "No permanent record was deleted."
     }
 
     private func civilDate(for instant: UTCInstant) throws -> CivilDate {

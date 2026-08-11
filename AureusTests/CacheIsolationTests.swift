@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import GRDB
 import Testing
 @testable import Aureus
 
@@ -75,6 +76,56 @@ struct CacheIsolationTests {
 
         try await reopenedCache.seedSyntheticCache()
         #expect(try await reopenedCache.cachedRowCount() == 2)
+    }
+
+    @Test("Safe and rejected permanent deletes cannot mutate Market Cache")
+    func wealthDeleteCannotMutateCache() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let permanentURL = root.appendingPathComponent("permanent/aureus.sqlite")
+        let cacheURL = root.appendingPathComponent("cache/market-cache.sqlite")
+        let wealth = try WealthStore(databaseURL: permanentURL)
+        let cache = try MarketCacheStore(databaseURL: cacheURL)
+        let records = try SyntheticWealthSeeder.records()
+        let safeRecord = records[0]
+        let protectedRecord = records[1]
+        try await wealth.createWealthContainer(safeRecord)
+        try await wealth.createWealthContainer(protectedRecord)
+        try await cache.seedSyntheticCache()
+
+        _ = try await wealth.deleteWealthContainer(id: safeRecord.id)
+        #expect(try await cache.cachedRowCount() == 2)
+
+        let queue = try DatabaseQueueFactory.open(at: permanentURL)
+        try await queue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO assets (
+                        id, container_id, name, currency_code, instrument_reference_id
+                    ) VALUES (
+                        'synthetic-cache-boundary-asset', ?,
+                        'Synthetic Cache Boundary Asset', 'CNY', NULL
+                    )
+                    """,
+                arguments: [protectedRecord.id.uuidString]
+            )
+        }
+
+        var rejection: WealthPersistenceError?
+        do {
+            _ = try await wealth.deleteWealthContainer(id: protectedRecord.id)
+        } catch let error as WealthPersistenceError {
+            rejection = error
+        }
+        #expect(rejection == .protectedPermanentDependents)
+        #expect(try await cache.cachedRowCount() == 2)
+        #expect(try await wealth.fetchWealthContainer(id: protectedRecord.id) == protectedRecord)
+
+        try await cache.reset()
+        #expect(try await cache.cachedRowCount() == 0)
+        #expect(try await wealth.fetchWealthContainer(id: protectedRecord.id) == protectedRecord)
+        #expect(try await wealth.stage3WealthRecordCount() == 1)
     }
 
     private func sha256(of url: URL) throws -> [UInt8] {

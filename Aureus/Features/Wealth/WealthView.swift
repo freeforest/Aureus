@@ -22,6 +22,14 @@ struct WealthView: View {
                     .background(.red.opacity(0.08))
                     .accessibilityIdentifier("wealth.persistenceError")
             }
+            if let message = model.deletionProtectionMessage {
+                Label(message, systemImage: "lock.shield.fill")
+                    .foregroundStyle(.orange)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.orange.opacity(0.08))
+                    .accessibilityIdentifier("wealth.delete.protected")
+            }
             WealthSummaryView(summary: model.summary)
             Divider()
             wealthContent(selection: $bindable.selection)
@@ -77,8 +85,8 @@ struct WealthView: View {
             if let pending = model.pendingDeletion {
                 Text(
                     "Delete \"\(pending.record.container.name)\" and "
-                    + "\(pending.impact.associatedValuationRecords) associated valuation record? "
-                    + "Other Containers, permanent records, and Market Cache are not affected."
+                    + "\(pending.impact.wealthRecordCount) Stage 3 Wealth Record? "
+                    + "Market Cache is not affected."
                 )
             }
         }
@@ -284,6 +292,10 @@ private struct WealthContainerRow: View {
             + (record.container.kind.isManualSecurity ? ", Manual Valuation" : "")
             + ", original \(WealthDisplay.money(record.originalValue))"
             + ", converted CNY \(WealthDisplay.number(record.convertedCNYValue.decimal, fractionDigits: 2))"
+        )
+        .accessibilityIdentifier(
+            "wealth.row.\(record.container.kind.rawValue)."
+                + record.container.primaryCurrency.rawValue.lowercased()
         )
     }
 
