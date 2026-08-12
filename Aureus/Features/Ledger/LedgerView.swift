@@ -268,7 +268,7 @@ struct LedgerView: View {
             Picker("Match", selection: $model.ruleDraft.matchMode) {
                 ForEach(ClassificationMatchMode.allCases, id: \.rawValue) { Text($0.rawValue.capitalized).tag($0) }
             }.accessibilityIdentifier("ledger.rule.matchMode")
-            TextField("Payee/Description pattern (optional)", text: $model.ruleDraft.payeePattern)
+            TextField("Payee or Description pattern (optional)", text: $model.ruleDraft.payeePattern)
                 .accessibilityIdentifier("ledger.rule.pattern")
             Picker("Transaction Kind", selection: $model.ruleDraft.kind) {
                 Text("Any Kind").tag(nil as TransactionKind?)

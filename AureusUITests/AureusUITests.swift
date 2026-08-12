@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class AureusUITests: XCTestCase {
@@ -399,7 +400,11 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func replaceText(in field: XCUIElement, with value: String) {
-        field.click(); field.typeKey("a", modifierFlags: .command); field.typeText(value)
+        NSPasteboard.general.clearContents()
+        XCTAssertTrue(NSPasteboard.general.setString(value, forType: .string))
+        field.click()
+        field.typeKey("a", modifierFlags: .command)
+        field.typeKey("v", modifierFlags: .command)
     }
 
     @MainActor
@@ -506,9 +511,20 @@ final class AureusUITests: XCTestCase {
         let field = app.textFields["PathTextField"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         replaceText(in: field, with: path)
-        app.typeKey(.enter, modifierFlags: [])
-        XCTAssertTrue(waitForNonexistence(field, timeout: 5))
-        let open = panel.buttons["Open"].firstMatch
+        app.typeKey(.return, modifierFlags: [])
+        if !waitForNonexistence(app.sheets["GoToWindow"], timeout: 1) {
+            // The first Return may accept the selected path-completion row;
+            // the second confirms that resolved path in the native panel.
+            app.typeKey(.return, modifierFlags: [])
+        }
+        XCTAssertTrue(
+            waitForNonexistence(app.sheets["GoToWindow"], timeout: 5),
+            "Open Panel Go To sheet did not dismiss after entering the synthetic CSV path"
+        )
+        if app.descendants(matching: .any)["ledger.import.preview.summary"].waitForExistence(timeout: 10) {
+            return
+        }
+        let open = app.buttons["OKButton"].firstMatch
         XCTAssertTrue(open.waitForExistence(timeout: 5), "Open Panel did not reach file-selection state")
         XCTAssertTrue(waitForEnabled(open, timeout: 5), "Open button never became enabled")
         if open.isHittable { open.click() } else { app.typeKey(.enter, modifierFlags: []) }
@@ -522,12 +538,18 @@ final class AureusUITests: XCTestCase {
         let goToField = app.textFields["PathTextField"]
         XCTAssertTrue(goToField.waitForExistence(timeout: 5))
         replaceText(in: goToField, with: URL(fileURLWithPath: path).deletingLastPathComponent().path)
-        app.typeKey(.enter, modifierFlags: [])
+        app.typeKey(.return, modifierFlags: [])
+        if !waitForNonexistence(app.sheets["GoToWindow"], timeout: 5) {
+            app.typeKey(.return, modifierFlags: [])
+        }
         XCTAssertTrue(waitForNonexistence(app.sheets["GoToWindow"], timeout: 5))
+        if FileManager.default.fileExists(atPath: path) {
+            return
+        }
         let fileNameField = app.textFields["saveAsNameTextField"]
         XCTAssertTrue(fileNameField.waitForExistence(timeout: 5))
         replaceText(in: fileNameField, with: URL(fileURLWithPath: path).lastPathComponent)
-        let save = app.sheets.buttons["Export"].firstMatch
+        let save = app.buttons["OKButton"].firstMatch
         XCTAssertTrue(save.waitForExistence(timeout: 5), "Save Panel did not reach export state")
         XCTAssertTrue(waitForEnabled(save, timeout: 5), "Export button never became enabled")
         if save.isHittable { save.click() } else { app.typeKey(.enter, modifierFlags: []) }
@@ -593,6 +615,10 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func launchApp(_ app: XCUIApplication) {
+        // A failed native file panel can leave the prior UI-test process alive
+        // without a visible WindowGroup. Start every test from a terminated
+        // process instead of relying on macOS state restoration.
+        app.terminate()
         app.launch()
         app.activate()
         if !app.descendants(matching: .any)["sidebar.dashboard"].waitForExistence(timeout: 3) {

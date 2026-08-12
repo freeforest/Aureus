@@ -184,6 +184,87 @@ struct LedgerCSVTests {
         #expect(existingPreview.rows[0].duplicateReasons == [.existingFingerprint, .existingTransactionID])
     }
 
+    @Test("Semantic fingerprint canonicalizes fixed-point decimal spelling")
+    func semanticAmountEquivalence() throws {
+        let context = try LedgerTestContext.make()
+        let entry = try entryForFingerprint(context: context)
+        var records = try semanticPairRecords(entry)
+        set(&records[1], "source_amount", "10.0")
+        set(&records[1], "source_converted_cny", "10.00")
+        set(&records[2], "source_amount", "10.00")
+        set(&records[2], "source_converted_cny", "10.0")
+        let preview = try semanticPreview(records, context: context)
+        #expect(preview.rows[1].duplicateReasons == [.fileFingerprint])
+
+        let firstOnly = try semanticPreview([records[0], records[1]], context: context)
+        let fingerprint = try #require(firstOnly.validEntries.first?.importFingerprint)
+        let existing = try LedgerCSV.preview(
+            data: encodedCSV([records[0], records[2]]),
+            containers: [context.source, context.target], categories: [], tags: [], rules: [],
+            existingFingerprints: [fingerprint]
+        )
+        #expect(existing.rows[0].duplicateReasons == [.existingFingerprint])
+    }
+
+    @Test("Semantic fingerprint canonicalizes formula protection")
+    func semanticFormulaProtectionEquivalence() throws {
+        let context = try LedgerTestContext.make()
+        let entry = try entryForFingerprint(context: context, description: "=Synthetic Formula Text")
+        var records = try semanticPairRecords(entry)
+        set(&records[2], "description", "=Synthetic Formula Text")
+        let preview = try semanticPreview(records, context: context)
+        #expect(preview.rows[0].entry?.description == preview.rows[1].entry?.description)
+        #expect(preview.rows[1].duplicateReasons == [.fileFingerprint])
+    }
+
+    @Test("Resolved Category ID and Tag set order define semantic identity")
+    func semanticClassificationEquivalence() throws {
+        let context = try LedgerTestContext.make()
+        let category = Category(id: UUID(), parentID: nil, name: "Synthetic Category")
+        let alpha = Tag(id: UUID(), name: "Synthetic Alpha")
+        let beta = Tag(id: UUID(), name: "Synthetic Beta")
+        let entry = try entryForFingerprint(context: context, category: category, tags: [alpha, beta])
+        var records = try semanticPairRecords(entry)
+        set(&records[2], "category", " synthetic   category ")
+        let reversedNames = [" synthetic  beta ", "SYNTHETIC ALPHA"]
+        set(&records[2], "tags", String(decoding: try JSONEncoder().encode(reversedNames), as: UTF8.self))
+        let preview = try semanticPreview(
+            records,
+            context: context,
+            categories: [category],
+            tags: [alpha, beta]
+        )
+        #expect(Set(preview.rows[1].entry?.tags.map(\.id) ?? []) == Set([alpha.id, beta.id]))
+        #expect(preview.rows[1].duplicateReasons == [.fileFingerprint])
+    }
+
+    @Test("Business-semantic changes do not collide")
+    func semanticDifferencesRemainDistinct() throws {
+        let context = try LedgerTestContext.make()
+        let categoryA = Category(id: UUID(), parentID: nil, name: "Synthetic Category A")
+        let categoryB = Category(id: UUID(), parentID: nil, name: "Synthetic Category B")
+        let entry = try entryForFingerprint(context: context, currency: .usd, category: categoryA)
+        let mutations: [(inout [String]) -> Void] = [
+            { row in self.set(&row, "source_amount", "11.00"); self.set(&row, "source_converted_cny", "77.00") },
+            { row in self.set(&row, "civil_date", "2026-08-12") },
+            { row in self.set(&row, "source_container_id", context.target.id.uuidString) },
+            { row in self.set(&row, "kind", TransactionKind.income.rawValue) },
+            { row in self.set(&row, "source_fx_rate", "8.00"); self.set(&row, "source_converted_cny", "80.00") },
+            { row in self.set(&row, "category", categoryB.name) }
+        ]
+        for mutate in mutations {
+            var records = try semanticPairRecords(entry)
+            mutate(&records[2])
+            let preview = try semanticPreview(
+                records,
+                context: context,
+                categories: [categoryA, categoryB]
+            )
+            #expect(preview.errorCount == 0)
+            #expect(preview.rows[1].duplicateReasons.isEmpty)
+        }
+    }
+
     @Test("Malformed rows, locale decimals, invalid currency, and FX are rejected", arguments: [
         "not,csv\n", "1,23", "USD-without-fx"
     ])
@@ -246,6 +327,84 @@ struct LedgerCSVTests {
         }
         #expect(try await store.ledgerTransactionCount() == 1)
         #expect(try await store.fetchLedgerEntries().map(\.id) == [racing.id])
+    }
+
+    @Test("Preview-confirm semantic race reports typed fingerprint conflict and rolls back")
+    func semanticPreviewConfirmRace() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
+        let racing = try entryForFingerprint(context: context)
+        let other = try context.entry(kind: .income, description: "Synthetic Other Batch Row")
+        let preview = try LedgerCSV.preview(
+            data: LedgerCSV.export([racing, other]), containers: [context.source],
+            categories: [], tags: [], rules: [], existingFingerprints: []
+        )
+        #expect(preview.canImport)
+        let fingerprint = try #require(preview.validEntries.first { $0.id == racing.id }?.importFingerprint)
+        let intervening = try LedgerEntry(
+            id: UUID(), kind: racing.kind, civilDate: racing.civilDate, recordedAt: racing.recordedAt,
+            description: racing.description, payee: racing.payee, category: racing.category,
+            tags: racing.tags, postings: racing.postings, note: racing.note,
+            importFingerprint: fingerprint
+        )
+        try await store.createLedgerEntry(intervening)
+        await #expect(throws: LedgerPersistenceError.duplicateFingerprint) {
+            try await store.importLedgerEntries(preview.validEntries, batchID: UUID(), importedAt: context.instant)
+        }
+        #expect(try await store.ledgerTransactionCount() == 1)
+        #expect(try await store.fetchLedgerEntries().map(\.id) == [intervening.id])
+    }
+
+    private func entryForFingerprint(
+        context: LedgerTestContext,
+        description: String = "Synthetic Semantic Expense",
+        currency: CurrencyCode = .cny,
+        category: Aureus.Category? = nil,
+        tags: [Aureus.Tag] = []
+    ) throws -> LedgerEntry {
+        try LedgerEntry(
+            kind: .expense,
+            civilDate: context.date,
+            recordedAt: context.instant,
+            description: description,
+            payee: "Synthetic Payee",
+            category: category,
+            tags: tags,
+            postings: [try LedgerPosting(
+                role: .primary,
+                containerID: context.source.id,
+                valuation: context.valuation("10.00", currency: currency)
+            )],
+            note: "Synthetic semantic fingerprint fixture"
+        )
+    }
+
+    private func semanticPairRecords(_ entry: LedgerEntry) throws -> [[String]] {
+        let exported = try LedgerCSV.parseRecords(String(decoding: LedgerCSV.export([entry]), as: UTF8.self))
+        var second = exported[1]
+        set(&second, "transaction_id", UUID().uuidString)
+        return [exported[0], exported[1], second]
+    }
+
+    private func semanticPreview(
+        _ records: [[String]],
+        context: LedgerTestContext,
+        categories: [Aureus.Category] = [],
+        tags: [Aureus.Tag] = []
+    ) throws -> LedgerImportPreview {
+        try LedgerCSV.preview(
+            data: encodedCSV(records),
+            containers: [context.source, context.target],
+            categories: categories,
+            tags: tags,
+            rules: [],
+            existingFingerprints: []
+        )
+    }
+
+    private func set(_ row: inout [String], _ column: String, _ value: String) {
+        row[LedgerCSV.header.firstIndex(of: column)!] = value
     }
 
     private func encodedCSV(_ records: [[String]]) -> Data {

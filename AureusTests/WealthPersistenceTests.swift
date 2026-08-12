@@ -169,7 +169,7 @@ struct WealthPersistenceTests {
         #expect(model.deletionProtectionMessage?.contains("0 linked Insurance Policy") == true)
     }
 
-    @Test("Append-only v1 to v2 migration preserves legacy rows")
+    @Test("Append-only v1 to latest migration preserves legacy rows")
     func v1ToV2PreservesData() throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -204,7 +204,7 @@ struct WealthPersistenceTests {
         #expect(result.1?["name"] as String? == "Synthetic Legacy Cash")
         #expect(result.1?["kind"] as String? == AssetContainerKind.bankCash.rawValue)
         #expect(result.1?["primary_currency_code"] as String? == CurrencyCode.usd.rawValue)
-        #expect(result.2 == 3)
+        #expect(result.2 == 4)
     }
 
     @Test("Stage 3 migration failure rolls back every v2 schema write")

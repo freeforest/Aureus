@@ -117,7 +117,7 @@ enum LedgerCSV {
                     dictionary, containers: containerMap, categories: categoryMap,
                     tags: tagMap, rules: rules
                 )
-                let fingerprint = fingerprint(for: fields)
+                let fingerprint = try semanticFingerprint(for: parsed.entry)
                 let entry = try LedgerEntry(
                     id: parsed.entry.id, kind: parsed.entry.kind, civilDate: parsed.entry.civilDate,
                     recordedAt: parsed.entry.recordedAt, description: parsed.entry.description,
@@ -291,9 +291,84 @@ enum LedgerCSV {
         "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
 
-    private static func fingerprint(for fields: [String]) -> String {
-        let canonical = fields.enumerated().filter { $0.offset != 1 }.map(\.element).joined(separator: "\u{1f}")
-        return SHA256.hash(data: Data(canonical.utf8)).map { String(format: "%02x", $0) }.joined()
+    static func semanticFingerprint(for entry: LedgerEntry) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let canonical = CanonicalLedgerEntry(entry)
+        let data = try encoder.encode(canonical)
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private struct CanonicalLedgerEntry: Encodable {
+        let version = 1
+        let kind: String
+        let civilDate: String
+        let recordedAtMS: Int64
+        let description: String
+        let payee: String?
+        let categoryID: String?
+        let tagIDs: [String]
+        let postings: [CanonicalLedgerPosting]
+        let note: String?
+
+        init(_ entry: LedgerEntry) {
+            kind = entry.kind.rawValue
+            civilDate = entry.civilDate.description
+            recordedAtMS = entry.recordedAt.millisecondsSince1970
+            description = Self.text(entry.description)
+            payee = entry.payee.map(Self.text)
+            categoryID = entry.category?.id.uuidString.lowercased()
+            tagIDs = Set(entry.tags.map { $0.id.uuidString.lowercased() }).sorted()
+            postings = entry.postings
+                .map(CanonicalLedgerPosting.init)
+                .sorted { $0.roleOrder < $1.roleOrder }
+            note = entry.note.map(Self.text)
+        }
+
+        private static func text(_ value: String) -> String {
+            value.precomposedStringWithCanonicalMapping
+        }
+    }
+
+    private struct CanonicalLedgerPosting: Encodable {
+        let role: String
+        let containerID: String
+        let originalMinor: Int64
+        let originalCurrency: String
+        let convertedCNYMinor: Int64
+        let fxCoefficient: Int64
+        let fxSourceCurrency: String
+        let fxTargetCurrency: String
+        let fxSource: String
+        let fxReferenceDate: String
+        let fxRecordedAtMS: Int64
+        let fxIsManual: Bool
+        let fxIsStale: Bool
+
+        fileprivate var roleOrder: Int {
+            switch role {
+            case LedgerPostingRole.primary.rawValue: 0
+            case LedgerPostingRole.transferSource.rawValue: 1
+            case LedgerPostingRole.transferTarget.rawValue: 2
+            default: 3
+            }
+        }
+
+        init(_ posting: LedgerPosting) {
+            role = posting.role.rawValue
+            containerID = posting.containerID.uuidString.lowercased()
+            originalMinor = posting.valuation.original.minorUnits
+            originalCurrency = posting.valuation.original.currency.rawValue
+            convertedCNYMinor = posting.valuation.convertedCNY.minorUnits
+            fxCoefficient = posting.valuation.rate.coefficient
+            fxSourceCurrency = posting.valuation.rate.sourceCurrency.rawValue
+            fxTargetCurrency = posting.valuation.rate.targetCurrency.rawValue
+            fxSource = posting.valuation.providerIdentifier.precomposedStringWithCanonicalMapping
+            fxReferenceDate = posting.valuation.referenceDate.description
+            fxRecordedAtMS = posting.valuation.fetchedAt.millisecondsSince1970
+            fxIsManual = posting.valuation.isManualOverride
+            fxIsStale = posting.valuation.isStale
+        }
     }
 
     static func parseRecords(_ text: String) throws -> [[String]] {

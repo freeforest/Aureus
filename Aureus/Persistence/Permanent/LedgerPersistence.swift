@@ -412,7 +412,7 @@ extension WealthStore {
         }
     }
 
-    private static func fetchLedgerEntries(in db: Database) throws -> [LedgerEntry] {
+    fileprivate static func fetchLedgerEntries(in db: Database) throws -> [LedgerEntry] {
         let rows = try LedgerTransactionRow.fetchAll(db, sql: "SELECT * FROM ledger_transactions ORDER BY civil_date DESC, recorded_at_ms DESC, id")
         let categories = Dictionary(uniqueKeysWithValues: try Row.fetchAll(db, sql: "SELECT id, parent_id, name FROM categories").compactMap { row -> (String, Category)? in
             guard let id = UUID(uuidString: row["id"]) else { return nil }
@@ -460,6 +460,36 @@ extension WealthStore {
                 amountDirection: row.amountDirection.flatMap(LedgerAmountDirection.init(rawValue:)),
                 resultCategory: row.resultCategoryID.flatMap { categories[$0] },
                 resultTags: tagIDs.compactMap { tags[$0] }
+            )
+        }
+    }
+}
+
+enum LedgerImportFingerprintRepair {
+    static func migrateCandidateFingerprints(in db: Database) throws {
+        let importedIDs = try String.fetchAll(
+            db,
+            sql: "SELECT id FROM ledger_transactions WHERE import_fingerprint IS NOT NULL ORDER BY id"
+        )
+        guard !importedIDs.isEmpty else { return }
+
+        let entriesByID = Dictionary(
+            uniqueKeysWithValues: try WealthStore.fetchLedgerEntries(in: db).map {
+                ($0.id.uuidString.lowercased(), $0)
+            }
+        )
+        try db.execute(sql: "UPDATE ledger_transactions SET import_fingerprint = NULL WHERE import_fingerprint IS NOT NULL")
+
+        var assigned = Set<String>()
+        for id in importedIDs {
+            guard let entry = entriesByID[id.lowercased()] else {
+                throw LedgerPersistenceError.corruptRecord
+            }
+            let fingerprint = try LedgerCSV.semanticFingerprint(for: entry)
+            guard assigned.insert(fingerprint).inserted else { continue }
+            try db.execute(
+                sql: "UPDATE ledger_transactions SET import_fingerprint = ? WHERE id = ?",
+                arguments: [fingerprint, id]
             )
         }
     }

@@ -337,19 +337,26 @@ enum DeterministicLedgerClassifier {
         if let source = rule.sourceContainerID, source != input.sourceContainerID { return false }
         if let direction = rule.amountDirection, direction != input.kind.amountDirection { return false }
         if let pattern = rule.payeePattern {
-            let candidate = (input.payee ?? input.description).folding(
-                options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
-            )
-            let normalizedPattern = pattern.folding(
-                options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
-            )
-            switch rule.matchMode {
-            case .exact where candidate != normalizedPattern: return false
-            case .contains where !candidate.contains(normalizedPattern): return false
-            default: break
+            let normalizedPattern = normalizedMatchText(pattern)
+            let candidates = [input.payee, input.description]
+                .compactMap { $0 }
+                .map(normalizedMatchText)
+            let patternMatched = candidates.contains { candidate in
+                switch rule.matchMode {
+                case .exact: candidate == normalizedPattern
+                case .contains: candidate.contains(normalizedPattern)
+                }
             }
+            guard patternMatched else { return false }
         }
         return true
+    }
+
+    private static func normalizedMatchText(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        ).precomposedStringWithCanonicalMapping
     }
 }
 

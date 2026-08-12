@@ -16,7 +16,7 @@ struct LedgerPersistenceTests {
         let transfer = try context.transfer()
         try await store.createLedgerEntry(income)
         try await store.createLedgerEntry(transfer)
-        #expect(try await store.schemaVersion() == 3)
+        #expect(try await store.schemaVersion() == 4)
         #expect(try await store.ledgerTransactionCount() == 2)
         #expect(try await store.ledgerFinancialStorageClasses() == ["integer"])
 
@@ -175,10 +175,10 @@ struct LedgerPersistenceTests {
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = 'legacy-stage3'"),
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wealth_transactions'")
         ) }
-        #expect(state.0 == 3); #expect(state.1 == 1); #expect(state.2 == 1)
+        #expect(state.0 == 4); #expect(state.1 == 1); #expect(state.2 == 1)
     }
 
-    @Test("v2 normalization collisions preserve every ID and legacy reference")
+    @Test("v2 normalization collisions and occupied legacy fallbacks preserve every ID and reference")
     func normalizationCollisionMigration() throws {
         let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
         let queue = try DatabaseQueueFactory.open(at: root.appendingPathComponent("collision/aureus.sqlite"))
@@ -188,7 +188,8 @@ struct LedgerPersistenceTests {
             "10000000-0000-4000-8000-000000000001",
             "10000000-0000-4000-8000-000000000002",
             "10000000-0000-4000-8000-000000000003",
-            "10000000-0000-4000-8000-000000000004"
+            "10000000-0000-4000-8000-000000000004",
+            "10000000-0000-4000-8000-000000000005"
         ]
         let tagIDs = [
             "20000000-0000-4000-8000-000000000001",
@@ -196,38 +197,139 @@ struct LedgerPersistenceTests {
             "20000000-0000-4000-8000-000000000003",
             "20000000-0000-4000-8000-000000000004"
         ]
+        let categoryNames = [
+            "food place\u{1f}legacy:\(categoryIDs[2])",
+            "Food Place",
+            " food  place ",
+            "FOOD PLACE",
+            "Fóód Place"
+        ]
+        let tagNames = [
+            "cafe\u{1f}legacy:\(tagIDs[2])",
+            "Café",
+            " cafe\u{301} ",
+            "CAFE"
+        ]
         try queue.write { db in
             try db.execute(sql: "INSERT INTO accounts (id, name, kind, currency_code) VALUES ('legacy-account', 'Synthetic Legacy', 'cash', 'CNY')")
             try db.execute(sql: "INSERT INTO wealth_transactions (id, account_id, civil_date, amount_minor, currency_code, type) VALUES ('legacy-transaction', 'legacy-account', '2026-01-01', 100, 'CNY', 'income')")
-            let categoryNames = ["Food Place", " food  place ", "FOOD PLACE", "Fóód Place"]
             for (id, name) in zip(categoryIDs, categoryNames) {
                 try db.execute(sql: "INSERT INTO categories (id, parent_id, name) VALUES (?, NULL, ?)", arguments: [id, name])
             }
-            try db.execute(sql: "INSERT INTO categories (id, parent_id, name) VALUES ('10000000-0000-4000-8000-000000000099', ?, 'Synthetic Child')", arguments: [categoryIDs[1]])
-            let tagNames = ["Café", " cafe\u{301} ", "CAFÉ", "CAFE"]
+            try db.execute(sql: "INSERT INTO categories (id, parent_id, name) VALUES ('10000000-0000-4000-8000-000000000099', ?, 'Synthetic Child')", arguments: [categoryIDs[2]])
             for (id, name) in zip(tagIDs, tagNames) {
                 try db.execute(sql: "INSERT INTO tags (id, name) VALUES (?, ?)", arguments: [id, name])
             }
-            try db.execute(sql: "INSERT INTO transaction_tags (transaction_id, tag_id) VALUES ('legacy-transaction', ?)", arguments: [tagIDs[1]])
+            try db.execute(sql: "INSERT INTO transaction_tags (transaction_id, tag_id) VALUES ('legacy-transaction', ?)", arguments: [tagIDs[2]])
         }
         try migrator.migrate(queue)
+        let firstNormalizedState = try queue.read { db in (
+            try String.fetchAll(db, sql: "SELECT normalized_name FROM categories ORDER BY id"),
+            try String.fetchAll(db, sql: "SELECT normalized_name FROM tags ORDER BY id")
+        ) }
         try migrator.migrate(queue)
         let evidence = try queue.read { db in
             (
-                try String.fetchAll(db, sql: "SELECT id FROM categories WHERE id IN (?, ?, ?, ?) ORDER BY id", arguments: StatementArguments(categoryIDs)),
-                try String.fetchAll(db, sql: "SELECT id FROM tags WHERE id IN (?, ?, ?, ?) ORDER BY id", arguments: StatementArguments(tagIDs)),
+                try String.fetchAll(db, sql: "SELECT id FROM categories WHERE id != '10000000-0000-4000-8000-000000000099' ORDER BY id"),
+                try String.fetchAll(db, sql: "SELECT id FROM tags ORDER BY id"),
                 try String.fetchOne(db, sql: "SELECT parent_id FROM categories WHERE id = '10000000-0000-4000-8000-000000000099'"),
                 try String.fetchOne(db, sql: "SELECT tag_id FROM transaction_tags WHERE transaction_id = 'legacy-transaction'"),
-                try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT normalized_name) FROM categories WHERE id IN (?, ?, ?, ?)", arguments: StatementArguments(categoryIDs)),
-                try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT normalized_name) FROM tags WHERE id IN (?, ?, ?, ?)", arguments: StatementArguments(tagIDs))
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM categories"),
+                try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT normalized_name) FROM categories"),
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM tags"),
+                try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT normalized_name) FROM tags"),
+                try String.fetchAll(db, sql: "SELECT name FROM categories WHERE id != '10000000-0000-4000-8000-000000000099' ORDER BY id"),
+                try String.fetchAll(db, sql: "SELECT name FROM tags ORDER BY id"),
+                try String.fetchAll(db, sql: "SELECT normalized_name FROM categories ORDER BY id"),
+                try String.fetchAll(db, sql: "SELECT normalized_name FROM tags ORDER BY id")
             )
         }
         #expect(evidence.0 == categoryIDs)
         #expect(evidence.1 == tagIDs)
-        #expect(evidence.2 == categoryIDs[1])
-        #expect(evidence.3 == tagIDs[1])
-        #expect(evidence.4 == 4)
-        #expect(evidence.5 == 4)
+        #expect(evidence.2 == categoryIDs[2])
+        #expect(evidence.3 == tagIDs[2])
+        #expect(evidence.4 == evidence.5)
+        #expect(evidence.6 == evidence.7)
+        #expect(evidence.8 == categoryNames)
+        #expect(evidence.9 == tagNames)
+        #expect(evidence.10 == firstNormalizedState.0)
+        #expect(evidence.11 == firstNormalizedState.1)
+    }
+
+    @Test("v3 candidate semantic fingerprint repair preserves colliding transactions")
+    func candidateFingerprintRepairMigration() throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let queue = try DatabaseQueueFactory.open(at: root.appendingPathComponent("fingerprint-repair/aureus.sqlite"))
+        let migrator = DatabaseMigrations.permanentMigrator()
+        try migrator.migrate(queue, upTo: DatabaseMigrations.permanentV3)
+        let containerID = "30000000-0000-4000-8000-000000000001"
+        let transactionIDs = [
+            "40000000-0000-4000-8000-000000000001",
+            "40000000-0000-4000-8000-000000000002"
+        ]
+        try queue.write { db in
+            try db.execute(sql: "INSERT INTO asset_containers (id, name, kind, primary_currency_code, created_date, updated_date) VALUES (?, 'Synthetic Repair Container', 'bankCash', 'CNY', '2026-01-01', '2026-01-01')", arguments: [containerID])
+            for (offset, transactionID) in transactionIDs.enumerated() {
+                try db.execute(
+                    sql: "INSERT INTO ledger_transactions (id, kind, civil_date, recorded_at_ms, description, import_fingerprint, created_at_ms, updated_at_ms) VALUES (?, 'expense', '2026-01-15', 1768435200000, 'Synthetic Candidate Duplicate', ?, 1768435200000, 1768435200000)",
+                    arguments: [transactionID, "legacy-raw-fingerprint-\(offset)"]
+                )
+                try db.execute(
+                    sql: "INSERT INTO ledger_postings (id, transaction_id, role, container_id, original_minor, original_currency_code, converted_cny_minor, fx_coefficient, fx_source_currency_code, fx_target_currency_code, fx_source, fx_reference_date, fx_recorded_at_ms, fx_is_manual, fx_is_stale) VALUES (?, ?, 'primary', ?, 1000, 'CNY', 1000, 10000000000, 'CNY', 'CNY', 'identity', '2026-01-15', 1768435200000, 0, 0)",
+                    arguments: ["50000000-0000-4000-8000-00000000000\(offset + 1)", transactionID, containerID]
+                )
+            }
+        }
+        try migrator.migrate(queue)
+        let firstState = try queue.read { db in (
+            try Int.fetchOne(db, sql: "SELECT version FROM schema_metadata WHERE store_kind = 'permanent'"),
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ledger_transactions"),
+            try String.fetchAll(db, sql: "SELECT id FROM ledger_transactions ORDER BY id"),
+            try Row.fetchAll(db, sql: "SELECT id, import_fingerprint FROM ledger_transactions ORDER BY id")
+                .map { row in
+                    let id: String = row["id"]
+                    let fingerprint: String? = row["import_fingerprint"]
+                    return "\(id)|\(fingerprint ?? "nil")"
+                }
+        ) }
+        try migrator.migrate(queue)
+        let secondState = try queue.read { db in
+            try Row.fetchAll(db, sql: "SELECT id, import_fingerprint FROM ledger_transactions ORDER BY id")
+                .map { row in
+                    let id: String = row["id"]
+                    let fingerprint: String? = row["import_fingerprint"]
+                    return "\(id)|\(fingerprint ?? "nil")"
+                }
+        }
+        #expect(firstState.0 == 4)
+        #expect(firstState.1 == 2)
+        #expect(firstState.2 == transactionIDs)
+        #expect(firstState.3.filter { !$0.hasSuffix("|nil") }.count == 1)
+        #expect(secondState == firstState.3)
+    }
+
+    @Test("v3 candidate fingerprint repair failure leaves candidate data unchanged")
+    func candidateFingerprintRepairRollback() throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let queue = try DatabaseQueueFactory.open(at: root.appendingPathComponent("fingerprint-rollback/aureus.sqlite"))
+        let migrator = DatabaseMigrations.permanentMigrator()
+        try migrator.migrate(queue, upTo: DatabaseMigrations.permanentV3)
+        let transactionID = "60000000-0000-4000-8000-000000000001"
+        try queue.write { db in
+            try db.execute(
+                sql: "INSERT INTO ledger_transactions (id, kind, civil_date, recorded_at_ms, description, import_fingerprint, created_at_ms, updated_at_ms) VALUES (?, 'expense', '2026-01-15', 1768435200000, 'Synthetic Incomplete Candidate', 'legacy-fingerprint', 1768435200000, 1768435200000)",
+                arguments: [transactionID]
+            )
+        }
+        #expect(throws: (any Error).self) { try migrator.migrate(queue) }
+        let state = try queue.read { db in (
+            try Int.fetchOne(db, sql: "SELECT version FROM schema_metadata WHERE store_kind = 'permanent'"),
+            try String.fetchOne(db, sql: "SELECT import_fingerprint FROM ledger_transactions WHERE id = ?", arguments: [transactionID]),
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ledger_transactions")
+        ) }
+        #expect(state.0 == 3)
+        #expect(state.1 == "legacy-fingerprint")
+        #expect(state.2 == 1)
     }
 
     @Test("Cache reset leaves Ledger and wealth unchanged")

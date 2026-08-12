@@ -91,6 +91,65 @@ struct LedgerDomainTests {
         #expect(first?.category == category)
     }
 
+    @Test("Rule patterns independently match Payee or Description with AND conditions")
+    func payeeOrDescriptionPatternSemantics() throws {
+        let context = try LedgerTestContext.make()
+        let category = Category(id: UUID(), parentID: nil, name: "Synthetic Classified")
+        func rule(
+            mode: ClassificationMatchMode,
+            pattern: String,
+            kind: TransactionKind? = .expense,
+            source: UUID? = nil,
+            direction: LedgerAmountDirection? = .outflow,
+            enabled: Bool = true
+        ) -> ClassificationRule {
+            ClassificationRule(
+                id: UUID(), name: "Synthetic Rule", priority: 1, isEnabled: enabled,
+                matchMode: mode, payeePattern: pattern, kind: kind,
+                sourceContainerID: source, amountDirection: direction,
+                resultCategory: category, resultTags: []
+            )
+        }
+        func input(payee: String?, description: String, kind: TransactionKind = .expense) -> ClassificationInput {
+            ClassificationInput(
+                payee: payee,
+                description: description,
+                kind: kind,
+                sourceContainerID: context.source.id
+            )
+        }
+
+        #expect(DeterministicLedgerClassifier.classify(
+            input(payee: "Synthetic Payee", description: "Unrelated"),
+            rules: [rule(mode: .exact, pattern: "synthetic payee")]
+        ) != nil)
+        #expect(DeterministicLedgerClassifier.classify(
+            input(payee: "Nonmatching Payee", description: "Synthetic Café Purchase"),
+            rules: [rule(mode: .contains, pattern: "CAFE")]
+        ) != nil)
+        #expect(DeterministicLedgerClassifier.classify(
+            input(payee: nil, description: "Synthetic Cafe Purchase"),
+            rules: [rule(mode: .contains, pattern: "café")]
+        ) != nil)
+        #expect(DeterministicLedgerClassifier.classify(
+            input(payee: "Nonmatching Payee", description: "Synthetic Cafe Purchase"),
+            rules: [rule(mode: .exact, pattern: "Synthetic Cafe")]
+        ) == nil)
+        #expect(DeterministicLedgerClassifier.classify(
+            input(payee: "Unrelated", description: "Also unrelated"),
+            rules: [rule(mode: .contains, pattern: "missing")]
+        ) == nil)
+
+        let wrongKind = rule(mode: .contains, pattern: "Cafe", kind: .income)
+        let wrongContainer = rule(mode: .contains, pattern: "Cafe", source: context.target.id)
+        let wrongDirection = rule(mode: .contains, pattern: "Cafe", direction: .inflow)
+        let disabled = rule(mode: .contains, pattern: "Cafe", enabled: false)
+        let matchingDescription = input(payee: "Different", description: "Synthetic Cafe Purchase")
+        for candidate in [wrongKind, wrongContainer, wrongDirection, disabled] {
+            #expect(DeterministicLedgerClassifier.classify(matchingDescription, rules: [candidate]) == nil)
+        }
+    }
+
     @Test("Classification rules require a condition and a result")
     func ruleValidation() throws {
         let empty = ClassificationRule(

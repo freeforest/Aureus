@@ -8,6 +8,7 @@ enum DatabaseMigrations {
     static let permanentV1 = "permanent_v1_foundation"
     static let permanentV2 = "permanent_v2_wealth"
     static let permanentV3 = "permanent_v3_ledger"
+    static let permanentV4 = "permanent_v4_ledger_semantic_fingerprint"
     static let cacheV1 = "cache_v1_foundation"
 
     static func permanentMigrator() -> DatabaseMigrator {
@@ -478,6 +479,10 @@ enum DatabaseMigrations {
             try db.execute(sql: "CREATE INDEX ledger_transaction_tags_tag_index ON ledger_transaction_tags(tag_id)")
             try db.execute(sql: "UPDATE schema_metadata SET version = 3 WHERE store_kind = 'permanent'")
         }
+        migrator.registerMigration(permanentV4) { db in
+            try LedgerImportFingerprintRepair.migrateCandidateFingerprints(in: db)
+            try db.execute(sql: "UPDATE schema_metadata SET version = 4 WHERE store_kind = 'permanent'")
+        }
         return migrator
     }
 
@@ -491,7 +496,12 @@ enum DatabaseMigrations {
             let base = (try? LedgerNameNormalization.key(name)) ?? "legacy-empty"
             var key = base
             if used.contains(key) {
-                key = "\(base)\u{1f}legacy:\(id.lowercased())"
+                var attempt = 0
+                repeat {
+                    let suffix = attempt == 0 ? "" : ":\(attempt)"
+                    key = "\(base)\u{1f}legacy:\(id.lowercased())\(suffix)"
+                    attempt += 1
+                } while used.contains(key)
             }
             used.insert(key)
             try db.execute(
