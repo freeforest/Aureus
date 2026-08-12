@@ -427,7 +427,7 @@ extension WealthStore {
         }
     }
 
-    fileprivate static func fetchLedgerEntries(in db: Database) throws -> [LedgerEntry] {
+    static func fetchLedgerEntries(in db: Database) throws -> [LedgerEntry] {
         let rows = try LedgerTransactionRow.fetchAll(db, sql: "SELECT * FROM ledger_transactions ORDER BY civil_date DESC, recorded_at_ms DESC, id")
         let categories = Dictionary(uniqueKeysWithValues: try Row.fetchAll(db, sql: "SELECT id, parent_id, name FROM categories").map { row -> (String, Category) in
             guard let id = UUID(uuidString: row["id"]) else { throw LedgerPersistenceError.corruptRecord }

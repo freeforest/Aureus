@@ -198,6 +198,49 @@ struct DashboardDomainTests {
         #expect(heat.first?.valueCNY?.minorUnits == 6_600)
     }
 
+    @Test("Cash Flow accessibility summary uses checked fixed-point accumulation")
+    func checkedCashFlowAccessibilitySummary() throws {
+        let firstDate = try CivilDate(canonical: "2026-01-14")
+        let secondDate = try CivilDate(canonical: "2026-01-15")
+        let normal = [
+            DashboardCashFlowPoint(
+                civilDate: firstDate,
+                ordinaryIncomeCNY: Money(minorUnits: 10_000, currency: .cny),
+                ordinaryExpenseCNY: Money(minorUnits: 2_000, currency: .cny),
+                netCashFlowCNY: Money(minorUnits: 8_000, currency: .cny)
+            ),
+            DashboardCashFlowPoint(
+                civilDate: secondDate,
+                ordinaryIncomeCNY: Money(minorUnits: 500, currency: .cny),
+                ordinaryExpenseCNY: Money(minorUnits: 200, currency: .cny),
+                netCashFlowCNY: Money(minorUnits: 300, currency: .cny)
+            )
+        ]
+        let normalSummary = DashboardDisplay.cashFlowSummary(normal)
+        #expect(normalSummary.contains("Ordinary Income CNY 105.00"))
+        #expect(normalSummary.contains("Ordinary Expense CNY 22.00"))
+        #expect(normalSummary.contains("Net Cash Flow CNY 83.00"))
+
+        let overflowing = [
+            DashboardCashFlowPoint(
+                civilDate: firstDate,
+                ordinaryIncomeCNY: Money(minorUnits: Int64.max, currency: .cny),
+                ordinaryExpenseCNY: Money(minorUnits: Int64.max, currency: .cny),
+                netCashFlowCNY: Money(minorUnits: Int64.max, currency: .cny)
+            ),
+            DashboardCashFlowPoint(
+                civilDate: secondDate,
+                ordinaryIncomeCNY: Money(minorUnits: 1, currency: .cny),
+                ordinaryExpenseCNY: Money(minorUnits: -1, currency: .cny),
+                netCashFlowCNY: Money(minorUnits: 1, currency: .cny)
+            )
+        ]
+        #expect(
+            DashboardDisplay.cashFlowSummary(overflowing)
+                == "Cash flow summary unavailable because the CNY total exceeds the supported fixed-point range."
+        )
+    }
+
     private func makeSnapshot(date: String, assets: Int64, liabilities: Int64) throws -> DashboardSnapshot {
         let snapshotID = UUID()
         let civilDate = try CivilDate(canonical: date)

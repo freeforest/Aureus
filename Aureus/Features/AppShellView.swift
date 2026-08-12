@@ -76,7 +76,7 @@ private struct ModeBanner: View {
     var body: some View {
         HStack {
             Image(systemName: mode == .syntheticDemo ? "testtube.2" : "tray")
-            Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Empty Local Store")
+            Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Local Data Mode")
                 .font(.subheadline.weight(.medium))
             Spacer()
             Text("Stage 5 Dashboard Candidate")
@@ -87,7 +87,7 @@ private struct ModeBanner: View {
         .padding(.vertical, 10)
         .background(.bar)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier(mode == .syntheticDemo ? "mode.demo" : "mode.empty")
+        .accessibilityIdentifier(mode == .syntheticDemo ? "mode.demo" : "mode.local")
     }
 }
 

@@ -106,11 +106,172 @@ struct DashboardPersistenceTests {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
-        let result = try await store.ensureDashboardSnapshot(
+        let source = try await store.readDashboardSource(
             for: CivilDate(canonical: "2026-01-15"),
             createdAt: SyntheticWealthSeeder.demoInstant
         )
-        #expect(result == nil)
+        #expect(source.currentWealthRecords.isEmpty)
+        #expect(source.completeSnapshots.isEmpty)
+        #expect(source.ledgerEntries.isEmpty)
+        #expect(source.legacyIncompleteSnapshotCount == 0)
+        #expect(try await store.completeDashboardSnapshotCount() == 0)
+        let service = DashboardDataService(
+            store: store,
+            timeZone: TimeZone(identifier: "Asia/Shanghai")!
+        )
+        #expect(
+            try await service.load(
+                today: CivilDate(canonical: "2026-01-15"),
+                now: SyntheticWealthSeeder.demoInstant,
+                range: .maximum,
+                heatmapMode: .netCashFlow
+            ) == nil
+        )
+    }
+
+    @Test("Dashboard source read captures current Wealth and reads every permanent input in one transaction")
+    func consistentSourceReadCapturesCurrentState() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
+        let record = try SyntheticWealthSeeder.records()[1]
+        try await store.createWealthContainer(record)
+        let today = try CivilDate(canonical: "2026-01-15")
+
+        let source = try await store.readDashboardSource(
+            for: today,
+            createdAt: SyntheticWealthSeeder.demoInstant
+        )
+
+        #expect(source.currentWealthRecords == [record])
+        #expect(source.completeSnapshots.count == 1)
+        let snapshot = try #require(source.completeSnapshots.first)
+        let item = try #require(snapshot.items.first)
+        #expect(item.containerID == record.id)
+        #expect(item.originalValue == record.originalValue)
+        #expect(item.rate == record.valuation.rate)
+        #expect(item.convertedCNY == record.convertedCNYValue)
+        #expect(item.fxSource == record.valuation.providerIdentifier)
+        #expect(source.ledgerEntries.isEmpty)
+        #expect(source.legacyIncompleteSnapshotCount == 0)
+        #expect(try await store.completeDashboardSnapshotCount(on: today) == 1)
+    }
+
+    @Test("Historical-only production load keeps complete Snapshot and creates no zero Snapshot")
+    func historicalOnlyProductionLoad() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
+        let record = try SyntheticWealthSeeder.records()[5]
+        try await store.createWealthContainer(record)
+        let historyDate = try CivilDate(canonical: "2026-01-14")
+        let today = try CivilDate(canonical: "2026-01-15")
+        let originalSnapshot = try #require(
+            try await store.ensureDashboardSnapshot(
+                for: historyDate,
+                createdAt: SyntheticWealthSeeder.demoInstant
+            )
+        )
+        _ = try await store.deleteWealthContainer(id: record.id)
+        let countBefore = try await store.completeDashboardSnapshotCount()
+
+        let service = DashboardDataService(
+            store: store,
+            timeZone: TimeZone(identifier: "Asia/Shanghai")!
+        )
+        let payload = try #require(
+            try await service.load(
+                today: today,
+                now: UTCInstant(
+                    millisecondsSince1970: SyntheticWealthSeeder.demoInstant.millisecondsSince1970 + 86_400_000
+                ),
+                range: .maximum,
+                heatmapMode: .netCashFlow
+            )
+        )
+
+        #expect(payload.currentSummary == nil)
+        #expect(payload.completeSnapshots == [originalSnapshot])
+        #expect(payload.history.map(\.snapshotID) == [originalSnapshot.id])
+        #expect(payload.historicalHighCNY == originalSnapshot.summary.netWorthCNY)
+        #expect(payload.currentSnapshot == nil)
+        #expect(try await store.completeDashboardSnapshotCount() == countBefore)
+        #expect(try await store.completeDashboardSnapshotCount(on: today) == 0)
+        let preserved = try #require(try await store.fetchDashboardSnapshots().first)
+        #expect(preserved == originalSnapshot)
+        #expect(preserved.items.first?.fxSource == originalSnapshot.items.first?.fxSource)
+        #expect(preserved.items.first?.rate == originalSnapshot.items.first?.rate)
+    }
+
+    @Test("Existing same-day Snapshot is not silently refreshed by Dashboard source read")
+    func sourceReadKeepsExistingTodaySnapshot() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
+        let original = try SyntheticWealthSeeder.records()[0]
+        try await store.createWealthContainer(original)
+        let today = try CivilDate(canonical: "2026-01-15")
+        let captured = try #require(
+            try await store.ensureDashboardSnapshot(
+                for: today,
+                createdAt: SyntheticWealthSeeder.demoInstant
+            )
+        )
+        let updated = try updatedCash(
+            original,
+            minorUnits: original.originalValue.minorUnits + 25_000,
+            name: "Synthetic Current Wealth Changed"
+        )
+        try await store.updateWealthContainer(updated)
+
+        let source = try await store.readDashboardSource(
+            for: today,
+            createdAt: UTCInstant(
+                millisecondsSince1970: SyntheticWealthSeeder.demoInstant.millisecondsSince1970 + 5_000
+            )
+        )
+
+        #expect(source.currentWealthRecords == [updated])
+        #expect(source.completeSnapshots == [captured])
+        #expect(source.completeSnapshots.first?.createdAt == captured.createdAt)
+        #expect(source.completeSnapshots.first?.items == captured.items)
+        #expect(try await store.completeDashboardSnapshotCount(on: today) == 1)
+    }
+
+    @Test("Legacy-only Dashboard state is visible but never presented as complete history")
+    func legacyOnlySourceState() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("legacy-only/aureus.sqlite")
+        let queue = try DatabaseQueueFactory.open(at: url)
+        let migrator = DatabaseMigrations.permanentMigrator()
+        try migrator.migrate(queue, upTo: DatabaseMigrations.permanentV1)
+        try await queue.write { db in
+            try db.execute(sql: """
+                INSERT INTO snapshots (id, civil_date, created_at_ms, total_cny_minor)
+                VALUES ('00000000-0000-4000-8000-000000005500', '2026-01-14', 1768348800000, 12345)
+                """)
+        }
+        try migrator.migrate(queue)
+        let store = try WealthStore(databaseURL: url)
+        let service = DashboardDataService(
+            store: store,
+            timeZone: TimeZone(identifier: "Asia/Shanghai")!
+        )
+
+        let payload = try #require(
+            try await service.load(
+                today: CivilDate(canonical: "2026-01-15"),
+                now: SyntheticWealthSeeder.demoInstant,
+                range: .maximum,
+                heatmapMode: .netCashFlow
+            )
+        )
+        #expect(payload.currentSummary == nil)
+        #expect(payload.completeSnapshots.isEmpty)
+        #expect(payload.history.isEmpty)
+        #expect(payload.historicalHighCNY == nil)
+        #expect(payload.legacyIncompleteCount == 1)
         #expect(try await store.completeDashboardSnapshotCount() == 0)
     }
 

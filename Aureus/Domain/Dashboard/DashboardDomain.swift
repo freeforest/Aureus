@@ -379,11 +379,11 @@ enum DashboardCalculations {
         let weekStart = try DashboardDateMath.mondayStart(of: today, calendar: calendar)
         let monthStart = try CivilDate(year: today.year, month: today.month, day: 1)
         let yearStart = try CivilDate(year: today.year, month: 1, day: 1)
-        let high = complete.reduce(current.netWorthCNY) { partial, snapshot in
-            snapshot.summary.netWorthCNY.minorUnits > partial.minorUnits
-                ? snapshot.summary.netWorthCNY
-                : partial
-        }
+        let high = historicalHigh(
+            snapshots: complete,
+            through: today,
+            including: current.netWorthCNY
+        ) ?? current.netWorthCNY
         return DashboardChangeMetrics(
             today: try metric(current: current.netWorthCNY, latestBefore: today, snapshots: complete),
             week: try metric(current: current.netWorthCNY, latestBefore: weekStart, snapshots: complete),
@@ -391,6 +391,24 @@ enum DashboardCalculations {
             yearToDate: try metric(current: current.netWorthCNY, latestBefore: yearStart, snapshots: complete),
             historicalHighCNY: high
         )
+    }
+
+    static func historicalHigh(
+        snapshots: [DashboardSnapshot],
+        through referenceDate: CivilDate,
+        including current: Money? = nil
+    ) -> Money? {
+        snapshots
+            .filter {
+                $0.isComplete
+                    && $0.status == .complete
+                    && $0.civilDate <= referenceDate
+            }
+            .map(\.summary.netWorthCNY)
+            .reduce(current) { high, candidate in
+                guard let high else { return candidate }
+                return candidate.minorUnits > high.minorUnits ? candidate : high
+            }
     }
 
     static func allocation(records: [WealthContainer]) throws -> [DashboardAllocationSlice] {

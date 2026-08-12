@@ -9,10 +9,11 @@ enum DashboardLoadState: Equatable, Sendable {
 }
 
 struct DashboardPayload: Sendable {
-    let currentSummary: WealthSummary
+    let currentSummary: WealthSummary?
     let completeSnapshots: [DashboardSnapshot]
     let history: [DashboardHistoryPoint]
-    let changeMetrics: DashboardChangeMetrics
+    let changeMetrics: DashboardChangeMetrics?
+    let historicalHighCNY: Money?
     let allocation: [DashboardAllocationSlice]
     let subassets: [DashboardSubassetValue]
     let cashFlow: [DashboardCashFlowPoint]
@@ -37,39 +38,59 @@ actor DashboardDataService {
         range: DashboardTimeRange,
         heatmapMode: DashboardCashFlowHeatmapMode
     ) async throws -> DashboardPayload? {
-        let records = try await store.fetchWealthContainers()
-        guard !records.isEmpty else { return nil }
-        _ = try await store.ensureDashboardSnapshot(for: today, createdAt: now)
-        let snapshots = try await store.fetchDashboardSnapshots(through: today)
-        let entries = try await store.fetchLedgerEntries()
-        let summary = try WealthValuation.aggregate(records)
+        let source = try await store.readDashboardSource(for: today, createdAt: now)
+        let displayableEntries = source.ledgerEntries.filter { $0.civilDate <= today }
+        guard !source.currentWealthRecords.isEmpty
+                || !source.completeSnapshots.isEmpty
+                || !displayableEntries.isEmpty
+                || source.legacyIncompleteSnapshotCount > 0 else {
+            return nil
+        }
+        let summary = source.currentWealthRecords.isEmpty
+            ? nil
+            : try WealthValuation.aggregate(source.currentWealthRecords)
         let history = try DashboardCalculations.history(
-            snapshots: snapshots,
+            snapshots: source.completeSnapshots,
             range: range,
             referenceDate: today,
             calendar: calendar
         )
         let cashFlow = try DashboardCalculations.cashFlow(
-            entries: entries,
+            entries: source.ledgerEntries,
             range: range,
             referenceDate: today,
             calendar: calendar
         )
-        return try DashboardPayload(
-            currentSummary: summary,
-            completeSnapshots: snapshots,
-            history: history,
-            changeMetrics: DashboardCalculations.changeMetrics(
-                current: summary,
-                snapshots: snapshots,
+        let changeMetrics = try summary.map {
+            try DashboardCalculations.changeMetrics(
+                current: $0,
+                snapshots: source.completeSnapshots,
                 today: today,
                 calendar: calendar
+            )
+        }
+        return try DashboardPayload(
+            currentSummary: summary,
+            completeSnapshots: source.completeSnapshots,
+            history: history,
+            changeMetrics: changeMetrics,
+            historicalHighCNY: changeMetrics?.historicalHighCNY
+                ?? DashboardCalculations.historicalHigh(
+                    snapshots: source.completeSnapshots,
+                    through: today
+                ),
+            allocation: try DashboardCalculations.allocation(
+                records: source.currentWealthRecords
             ),
-            allocation: DashboardCalculations.allocation(records: records),
-            subassets: DashboardCalculations.subassets(records: records, summary: summary),
+            subassets: try summary.map {
+                try DashboardCalculations.subassets(
+                    records: source.currentWealthRecords,
+                    summary: $0
+                )
+            } ?? [],
             cashFlow: cashFlow,
             netWorthHeatmap: DashboardCalculations.netWorthHeatmap(
-                snapshots: snapshots,
+                snapshots: source.completeSnapshots,
                 range: range,
                 referenceDate: today,
                 calendar: calendar
@@ -81,8 +102,8 @@ actor DashboardDataService {
                 referenceDate: today,
                 calendar: calendar
             ),
-            currentSnapshot: snapshots.last { $0.civilDate == today },
-            legacyIncompleteCount: try await store.legacyIncompleteSnapshotCount()
+            currentSnapshot: source.completeSnapshots.last { $0.civilDate == today },
+            legacyIncompleteCount: source.legacyIncompleteSnapshotCount
         )
     }
 
@@ -95,10 +116,11 @@ actor DashboardDataService {
 @Observable
 final class DashboardFeatureModel {
     private(set) var loadState: DashboardLoadState = .loading
-    private(set) var currentSummary: WealthSummary = .zero
+    private(set) var currentSummary: WealthSummary?
     private(set) var snapshots: [DashboardSnapshot] = []
     private(set) var history: [DashboardHistoryPoint] = []
     private(set) var changeMetrics: DashboardChangeMetrics?
+    private(set) var historicalHighCNY: Money?
     private(set) var allocation: [DashboardAllocationSlice] = []
     private(set) var subassets: [DashboardSubassetValue] = []
     private(set) var cashFlow: [DashboardCashFlowPoint] = []
@@ -117,7 +139,6 @@ final class DashboardFeatureModel {
     @ObservationIgnored private let service: DashboardDataService
     @ObservationIgnored private let clock: any Clock
     @ObservationIgnored private let calendar: Calendar
-    @ObservationIgnored private var hasLoaded = false
 
     init(store: WealthStore, clock: any Clock, timeZone: TimeZone = .current) {
         self.service = DashboardDataService(store: store, timeZone: timeZone)
@@ -126,10 +147,9 @@ final class DashboardFeatureModel {
     }
 
     var hasInsufficientHistory: Bool { !history.isEmpty && history.count < 2 }
+    var hasCurrentWealth: Bool { currentSummary != nil }
 
     func loadIfNeeded() async {
-        guard !hasLoaded else { return }
-        hasLoaded = true
         await reload()
     }
 
@@ -175,7 +195,10 @@ final class DashboardFeatureModel {
     }
 
     func refreshTodaySnapshot() async {
-        guard loadState == .ready else { return }
+        guard loadState == .ready, currentSummary != nil else {
+            errorMessage = "No current Wealth Container is available, so Aureus will not create a zero-value Snapshot."
+            return
+        }
         isRefreshing = true
         defer { isRefreshing = false }
         do {
@@ -184,9 +207,8 @@ final class DashboardFeatureModel {
             try await service.refresh(today: today, now: now)
             await reload()
         } catch DashboardPersistenceError.emptyWealthStore {
-            clearForEmptyStore()
-            loadState = .empty
-            errorMessage = "An empty Wealth Store does not create a zero-value Snapshot."
+            await reload()
+            errorMessage = "No current Wealth Container is available. Existing history remains unchanged."
         } catch {
             errorMessage = "Today’s Snapshot refresh failed atomically. The prior Snapshot remains available."
         }
@@ -197,6 +219,7 @@ final class DashboardFeatureModel {
         snapshots = payload.completeSnapshots
         history = payload.history
         changeMetrics = payload.changeMetrics
+        historicalHighCNY = payload.historicalHighCNY
         allocation = payload.allocation
         subassets = payload.subassets
         cashFlow = payload.cashFlow
@@ -207,10 +230,11 @@ final class DashboardFeatureModel {
     }
 
     private func clearForEmptyStore() {
-        currentSummary = .zero
+        currentSummary = nil
         snapshots = []
         history = []
         changeMetrics = nil
+        historicalHighCNY = nil
         allocation = []
         subassets = []
         cashFlow = []

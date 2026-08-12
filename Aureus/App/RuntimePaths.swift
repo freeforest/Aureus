@@ -42,7 +42,7 @@ struct RuntimePaths: Equatable, Sendable {
 }
 
 enum AppDataMode: String, Equatable, Sendable {
-    case empty
+    case local
     case syntheticDemo
 }
 
@@ -65,7 +65,7 @@ struct LaunchConfiguration: Equatable, Sendable {
             temporaryRoot = nil
         }
         return LaunchConfiguration(
-            dataMode: isDemo ? .syntheticDemo : .empty,
+            dataMode: isDemo ? .syntheticDemo : .local,
             usesTemporaryStores: isTemporary,
             temporaryRoot: temporaryRoot
         )

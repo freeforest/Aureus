@@ -98,14 +98,14 @@ struct LedgerView: View {
     private var ledgerModeBanner: some View {
         HStack {
             Image(systemName: mode == .syntheticDemo ? "testtube.2" : "tray")
-            Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Empty Local Store")
+            Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Local Data Mode")
             Spacer()
             Text("Stage 4 Ledger Candidate")
                 .foregroundStyle(.secondary)
         }
         .font(.subheadline.weight(.medium))
         .padding(.horizontal, 18).padding(.vertical, 10).background(.bar)
-        .accessibilityIdentifier(mode == .syntheticDemo ? "ledger.mode.demo" : "ledger.mode.empty")
+        .accessibilityIdentifier(mode == .syntheticDemo ? "ledger.mode.demo" : "ledger.mode.local")
     }
 
     private var summaryCards: some View {

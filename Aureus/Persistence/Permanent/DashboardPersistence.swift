@@ -11,6 +11,13 @@ enum DashboardPersistenceError: Error, Equatable, Sendable {
     case corruptKind
 }
 
+struct DashboardSourceRead: Sendable {
+    let currentWealthRecords: [WealthContainer]
+    let completeSnapshots: [DashboardSnapshot]
+    let ledgerEntries: [LedgerEntry]
+    let legacyIncompleteSnapshotCount: Int
+}
+
 struct DashboardSnapshotRow: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "snapshots"
 
@@ -155,6 +162,36 @@ struct DashboardSnapshotItemRow: Codable, FetchableRecord, PersistableRecord {
 }
 
 extension WealthStore {
+    func readDashboardSource(
+        for civilDate: CivilDate,
+        createdAt: UTCInstant
+    ) throws -> DashboardSourceRead {
+        try queue.write { db in
+            let records = try Self.fetchDashboardWealthRecords(in: db)
+            if !records.isEmpty,
+               try Self.fetchCompleteSnapshot(in: db, civilDate: civilDate) == nil {
+                _ = try Self.captureDashboardSnapshot(
+                    records: records,
+                    civilDate: civilDate,
+                    createdAt: createdAt,
+                    existingID: nil,
+                    in: db
+                )
+            }
+
+            return DashboardSourceRead(
+                currentWealthRecords: records,
+                completeSnapshots: try Self.fetchDashboardSnapshots(
+                    in: db,
+                    from: nil,
+                    through: civilDate
+                ),
+                ledgerEntries: try Self.fetchLedgerEntries(in: db),
+                legacyIncompleteSnapshotCount: try Self.legacyIncompleteSnapshotCount(in: db)
+            )
+        }
+    }
+
     func ensureDashboardSnapshot(
         for civilDate: CivilDate,
         createdAt: UTCInstant
@@ -202,22 +239,7 @@ extension WealthStore {
         through endDate: CivilDate? = nil
     ) throws -> [DashboardSnapshot] {
         try queue.read { db in
-            var predicates = ["is_complete = 1", "capture_status = 'complete'"]
-            var arguments = StatementArguments()
-            if let startDate {
-                predicates.append("civil_date >= ?")
-                arguments += [startDate.description]
-            }
-            if let endDate {
-                predicates.append("civil_date <= ?")
-                arguments += [endDate.description]
-            }
-            let rows = try DashboardSnapshotRow.fetchAll(
-                db,
-                sql: "SELECT * FROM snapshots WHERE \(predicates.joined(separator: " AND ")) ORDER BY civil_date, created_at_ms, id",
-                arguments: arguments
-            )
-            return try rows.map { try Self.dashboardSnapshot(row: $0, in: db) }
+            try Self.fetchDashboardSnapshots(in: db, from: startDate, through: endDate)
         }
     }
 
@@ -236,10 +258,7 @@ extension WealthStore {
 
     func legacyIncompleteSnapshotCount() throws -> Int {
         try queue.read { db in
-            try Int.fetchOne(
-                db,
-                sql: "SELECT COUNT(*) FROM snapshots WHERE is_complete = 0 AND capture_status = 'legacyIncomplete'"
-            ) ?? 0
+            try Self.legacyIncompleteSnapshotCount(in: db)
         }
     }
 
@@ -340,6 +359,36 @@ extension WealthStore {
             return nil
         }
         return try dashboardSnapshot(row: row, in: db)
+    }
+
+    private static func fetchDashboardSnapshots(
+        in db: Database,
+        from startDate: CivilDate?,
+        through endDate: CivilDate?
+    ) throws -> [DashboardSnapshot] {
+        var predicates = ["is_complete = 1", "capture_status = 'complete'"]
+        var arguments = StatementArguments()
+        if let startDate {
+            predicates.append("civil_date >= ?")
+            arguments += [startDate.description]
+        }
+        if let endDate {
+            predicates.append("civil_date <= ?")
+            arguments += [endDate.description]
+        }
+        let rows = try DashboardSnapshotRow.fetchAll(
+            db,
+            sql: "SELECT * FROM snapshots WHERE \(predicates.joined(separator: " AND ")) ORDER BY civil_date, created_at_ms, id",
+            arguments: arguments
+        )
+        return try rows.map { try dashboardSnapshot(row: $0, in: db) }
+    }
+
+    private static func legacyIncompleteSnapshotCount(in db: Database) throws -> Int {
+        try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM snapshots WHERE is_complete = 0 AND capture_status = 'legacyIncomplete'"
+        ) ?? 0
     }
 
     private static func dashboardSnapshot(

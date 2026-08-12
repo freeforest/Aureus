@@ -121,7 +121,7 @@ struct LaunchConfigurationTests {
         #expect(demo.temporaryRoot != nil)
 
         let normal = LaunchConfiguration.current(arguments: ["Aureus"])
-        #expect(normal.dataMode == .empty)
+        #expect(normal.dataMode == .local)
         #expect(!normal.usesTemporaryStores)
         #expect(normal.temporaryRoot == nil)
     }

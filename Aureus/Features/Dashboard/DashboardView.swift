@@ -71,7 +71,9 @@ struct DashboardView: View {
                             DashboardCurrentSection(
                                 summary: model.currentSummary,
                                 metrics: model.changeMetrics,
+                                historicalHighCNY: model.historicalHighCNY,
                                 snapshot: model.currentSnapshot,
+                                snapshotCount: model.snapshots.count,
                                 legacyCount: model.legacyIncompleteCount,
                                 isRefreshing: model.isRefreshing,
                                 refresh: { Task { await model.refreshTodaySnapshot() } }
@@ -187,16 +189,18 @@ private struct DashboardModeHeader: View {
         .background(.bar)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Empty Local Store mode"), Dashboard \(String(describing: loadState))"
+            "\(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Local Data Mode"), Dashboard \(String(describing: loadState))"
         )
-        .accessibilityIdentifier(mode == .syntheticDemo ? "mode.demo" : "mode.empty")
+        .accessibilityIdentifier(mode == .syntheticDemo ? "mode.demo" : "mode.local")
     }
 }
 
 private struct DashboardCurrentSection: View {
-    let summary: WealthSummary
+    let summary: WealthSummary?
     let metrics: DashboardChangeMetrics?
+    let historicalHighCNY: Money?
     let snapshot: DashboardSnapshot?
+    let snapshotCount: Int
     let legacyCount: Int
     let isRefreshing: Bool
     let refresh: () -> Void
@@ -207,7 +211,7 @@ private struct DashboardCurrentSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Current Wealth")
                         .font(.title2.weight(.semibold))
-                        .accessibilityIdentifier("dashboard.content")
+                        .accessibilityIdentifier("dashboard.current.title")
                     if let snapshot {
                         Text("Complete Snapshot: \(snapshot.civilDate.description) · \(snapshot.items.count) self-contained items")
                             .font(.caption)
@@ -218,6 +222,12 @@ private struct DashboardCurrentSection: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .accessibilityIdentifier("dashboard.snapshot.status")
+                    }
+                    if snapshotCount > 0 {
+                        Text("\(snapshotCount) complete persisted Snapshot(s) available")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("dashboard.snapshot.historyCount")
                     }
                     if legacyCount > 0 {
                         Text("\(legacyCount) legacy/incomplete Snapshot row(s) preserved and excluded from Dashboard metrics")
@@ -234,15 +244,24 @@ private struct DashboardCurrentSection: View {
                         Label("Refresh Today’s Snapshot", systemImage: "arrow.clockwise")
                     }
                 }
-                .disabled(isRefreshing)
+                .disabled(isRefreshing || summary == nil)
                 .keyboardShortcut("r", modifiers: [.command, .shift])
                 .accessibilityIdentifier("dashboard.snapshot.refresh")
             }
 
-            HStack(spacing: 12) {
-                DashboardValueCard(title: "Total Assets", value: summary.totalAssetsCNY, color: .blue, identifier: "dashboard.current.assets")
-                DashboardValueCard(title: "Total Liabilities", value: summary.totalLiabilitiesCNY, color: .orange, identifier: "dashboard.current.liabilities")
-                DashboardValueCard(title: "Net Worth", value: summary.netWorthCNY, color: summary.netWorthCNY.minorUnits < 0 ? .red : .green, identifier: "dashboard.current.netWorth")
+            if let summary {
+                HStack(spacing: 12) {
+                    DashboardValueCard(title: "Total Assets", value: summary.totalAssetsCNY, color: .blue, identifier: "dashboard.current.assets")
+                    DashboardValueCard(title: "Total Liabilities", value: summary.totalLiabilitiesCNY, color: .orange, identifier: "dashboard.current.liabilities")
+                    DashboardValueCard(title: "Net Worth", value: summary.netWorthCNY, color: summary.netWorthCNY.minorUnits < 0 ? .red : .green, identifier: "dashboard.current.netWorth")
+                }
+            } else {
+                Label(
+                    "No current Wealth Container. Persisted Snapshot history remains available and no zero-value Snapshot was created.",
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("dashboard.current.empty")
             }
 
             if let metrics {
@@ -251,7 +270,22 @@ private struct DashboardCurrentSection: View {
                     DashboardChangeCard(title: "This Week", metric: metrics.week, identifier: "dashboard.change.week")
                     DashboardChangeCard(title: "This Month", metric: metrics.month, identifier: "dashboard.change.month")
                     DashboardChangeCard(title: "YTD", metric: metrics.yearToDate, identifier: "dashboard.change.ytd")
-                    DashboardValueCard(title: "Historical High", value: metrics.historicalHighCNY, color: .purple, identifier: "dashboard.historicalHigh")
+                    if let historicalHighCNY {
+                        DashboardValueCard(title: "Historical High", value: historicalHighCNY, color: .purple, identifier: "dashboard.historicalHigh")
+                    }
+                }
+            } else if let historicalHighCNY {
+                HStack(spacing: 10) {
+                    Text("Current-period change metrics are unavailable without a current Wealth Container.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("dashboard.change.unavailable")
+                    DashboardValueCard(
+                        title: "Historical High",
+                        value: historicalHighCNY,
+                        color: .purple,
+                        identifier: "dashboard.historicalHigh"
+                    )
                 }
             }
         }
@@ -836,10 +870,15 @@ enum DashboardDisplay {
 
     static func cashFlowSummary(_ points: [DashboardCashFlowPoint]) -> String {
         guard !points.isEmpty else { return "No Ledger cash flow in range" }
-        let income = points.reduce(Int64(0)) { $0 + $1.ordinaryIncomeCNY.minorUnits }
-        let expense = points.reduce(Int64(0)) { $0 + $1.ordinaryExpenseCNY.minorUnits }
-        let net = points.reduce(Int64(0)) { $0 + $1.netCashFlowCNY.minorUnits }
-        return "\(points.count) day(s); Ordinary Income \(money(Money(minorUnits: income, currency: .cny))); Ordinary Expense \(money(Money(minorUnits: expense, currency: .cny))); Net Cash Flow \(money(Money(minorUnits: net, currency: .cny)))."
+        do {
+            let zero = Money(minorUnits: 0, currency: .cny)
+            let income = try points.reduce(zero) { try $0.adding($1.ordinaryIncomeCNY) }
+            let expense = try points.reduce(zero) { try $0.adding($1.ordinaryExpenseCNY) }
+            let net = try points.reduce(zero) { try $0.adding($1.netCashFlowCNY) }
+            return "\(points.count) day(s); Ordinary Income \(money(income)); Ordinary Expense \(money(expense)); Net Cash Flow \(money(net))."
+        } catch {
+            return "Cash flow summary unavailable because the CNY total exceeds the supported fixed-point range."
+        }
     }
 }
 

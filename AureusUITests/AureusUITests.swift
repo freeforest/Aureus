@@ -12,7 +12,7 @@ final class AureusUITests: XCTestCase {
         app.launchArguments = uiTestingArguments()
         launchApp(app)
 
-        XCTAssertTrue(app.descendants(matching: .any)["mode.empty"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["mode.local"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["dashboard.empty"].exists)
 
         let destinations = [
@@ -25,7 +25,7 @@ final class AureusUITests: XCTestCase {
                 XCTAssertTrue(sidebarItem.waitForExistence(timeout: 5), "Missing \(destination) sidebar item")
                 sidebarItem.click()
                 let expectedIdentifier: String
-                if destination == "dashboard" { expectedIdentifier = "mode.empty" }
+                if destination == "dashboard" { expectedIdentifier = "mode.local" }
                 else if destination == "wealth" { expectedIdentifier = "wealth.page" }
                 else if destination == "ledger" { expectedIdentifier = "ledger.empty" }
                 else { expectedIdentifier = "destination.\(destination)" }
@@ -47,7 +47,7 @@ final class AureusUITests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["mode.demo"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.descendants(matching: .any)["mode.empty"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["mode.local"].exists)
 
         app.descendants(matching: .any)["sidebar.wealth"].click()
         XCTAssertTrue(app.descendants(matching: .any)["wealth.page"].waitForExistence(timeout: 5))
@@ -80,6 +80,52 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["dashboard.empty"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["dashboard.snapshot.status"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["dashboard.history.chart"].exists)
+    }
+
+    @MainActor
+    func testDashboardPopulatedLocalThenHistoricalOnlyAfterLastContainerDeletion() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments()
+        launchApp(app)
+
+        XCTAssertTrue(app.descendants(matching: .any)["mode.local"].waitForExistence(timeout: 10))
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.empty.add"].waitForExistence(timeout: 5))
+        addContainer(
+            app: app,
+            name: "Synthetic Historical-only Cash",
+            kind: "Bank / Cash",
+            amount: "100.00",
+            currency: "CNY",
+            fxRate: nil
+        )
+
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 10))
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "dashboard.content").count,
+            1,
+            "dashboard.content must identify only the ready content container"
+        )
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["dashboard.current.assets"], containing: "100.00", timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.history.chart"].exists)
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["dashboard.snapshot.historyCount"], containing: "1 complete", timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["mode.demo"].exists)
+
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        selectRow(app: app, kind: "bankCash", currency: "cny")
+        deleteSelectedContainer(app: app)
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.empty.add"].waitForExistence(timeout: 5))
+
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.current.empty"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.history.chart"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.historicalHigh"].exists)
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["dashboard.snapshot.historyCount"], containing: "1 complete", timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["dashboard.current.assets"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["mode.demo"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["mode.local"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["dashboard.snapshot.refresh"].isEnabled)
     }
 
     @MainActor
