@@ -58,6 +58,30 @@ struct MarketCapability: Codable, Equatable, Identifiable, Sendable {
     let evidenceStatus: String
 }
 
+enum MarketProviderEndpoint: String, Codable, CaseIterable, Sendable {
+    case symbolSearch
+    case historicalOHLCV
+    case splits
+    case dividends
+}
+
+enum ProviderCapabilityEvidence: String, Codable, Sendable {
+    case officialCatalogOnly
+    case liveVerified
+    case notVerified
+    case conflicting
+}
+
+struct ProviderEndpointCapability: Codable, Equatable, Identifiable, Sendable {
+    var id: MarketProviderEndpoint { endpoint }
+
+    let endpoint: MarketProviderEndpoint
+    let minimumPlanName: String
+    let creditWeight: Int
+    let catalogEvidence: ProviderCapabilityEvidence
+    let observedEntitlement: MarketEntitlementState
+}
+
 struct MarketProviderCapabilities: Codable, Equatable, Sendable {
     let provider: ProviderDescriptor
     let entitlement: MarketEntitlementState
@@ -66,6 +90,7 @@ struct MarketProviderCapabilities: Codable, Equatable, Sendable {
     let supportsSearch: Bool
     let supportsHistoricalPrices: Bool
     let supportsCorporateActions: Bool
+    let endpointCapabilities: [ProviderEndpointCapability]
     let observedAt: UTCInstant?
 
     var supportedMICs: Set<String> {
@@ -238,6 +263,7 @@ enum ProviderBoundaryError: Error, Equatable, Sendable {
     case unsupportedMarket(String)
     case upgradeRequired(String)
     case rateLimited(retryAfterMilliseconds: Int64?)
+    case requestCostExceedsLimit(requiredCredits: Int, availableCredits: Int)
     case offline
     case missing
     case timeout

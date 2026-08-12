@@ -75,14 +75,26 @@ private actor RecordingProviderSleeper: ProviderSleeper {
 private actor CancellationHTTPTransport: HTTPTransport {
     private var didStart = false
     private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var cancellationCount = 0
+    private var cancellationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var calls = 0
 
     func data(for request: URLRequest) async throws -> HTTPTransportResponse {
+        calls += 1
         didStart = true
         let waiters = startWaiters
         startWaiters.removeAll()
         for waiter in waiters { waiter.resume() }
-        try await Task.sleep(for: .seconds(60))
-        return HTTPTransportResponse(data: Data(), statusCode: 200, headers: [:])
+        do {
+            try await Task.sleep(for: .seconds(60))
+            return HTTPTransportResponse(data: Data(), statusCode: 200, headers: [:])
+        } catch {
+            cancellationCount += 1
+            let waiters = cancellationWaiters
+            cancellationWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+            throw error
+        }
     }
 
     func waitUntilStarted() async {
@@ -91,6 +103,84 @@ private actor CancellationHTTPTransport: HTTPTransport {
             startWaiters.append(continuation)
         }
     }
+
+    func waitUntilCancelled() async {
+        guard cancellationCount == 0 else { return }
+        await withCheckedContinuation { continuation in
+            cancellationWaiters.append(continuation)
+        }
+    }
+
+    func callCount() -> Int { calls }
+}
+
+private actor ControlledHTTPTransport: HTTPTransport {
+    private var calls = 0
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var responseWaiters: [CheckedContinuation<HTTPTransportResponse, Never>] = []
+
+    func data(for request: URLRequest) async throws -> HTTPTransportResponse {
+        calls += 1
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+        return await withCheckedContinuation { continuation in
+            responseWaiters.append(continuation)
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard calls == 0 else { return }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func releaseAll(with response: HTTPTransportResponse) {
+        let waiters = responseWaiters
+        responseWaiters.removeAll()
+        for waiter in waiters { waiter.resume(returning: response) }
+    }
+
+    func callCount() -> Int { calls }
+}
+
+private final class MutableProviderClock: Clock, @unchecked Sendable {
+    private let lock = NSLock()
+    private var instant: UTCInstant
+
+    init(milliseconds: Int64) {
+        instant = UTCInstant(millisecondsSince1970: milliseconds)
+    }
+
+    func now() -> UTCInstant {
+        lock.withLock { instant }
+    }
+
+    func advance(milliseconds: Int64) {
+        lock.withLock {
+            instant = UTCInstant(
+                millisecondsSince1970: instant.millisecondsSince1970 + milliseconds
+            )
+        }
+    }
+}
+
+private actor AdvancingProviderSleeper: ProviderSleeper {
+    private let clock: MutableProviderClock
+    private var values: [Int64] = []
+
+    init(clock: MutableProviderClock) {
+        self.clock = clock
+    }
+
+    func sleep(milliseconds: Int64) throws {
+        try Task.checkCancellation()
+        values.append(milliseconds)
+        clock.advance(milliseconds: milliseconds)
+    }
+
+    func delays() -> [Int64] { values }
 }
 
 private actor ConcurrencyHTTPTransport: HTTPTransport {
@@ -264,6 +354,29 @@ struct MarketDataInfrastructureTests {
         #expect(await malformed.requests().count == 1)
     }
 
+    @Test("HTTP and structured body 401/403 errors retain distinct credential and entitlement semantics")
+    func credentialAndEntitlementErrorsAreDistinct() async throws {
+        for body in ["{}", #"{"status":"error","code":401,"message":"synthetic"}"#] {
+            let status = body == "{}" ? 401 : 200
+            let transport = ScriptedHTTPTransport([.response(status: status, body: body)])
+            let client = try await makeClient(transport: transport)
+            await #expect(throws: ProviderBoundaryError.invalidOrExpired) {
+                _ = try await client.search(query: "credential")
+            }
+            #expect(await transport.requests().count == 1)
+        }
+
+        for body in ["{}", #"{"status":"error","code":403,"message":"synthetic"}"#] {
+            let status = body == "{}" ? 403 : 200
+            let transport = ScriptedHTTPTransport([.response(status: status, body: body)])
+            let client = try await makeClient(transport: transport)
+            await #expect(throws: ProviderBoundaryError.unsupportedEntitlement) {
+                _ = try await client.search(query: "entitlement")
+            }
+            #expect(await transport.requests().count == 1)
+        }
+    }
+
     @Test("Transient timeout retry uses deterministic 1, 2, 4 second backoff")
     func timeoutBackoff() async throws {
         let transport = ScriptedHTTPTransport([
@@ -293,6 +406,66 @@ struct MarketDataInfrastructureTests {
         }
     }
 
+    @Test("Identical in-flight requests share transport while one waiter cancellation stays isolated")
+    func sharedRequestCancellationIsolation() async throws {
+        let transport = ControlledHTTPTransport()
+        let client = try await makeClient(transport: transport)
+        let first = Task { try await client.search(query: "same") }
+        let second = Task { try await client.search(query: "same") }
+        await transport.waitUntilStarted()
+        for _ in 0..<100 {
+            if await client.inFlightRequestState().waiters >= 2 { break }
+            await Task.yield()
+        }
+        #expect(await client.inFlightRequestState() == (requests: 1, waiters: 2))
+        #expect(await transport.callCount() == 1)
+
+        first.cancel()
+        await #expect(throws: ProviderBoundaryError.cancelled) {
+            _ = try await first.value
+        }
+        #expect(await client.inFlightRequestState() == (requests: 1, waiters: 1))
+
+        await transport.releaseAll(with: response(
+            #"{"data":[{"symbol":"SYN","instrument_name":"Synthetic Shared","mic_code":"XNAS","currency":"USD"}]}"#
+        ))
+        #expect(try await second.value.count == 1)
+        #expect(await client.inFlightRequestState() == (requests: 0, waiters: 0))
+        #expect(await transport.callCount() == 1)
+    }
+
+    @Test("All waiter cancellation cancels the shared request without residual state")
+    func allWaitersCancelSharedRequest() async throws {
+        let transport = CancellationHTTPTransport()
+        let client = try await makeClient(transport: transport)
+        let first = Task { try await client.search(query: "shared-cancel") }
+        let second = Task { try await client.search(query: "shared-cancel") }
+        await transport.waitUntilStarted()
+        for _ in 0..<100 {
+            if await client.inFlightRequestState().waiters >= 2 { break }
+            await Task.yield()
+        }
+        first.cancel()
+        second.cancel()
+        await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await first.value }
+        await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await second.value }
+        await transport.waitUntilCancelled()
+        #expect(await transport.callCount() == 1)
+        #expect(await client.inFlightRequestState() == (requests: 0, waiters: 0))
+    }
+
+    @Test("Disconnect cancels the shared request without residual state")
+    func disconnectCancelsSharedRequest() async throws {
+        let disconnectTransport = CancellationHTTPTransport()
+        let disconnectClient = try await makeClient(transport: disconnectTransport)
+        let request = Task { try await disconnectClient.search(query: "disconnect") }
+        await disconnectTransport.waitUntilStarted()
+        await disconnectClient.disconnect()
+        await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await request.value }
+        await disconnectTransport.waitUntilCancelled()
+        #expect(await disconnectClient.inFlightRequestState() == (requests: 0, waiters: 0))
+    }
+
     @Test("Request gate enforces concurrency two and rejects impossible credit weight")
     func concurrencyAndCredits() async throws {
         let transport = ConcurrencyHTTPTransport()
@@ -312,9 +485,39 @@ struct MarketDataInfrastructureTests {
             clock: clock,
             sleeper: RecordingProviderSleeper()
         )
-        await #expect(throws: ProviderBoundaryError.rateLimited(retryAfterMilliseconds: 60_000)) {
+        await #expect(throws: ProviderBoundaryError.requestCostExceedsLimit(
+            requiredCredits: 2,
+            availableCredits: 1
+        )) {
             _ = try await gate.execute(credits: 2) { 1 }
         }
+    }
+
+    @Test("Request gate resets at provider minute and UTC day boundaries")
+    func officialCreditBoundaries() async throws {
+        let minuteClock = MutableProviderClock(milliseconds: 119_900)
+        let minuteSleeper = AdvancingProviderSleeper(clock: minuteClock)
+        let minuteGate = ProviderRequestGate(
+            minuteLimit: 1,
+            dailyLimit: 10,
+            clock: minuteClock,
+            sleeper: minuteSleeper
+        )
+        _ = try await minuteGate.execute(credits: 1) { 1 }
+        _ = try await minuteGate.execute(credits: 1) { 2 }
+        #expect(await minuteSleeper.delays() == [100])
+
+        let dayClock = MutableProviderClock(milliseconds: 86_399_900)
+        let daySleeper = AdvancingProviderSleeper(clock: dayClock)
+        let dayGate = ProviderRequestGate(
+            minuteLimit: 100,
+            dailyLimit: 1,
+            clock: dayClock,
+            sleeper: daySleeper
+        )
+        _ = try await dayGate.execute(credits: 1) { 1 }
+        _ = try await dayGate.execute(credits: 1) { 2 }
+        #expect(await daySleeper.delays() == [100])
     }
 
     @Test("Provider usage can lower limits while unknown plan text cannot raise Basic defaults")
@@ -331,13 +534,56 @@ struct MarketDataInfrastructureTests {
         #expect(await actualGate.currentLimits().perDay == 500)
 
         let unknown = ScriptedHTTPTransport([
-            .response(status: 200, body: #"{"plan_name":"User Typed Platinum"}"#)
+            .response(
+                status: 200,
+                body: #"{"plan_name":"User Typed Platinum","api_credits_per_minute":999,"daily_limit":999999}"#
+            )
         ])
         let unknownGate = ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper())
         let unknownClient = try await makeClient(transport: unknown, gate: unknownGate)
         #expect(try await unknownClient.validateCredential().entitlement == .unknown)
         #expect(await unknownGate.currentLimits().perMinute == 8)
         #expect(await unknownGate.currentLimits().perDay == 800)
+    }
+
+    @Test("Basic capability keeps Corporate Actions catalog-only and aggregates US MIC observations")
+    func basicActionsAndUSMICAggregation() async throws {
+        let transport = ScriptedHTTPTransport([
+            .response(
+                status: 200,
+                body: #"{"plan_name":"Basic","api_credits_per_minute":8,"daily_limit":800}"#
+            ),
+            .response(
+                status: 200,
+                body: #"{"close":"12.5","timestamp":1768435200,"is_market_open":true}"#
+            )
+        ])
+        let client = try await makeClient(transport: transport, minuteLimit: 8)
+        _ = try await client.validateCredential()
+        let quote = try await client.latestQuote(for: instrument())
+        let capabilities = await client.capabilities()
+        let us = capabilities.markets.first(where: { $0.mic == "US" })
+
+        #expect(quote.instrument.mic == "XNAS")
+        #expect(us?.observedEntitlement == .basic)
+        #expect(us?.supportsCorporateActions == false)
+        #expect(capabilities.supportsCorporateActions == false)
+        #expect(capabilities.endpointCapabilities.first(where: { $0.endpoint == .splits })?.creditWeight == 20)
+        #expect(capabilities.endpointCapabilities.first(where: { $0.endpoint == .dividends })?.minimumPlanName.contains("Grow") == true)
+
+        let actionTransport = ScriptedHTTPTransport([])
+        let basicClient = try await makeClient(transport: actionTransport, minuteLimit: 8)
+        await #expect(throws: ProviderBoundaryError.requestCostExceedsLimit(
+            requiredCredits: 20,
+            availableCredits: 8
+        )) {
+            _ = try await basicClient.corporateActions(
+                for: instrument(),
+                from: nil,
+                through: nil
+            )
+        }
+        #expect(await actionTransport.requests().isEmpty)
     }
 
     @Test("A closed market is not inferred to be delayed and capability catalog remains conservative")

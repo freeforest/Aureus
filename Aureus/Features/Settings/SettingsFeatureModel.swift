@@ -11,6 +11,7 @@ final class SettingsFeatureModel {
     private(set) var observedPlan = "Unknown"
     private(set) var entitlement: MarketEntitlementState = .unknown
     private(set) var capabilities: [MarketCapability] = []
+    private(set) var endpointCapabilities: [ProviderEndpointCapability] = []
     private(set) var lastSuccessfulValidation: UTCInstant?
     private(set) var cacheStatistics: MarketCacheStatistics?
     private(set) var statusMessage: String?
@@ -94,6 +95,7 @@ final class SettingsFeatureModel {
             entitlement = .missing
             lastSuccessfulValidation = nil
             capabilities = []
+            endpointCapabilities = []
             statusMessage = "Disconnected. Keychain credential and Twelve Data recoverable cache were deleted."
             try await refreshCacheStatistics()
         } catch {
@@ -113,6 +115,7 @@ final class SettingsFeatureModel {
             observedPlan = "Unknown"
             lastSuccessfulValidation = nil
             capabilities = []
+            endpointCapabilities = []
             statusMessage = "Key deleted. New requests stopped and Twelve Data recoverable cache was removed."
             try await refreshCacheStatistics()
         } catch {
@@ -170,6 +173,7 @@ final class SettingsFeatureModel {
         entitlement = observed.entitlement
         observedPlan = observed.observedPlanName ?? observedPlan
         capabilities = observed.markets
+        endpointCapabilities = observed.endpointCapabilities
     }
 
     private func refreshCacheStatistics() async throws {
@@ -183,13 +187,21 @@ final class SettingsFeatureModel {
         case ProviderBoundaryError.missingCredential:
             "No Twelve Data API key is configured in Keychain."
         case ProviderBoundaryError.invalidOrExpired:
-            "Twelve Data rejected the credential or entitlement. The key was not displayed or logged."
+            "Twelve Data rejected the credential as invalid or expired. The key was not displayed or logged."
+        case ProviderBoundaryError.unsupportedEntitlement:
+            "The credential is valid enough to reach Twelve Data, but this operation is not authorized by the current entitlement."
+        case ProviderBoundaryError.unsupportedMarket(let mic):
+            "The current entitlement does not support market \(mic)."
+        case ProviderBoundaryError.upgradeRequired:
+            "This operation requires a higher Twelve Data plan or market entitlement."
         case ProviderBoundaryError.offline:
             "Validation is unavailable while offline. The credential was not deleted."
         case ProviderBoundaryError.timeout:
             "Provider validation timed out. Try again later."
         case ProviderBoundaryError.rateLimited:
             "Twelve Data rate limit reached. Retry after the provider window resets."
+        case ProviderBoundaryError.requestCostExceedsLimit(let required, let available):
+            "This endpoint costs \(required) credits, above the currently verified \(available)-credit request window."
         case ProviderBoundaryError.cancelled:
             "The operation was cancelled."
         case CachePolicyError.persistentRetentionUnverified:

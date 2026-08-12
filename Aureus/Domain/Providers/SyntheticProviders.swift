@@ -46,6 +46,15 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
             supportsSearch: true,
             supportsHistoricalPrices: true,
             supportsCorporateActions: true,
+            endpointCapabilities: MarketProviderEndpoint.allCases.map {
+                ProviderEndpointCapability(
+                    endpoint: $0,
+                    minimumPlanName: "Synthetic",
+                    creditWeight: 1,
+                    catalogEvidence: .liveVerified,
+                    observedEntitlement: entitlement
+                )
+            },
             observedAt: clock.now()
         )
     }

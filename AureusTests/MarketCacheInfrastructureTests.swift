@@ -84,6 +84,95 @@ struct MarketCacheInfrastructureTests {
         #expect(try await reopened.cachedRowCount() == 1)
     }
 
+    @Test("Legacy v1 cache participates in high-water cleanup and cannot block a current write")
+    func legacyCapacityGovernance() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cacheURL = root.appendingPathComponent("cache/market-cache.sqlite")
+        let wealth = try WealthStore(
+            databaseURL: root.appendingPathComponent("permanent/aureus.sqlite")
+        )
+        try await wealth.insertIsolationSentinel(
+            id: "00000000-0000-4000-8000-0000000065A0",
+            name: "Synthetic Legacy Cache Isolation Sentinel"
+        )
+        try await wealth.seedSyntheticWealth()
+        try await SyntheticLedgerSeeder.seed(in: wealth)
+        try await SyntheticDashboardSeeder.seed(in: wealth)
+        try await wealth.checkpoint()
+        let permanentBefore = try await permanentState(store: wealth)
+
+        let queue = try DatabaseQueueFactory.open(at: cacheURL)
+        let migrator = DatabaseMigrations.cacheMigrator()
+        try migrator.migrate(queue, upTo: DatabaseMigrations.cacheV1)
+        try await queue.write { db in
+            for index in 1...2 {
+                try db.execute(sql: """
+                    INSERT INTO cached_instruments (
+                        id, symbol, mic, currency_code, display_name, provider_identifier,
+                        fetched_at_ms, expires_at_ms, last_accessed_at_ms, byte_size
+                    ) VALUES (?, ?, 'XSYN', 'CNY', ?, 'synthetic.legacy', 1, 9999999999999, ?, 200)
+                    """, arguments: [
+                        "legacy-instrument-\(index)", "SYN\(index)",
+                        "Synthetic Legacy \(index)", index
+                    ])
+                try db.execute(sql: """
+                    INSERT INTO cached_prices (
+                        id, instrument_id, session_date, open_coefficient, high_coefficient,
+                        low_coefficient, close_coefficient, volume_coefficient,
+                        quote_currency_code, provider_identifier, fetched_at_ms,
+                        expires_at_ms, last_accessed_at_ms, byte_size
+                    ) VALUES (?, ?, ?, 1, 1, 1, 1, 1, 'CNY', 'synthetic.legacy', 1, 9999999999999, ?, ?)
+                    """, arguments: [
+                        "legacy-price-\(index)", "legacy-instrument-\(index)",
+                        "2026-01-1\(index)", index, index == 1 ? 400 : 200
+                    ])
+            }
+        }
+        try queue.close()
+
+        let cache = try MarketCacheStore(
+            databaseURL: cacheURL,
+            policy: try .testing(maximumBytes: 1_000)
+        )
+        let cleanup = try await cache.performAutomaticCleanup(reason: .launch, now: now)
+        #expect(cleanup.remainingBytes <= 800)
+        #expect(cleanup.removedEntries == 2)
+        try await cache.store(
+            makeEntry(key: "current-after-legacy-cleanup", payloadSize: 100),
+            authorization: .authorized
+        )
+        #expect(try await cache.statistics().currentBytes <= 800)
+
+        let inspection = try DatabaseQueueFactory.open(at: cacheURL)
+        let legacyState = try await inspection.read { db in
+            (
+                try String.fetchAll(
+                    db,
+                    sql: "SELECT id FROM cached_instruments ORDER BY id"
+                ),
+                try String.fetchAll(db, sql: "SELECT id FROM cached_prices ORDER BY id"),
+                try Int.fetchOne(
+                    db,
+                    sql: "PRAGMA foreign_key_check"
+                )
+            )
+        }
+        #expect(legacyState.0 == ["legacy-instrument-2"])
+        #expect(legacyState.1 == ["legacy-price-2"])
+        #expect(legacyState.2 == nil)
+
+        try await wealth.checkpoint()
+        let permanentAfter = try await permanentState(store: wealth)
+        #expect(permanentBefore.url == permanentAfter.url)
+        #expect(permanentBefore.hash == permanentAfter.hash)
+        #expect(permanentBefore.schemaVersion == permanentAfter.schemaVersion)
+        #expect(permanentBefore.sentinels == permanentAfter.sentinels)
+        #expect(permanentBefore.wealth == permanentAfter.wealth)
+        #expect(permanentBefore.ledger == permanentAfter.ledger)
+        #expect(permanentBefore.snapshots == permanentAfter.snapshots)
+    }
+
     @Test("Failed cache migration rolls back its partial write")
     func cacheMigrationRollback() throws {
         enum SyntheticFailure: Error { case injected }
@@ -236,6 +325,32 @@ struct MarketCacheInfrastructureTests {
         try await cache.reset()
         #expect(try await cache.schemaVersion() == 2)
         #expect(try await cache.cachedRowCount() == 0)
+    }
+
+    @Test("Launch, periodic, and background cleanup use independent matching due metadata")
+    func cleanupScheduleBookkeeping() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite"))
+
+        #expect(try await cache.automaticCleanupIsDue(reason: .launch, now: now))
+        #expect(try await cache.automaticCleanupIsDue(reason: .periodic, now: now))
+        #expect(try await cache.automaticCleanupIsDue(reason: .background, now: now))
+
+        _ = try await cache.performAutomaticCleanup(reason: .background, now: now)
+        #expect(try await cache.automaticCleanupIsDue(reason: .background, now: now) == false)
+        #expect(try await cache.automaticCleanupIsDue(reason: .periodic, now: now))
+        #expect(try await cache.automaticCleanupIsDue(reason: .launch, now: now))
+
+        _ = try await cache.removeExpired(now: now)
+        #expect(try await cache.automaticCleanupIsDue(reason: .periodic, now: now))
+        let sixHoursLater = UTCInstant(
+            millisecondsSince1970: now.millisecondsSince1970 + 6 * 60 * 60 * 1_000
+        )
+        #expect(try await cache.automaticCleanupIsDue(
+            reason: .background,
+            now: sixHoursLater
+        ))
     }
 
     @Test(

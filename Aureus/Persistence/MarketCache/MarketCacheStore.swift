@@ -318,20 +318,16 @@ actor MarketCacheStore {
         try flushAccessTimes()
         return try queue.write { db in
             let before = try currentBytes(in: db)
-            let count = try Int.fetchOne(
-                db,
-                sql: "SELECT COUNT(*) FROM market_cache_entries WHERE expires_at_ms <= ?",
-                arguments: [now.millisecondsSince1970]
-            ) ?? 0
-            try db.execute(
-                sql: "DELETE FROM market_cache_entries WHERE expires_at_ms <= ?",
-                arguments: [now.millisecondsSince1970]
-            )
-            try deleteExpiredLegacy(in: db, now: now)
+            let beforeCount = try cacheRowCount(in: db)
+            for row in try cleanupRows(in: db)
+                where row.expiresAt <= now.millisecondsSince1970 {
+                try delete(row, in: db)
+            }
             let after = try currentBytes(in: db)
+            let afterCount = try cacheRowCount(in: db)
             let result = CacheCleanupResult(
                 reason: .removeExpired,
-                removedEntries: count,
+                removedEntries: max(0, beforeCount - afterCount),
                 removedBytes: max(0, before - after),
                 remainingBytes: after,
                 completedAt: now
@@ -348,24 +344,20 @@ actor MarketCacheStore {
         try flushAccessTimes()
         return try queue.write { db in
             let before = try currentBytes(in: db)
-            try deleteExpiredLegacy(in: db, now: now)
+            let beforeCount = try cacheRowCount(in: db)
             let rows = try cleanupRows(in: db)
-            var removed = 0
             for row in orderedCleanupRows(rows, now: now) {
                 let isExpired = row.expiresAt <= now.millisecondsSince1970
                 let isAboveTarget = try currentBytes(in: db) > effectivePolicy.cleanupTargetBytes
                 if isExpired || isAboveTarget {
-                    try db.execute(
-                        sql: "DELETE FROM market_cache_entries WHERE id = ?",
-                        arguments: [row.id]
-                    )
-                    removed += 1
+                    try delete(row, in: db)
                 }
             }
             let after = try currentBytes(in: db)
+            let afterCount = try cacheRowCount(in: db)
             let result = CacheCleanupResult(
                 reason: reason,
-                removedEntries: removed,
+                removedEntries: max(0, beforeCount - afterCount),
                 removedBytes: max(0, before - after),
                 remainingBytes: after,
                 completedAt: now
@@ -376,17 +368,16 @@ actor MarketCacheStore {
     }
 
     func automaticCleanupIsDue(reason: CacheCleanupReason, now: UTCInstant) throws -> Bool {
-        let key = reason == .launch ? "last_launch_cleanup_ms" : "last_periodic_cleanup_ms"
+        guard let schedule = Self.cleanupSchedule(for: reason) else { return false }
         let last = try queue.read { db in
             try Int64.fetchOne(
                 db,
                 sql: "SELECT integer_value FROM cache_metadata WHERE key = ?",
-                arguments: [key]
+                arguments: [schedule.key]
             )
         }
-        let interval: Int64 = reason == .launch ? 24 * 60 * 60 * 1_000 : 6 * 60 * 60 * 1_000
         guard let last else { return true }
-        return now.millisecondsSince1970 - last >= interval
+        return now.millisecondsSince1970 - last >= schedule.interval
     }
 
     func purge(providerIdentifier: String, reason: CacheCleanupReason, now: UTCInstant) throws -> CacheCleanupResult {
@@ -396,11 +387,7 @@ actor MarketCacheStore {
         try flushAccessTimes()
         return try queue.write { db in
             let before = try currentBytes(in: db)
-            let count = try Int.fetchOne(
-                db,
-                sql: "SELECT COUNT(*) FROM market_cache_entries WHERE provider_identifier = ?",
-                arguments: [providerIdentifier]
-            ) ?? 0
+            let beforeCount = try cacheRowCount(in: db)
             try db.execute(
                 sql: "DELETE FROM market_cache_entries WHERE provider_identifier = ?",
                 arguments: [providerIdentifier]
@@ -414,9 +401,10 @@ actor MarketCacheStore {
                 arguments: [providerIdentifier]
             )
             let after = try currentBytes(in: db)
+            let afterCount = try cacheRowCount(in: db)
             let result = CacheCleanupResult(
                 reason: reason,
-                removedEntries: count,
+                removedEntries: max(0, beforeCount - afterCount),
                 removedBytes: max(0, before - after),
                 remainingBytes: after,
                 completedAt: now
@@ -430,10 +418,16 @@ actor MarketCacheStore {
         try flushAccessTimes()
         return try queue.read { db in
             let current = try currentBytes(in: db)
-            let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM market_cache_entries") ?? 0
+            let count = try cacheRowCount(in: db)
             let oldest = try Int64.fetchOne(
                 db,
-                sql: "SELECT MIN(created_at_ms) FROM market_cache_entries"
+                sql: """
+                    SELECT MIN(value) FROM (
+                        SELECT created_at_ms AS value FROM market_cache_entries
+                        UNION ALL SELECT fetched_at_ms FROM cached_instruments
+                        UNION ALL SELECT fetched_at_ms FROM cached_prices
+                    )
+                    """
             ).map(UTCInstant.init(millisecondsSince1970:))
             let cleanupAt = try Int64.fetchOne(
                 db,
@@ -445,7 +439,11 @@ actor MarketCacheStore {
             )
             let providerRows = try Row.fetchAll(db, sql: """
                 SELECT provider_identifier, SUM(byte_size) AS bytes, COUNT(*) AS entry_count
-                FROM market_cache_entries
+                FROM (
+                    SELECT provider_identifier, byte_size FROM market_cache_entries
+                    UNION ALL SELECT provider_identifier, byte_size FROM cached_instruments
+                    UNION ALL SELECT provider_identifier, byte_size FROM cached_prices
+                )
                 GROUP BY provider_identifier
                 ORDER BY provider_identifier
                 """)
@@ -469,12 +467,7 @@ actor MarketCacheStore {
     }
 
     func cachedRowCount() throws -> Int {
-        try queue.read { db in
-            let instruments = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cached_instruments") ?? 0
-            let prices = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cached_prices") ?? 0
-            let entries = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM market_cache_entries") ?? 0
-            return instruments + prices + entries
-        }
+        try queue.read { db in try cacheRowCount(in: db) }
     }
 
     func updateMaximumBytes(_ maximumBytes: Int64) throws {
@@ -561,8 +554,15 @@ actor MarketCacheStore {
         )
     }
 
+    private enum CleanupSource {
+        case current
+        case legacyPrice
+        case legacyInstrument
+    }
+
     private struct CleanupRow {
         let id: String
+        let source: CleanupSource
         let dataType: MarketCacheDataType
         let byteSize: Int64
         let expiresAt: Int64
@@ -570,19 +570,47 @@ actor MarketCacheStore {
     }
 
     private func cleanupRows(in db: Database) throws -> [CleanupRow] {
-        try Row.fetchAll(db, sql: """
+        let current: [CleanupRow] = try Row.fetchAll(db, sql: """
             SELECT id, data_type, byte_size, expires_at_ms, last_accessed_at_ms
             FROM market_cache_entries
-            """).compactMap { row in
+            """).compactMap { (row: Row) -> CleanupRow? in
                 guard let type = MarketCacheDataType(rawValue: row["data_type"]) else { return nil }
                 return CleanupRow(
                     id: row["id"],
+                    source: .current,
                     dataType: type,
                     byteSize: row["byte_size"],
                     expiresAt: row["expires_at_ms"],
                     lastAccessedAt: row["last_accessed_at_ms"]
                 )
             }
+        let legacyPrices = try Row.fetchAll(db, sql: """
+            SELECT id, byte_size, expires_at_ms, last_accessed_at_ms
+            FROM cached_prices
+            """).map { row in
+                CleanupRow(
+                    id: row["id"],
+                    source: .legacyPrice,
+                    dataType: .eodHistorical,
+                    byteSize: row["byte_size"],
+                    expiresAt: row["expires_at_ms"],
+                    lastAccessedAt: row["last_accessed_at_ms"]
+                )
+            }
+        let legacyInstruments = try Row.fetchAll(db, sql: """
+            SELECT id, byte_size, expires_at_ms, last_accessed_at_ms
+            FROM cached_instruments
+            """).map { row in
+                CleanupRow(
+                    id: row["id"],
+                    source: .legacyInstrument,
+                    dataType: .symbolMetadata,
+                    byteSize: row["byte_size"],
+                    expiresAt: row["expires_at_ms"],
+                    lastAccessedAt: row["last_accessed_at_ms"]
+                )
+            }
+        return current + legacyPrices + legacyInstruments
     }
 
     private func orderedCleanupRows(_ rows: [CleanupRow], now: UTCInstant) -> [CleanupRow] {
@@ -603,6 +631,8 @@ actor MarketCacheStore {
         projectedBytes: Int64,
         excludingID: String
     ) throws -> (removedEntries: Int, removedBytes: Int64) {
+        let beforeBytes = try currentBytes(in: db)
+        let beforeCount = try cacheRowCount(in: db)
         let ordered = orderedCleanupRows(try cleanupRows(in: db), now: now)
             .filter { $0.id != excludingID }
         var after = projectedBytes
@@ -615,12 +645,14 @@ actor MarketCacheStore {
             throw CachePolicyError.capacityCannotBeSatisfied
         }
         for row in selected {
-            try db.execute(
-                sql: "DELETE FROM market_cache_entries WHERE id = ?",
-                arguments: [row.id]
-            )
+            try delete(row, in: db)
         }
-        return (selected.count, selected.reduce(0) { $0 + $1.byteSize })
+        let remainingBytes = try currentBytes(in: db)
+        let remainingCount = try cacheRowCount(in: db)
+        return (
+            max(0, beforeCount - remainingCount),
+            max(0, beforeBytes - remainingBytes)
+        )
     }
 
     private func currentBytes(in db: Database) throws -> Int64 {
@@ -642,36 +674,37 @@ actor MarketCacheStore {
         return second.partialValue
     }
 
-    private func deleteExpiredLegacy(in db: Database, now: UTCInstant) throws {
-        try db.execute(
-            sql: "DELETE FROM cached_prices WHERE expires_at_ms <= ?",
-            arguments: [now.millisecondsSince1970]
-        )
-        try db.execute(
-            sql: """
-                DELETE FROM cached_instruments
-                WHERE expires_at_ms <= ?
-                   OR NOT EXISTS (
-                       SELECT 1 FROM cached_prices
-                       WHERE cached_prices.instrument_id = cached_instruments.id
-                   )
-                """,
-            arguments: [now.millisecondsSince1970]
-        )
+    private func delete(_ row: CleanupRow, in db: Database) throws {
+        let table: String
+        switch row.source {
+        case .current: table = "market_cache_entries"
+        case .legacyPrice: table = "cached_prices"
+        case .legacyInstrument: table = "cached_instruments"
+        }
+        try db.execute(sql: "DELETE FROM \(table) WHERE id = ?", arguments: [row.id])
+    }
+
+    private func cacheRowCount(in db: Database) throws -> Int {
+        let instruments = try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM cached_instruments"
+        ) ?? 0
+        let prices = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cached_prices") ?? 0
+        let entries = try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM market_cache_entries"
+        ) ?? 0
+        return instruments + prices + entries
     }
 
     private func record(_ result: CacheCleanupResult, in db: Database) throws {
-        let prefix: String
-        switch result.reason {
-        case .launch: prefix = "last_launch_cleanup_ms"
-        case .periodic: prefix = "last_periodic_cleanup_ms"
-        default: prefix = "last_cleanup_ms"
+        if let schedule = Self.cleanupSchedule(for: result.reason) {
+            try db.execute(sql: """
+                INSERT INTO cache_metadata(key, integer_value, text_value)
+                VALUES (?, ?, NULL)
+                ON CONFLICT(key) DO UPDATE SET integer_value = excluded.integer_value
+                """, arguments: [schedule.key, result.completedAt.millisecondsSince1970])
         }
-        try db.execute(sql: """
-            INSERT INTO cache_metadata(key, integer_value, text_value)
-            VALUES (?, ?, NULL)
-            ON CONFLICT(key) DO UPDATE SET integer_value = excluded.integer_value
-            """, arguments: [prefix, result.completedAt.millisecondsSince1970])
         try db.execute(sql: """
             INSERT INTO cache_metadata(key, integer_value, text_value)
             VALUES ('last_cleanup_ms', ?, NULL)
@@ -684,5 +717,20 @@ actor MarketCacheStore {
             """, arguments: [
                 "\(result.reason.rawValue): removed \(result.removedEntries) recoverable entries"
             ])
+    }
+
+    private static func cleanupSchedule(
+        for reason: CacheCleanupReason
+    ) -> (key: String, interval: Int64)? {
+        switch reason {
+        case .launch:
+            ("last_launch_cleanup_ms", 24 * 60 * 60 * 1_000)
+        case .periodic:
+            ("last_periodic_cleanup_ms", 6 * 60 * 60 * 1_000)
+        case .background:
+            ("last_background_cleanup_ms", 6 * 60 * 60 * 1_000)
+        default:
+            nil
+        }
     }
 }

@@ -188,6 +188,21 @@ struct SettingsView: View {
                 Text("Exchange catalog visibility is not entitlement proof. XHKG and XJPX EOD availability has conflicting official evidence and remains not verified until an entitled endpoint succeeds.")
                     .font(.caption)
                     .foregroundStyle(.orange)
+                ForEach(model.endpointCapabilities) { endpoint in
+                    HStack {
+                        Text(endpoint.endpoint.rawValue)
+                            .frame(width: 150, alignment: .leading)
+                        Text("\(endpoint.creditWeight) credits")
+                        Text(endpoint.minimumPlanName)
+                        Spacer()
+                        Text(endpoint.catalogEvidence.rawValue)
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.caption)
+                    .accessibilityIdentifier(
+                        "settings.provider.endpoint.\(endpoint.endpoint.rawValue)"
+                    )
+                }
                 Text("Persistent Twelve Data cache is disabled while public retention duration remains unverified. Frankfurter/ECB reference-rate cache uses a 24-hour TTL.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -59,6 +59,7 @@ private actor IncrementalMarketProvider: MarketDataProvider {
             supportsSearch: true,
             supportsHistoricalPrices: true,
             supportsCorporateActions: true,
+            endpointCapabilities: [],
             observedAt: clock.now()
         )
     }

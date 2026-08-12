@@ -19,14 +19,15 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
-Stages 1 through 5 are frozen after Reviewer Gate PASS. The current state is **Stage 6 Implementation Candidate — Awaiting Reviewer Gate**. Wealth, Ledger, and Dashboard continue to use the Permanent Store. Stage 6 adds a Twelve Data `URLSession`/`Codable` adapter, native Keychain-only BYOK lifecycle, Frankfurter/ECB reference FX, a physically independent bounded Market Cache, typed TTL/LRU cleanup, offline/stale states, and minimal Provider/cache controls in Settings. Markets remains an honest Stage 7 Placeholder.
+Stages 1 through 5 are frozen after Reviewer Gate PASS. The current state is **Stage 6 Repair Candidate — Awaiting Reviewer Gate**. Wealth, Ledger, and Dashboard continue to use the Permanent Store. Stage 6 adds a Twelve Data `URLSession`/`Codable` adapter, native Keychain-only BYOK lifecycle, Frankfurter/ECB reference FX, a physically independent bounded Market Cache, typed TTL/LRU cleanup, offline/stale states, and minimal Provider/cache controls in Settings. Markets remains an honest Stage 7 Placeholder.
 
-Twelve Data is the frozen Primary Market Data Provider, using a user-owned API key (BYOK) and plan-aware entitlements: Basic Free is the usable US-focused entry path, while complete US/HK/mainland-China/Japan capability depends on the user's own Pro-or-higher entitlement and real endpoint acceptance. No subscription or credential is bundled or shared. No live credential was available during this implementation run, so credentialed Search/OHLCV/actions/four-market acceptance remains `NOT VERIFIED`. Public documentation did not establish an unambiguous per-data-type ordinary retention duration; Production persistent Twelve Data cache writes remain disabled rather than assuming a right to retain data. Frankfurter/ECB reference FX uses a separate 24-hour cache policy.
+Twelve Data is the frozen Primary Market Data Provider, using a user-owned API key (BYOK) and plan-aware entitlements: Basic Free is the usable US-focused entry path, while complete US/HK/mainland-China/Japan capability depends on the user's own Pro-or-higher entitlement and real endpoint acceptance. No subscription or credential is bundled or shared. A read-only Production Settings observation on 2026-08-13 reported `Missing`; no credentialed call was attempted, so Search/OHLCV/actions/four-market acceptance remains `NOT VERIFIED`. Public documentation did not establish an unambiguous per-data-type ordinary retention duration; Production persistent Twelve Data cache writes remain disabled rather than assuming a right to retain data. A bounded unauthenticated Frankfurter v2 call verified the ECB-filtered USD/CNY reference-rate contract; its cache policy remains 24 hours.
 
 - [V1 Scope — Frozen](docs/V1_SCOPE.md)
 - [V1 Architecture & Technology — Frozen](docs/V1_ARCHITECTURE.md)
 - [V1 Research Evidence](docs/V1_RESEARCH_EVIDENCE.md)
 - [Stage 6 Market Data Acceptance Evidence](docs/STAGE6_MARKET_DATA_ACCEPTANCE.md)
+- [Stage 6 Twelve Data Retention Decision](docs/STAGE6_TWELVE_DATA_RETENTION_DECISION.md)
 
 ## Build and Test
 
