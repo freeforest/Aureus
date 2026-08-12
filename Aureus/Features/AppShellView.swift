@@ -41,7 +41,13 @@ struct AppShellView: View {
             .navigationTitle("Aureus")
             .accessibilityLabel("Aureus primary navigation")
         } detail: {
-            if model.selection == .wealth, let dependencies = model.dependencies {
+            if model.selection == .dashboard, let dependencies = model.dependencies {
+                DashboardView(
+                    store: dependencies.wealthStore,
+                    clock: dependencies.clock,
+                    mode: mode
+                )
+            } else if model.selection == .wealth, let dependencies = model.dependencies {
                 WealthView(
                     store: dependencies.wealthStore,
                     clock: dependencies.clock,
@@ -73,7 +79,7 @@ private struct ModeBanner: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Empty Local Store")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 4 Ledger Candidate")
+            Text("Stage 5 Dashboard Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

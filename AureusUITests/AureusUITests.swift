@@ -13,7 +13,7 @@ final class AureusUITests: XCTestCase {
         launchApp(app)
 
         XCTAssertTrue(app.descendants(matching: .any)["mode.empty"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.descendants(matching: .any)["destination.dashboard"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.empty"].exists)
 
         let destinations = [
             "dashboard", "wealth", "markets", "portfolio",
@@ -25,7 +25,8 @@ final class AureusUITests: XCTestCase {
                 XCTAssertTrue(sidebarItem.waitForExistence(timeout: 5), "Missing \(destination) sidebar item")
                 sidebarItem.click()
                 let expectedIdentifier: String
-                if destination == "wealth" { expectedIdentifier = "wealth.page" }
+                if destination == "dashboard" { expectedIdentifier = "mode.empty" }
+                else if destination == "wealth" { expectedIdentifier = "wealth.page" }
                 else if destination == "ledger" { expectedIdentifier = "ledger.empty" }
                 else { expectedIdentifier = "destination.\(destination)" }
                 XCTAssertTrue(
@@ -45,7 +46,7 @@ final class AureusUITests: XCTestCase {
         launchApp(app)
 
         XCTAssertTrue(app.descendants(matching: .any)["mode.demo"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.descendants(matching: .any)["destination.dashboard"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["mode.empty"].exists)
 
         app.descendants(matching: .any)["sidebar.wealth"].click()
@@ -68,6 +69,60 @@ final class AureusUITests: XCTestCase {
             app.textFields.matching(NSPredicate(format: "value == %@", "synthetic-demo")).firstMatch.waitForExistence(timeout: 5)
         )
         app.buttons["Done"].click()
+    }
+
+    @MainActor
+    func testDashboardEmptyStoreDoesNotFabricateSnapshot() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments()
+        launchApp(app)
+
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.empty"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["dashboard.snapshot.status"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["dashboard.history.chart"].exists)
+    }
+
+    @MainActor
+    func testDashboardSyntheticHistoryRangeHeatmapsAndRefresh() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 15))
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["dashboard.current.assets"], containing: "164,922.06", timeout: 5))
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["dashboard.current.liabilities"], containing: "14,250.00", timeout: 5))
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["dashboard.current.netWorth"], containing: "150,672.06", timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.snapshot.status"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.history.chart"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.history.accessibleSummary"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.allocation.chart"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.subassets.assets"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.subassets.liabilities"].exists)
+
+        let oneDay = app.radioButtons["1D"]
+        XCTAssertTrue(oneDay.waitForExistence(timeout: 5)); oneDay.click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.insufficientHistory"].waitForExistence(timeout: 5))
+        let maximum = app.radioButtons["MAX"]
+        XCTAssertTrue(maximum.waitForExistence(timeout: 5)); maximum.click()
+        XCTAssertFalse(app.descendants(matching: .any)["dashboard.insufficientHistory"].waitForExistence(timeout: 2))
+
+        app.descendants(matching: .any)["dashboard.snapshot.refresh"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["dashboard.error"].exists)
+
+        let cashFlowSection = app.radioButtons["Cash Flow"]
+        XCTAssertTrue(cashFlowSection.waitForExistence(timeout: 5)); cashFlowSection.click()
+        let cashFlowChart = app.descendants(matching: .any)["dashboard.cashFlow.chart"]
+        XCTAssertTrue(cashFlowChart.waitForExistence(timeout: 5) && cashFlowChart.isHittable)
+
+        let heatmapsSection = app.radioButtons["Heatmaps"]
+        XCTAssertTrue(heatmapsSection.waitForExistence(timeout: 5)); heatmapsSection.click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.heatmap.netWorth"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.heatmap.cashFlow"].exists)
+
+        let incomeMode = app.radioButtons["Income"]
+        XCTAssertTrue(incomeMode.waitForExistence(timeout: 5)); incomeMode.click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.heatmap.cashFlow"].exists)
     }
 
     @MainActor

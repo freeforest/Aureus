@@ -26,6 +26,7 @@ struct AppDependencies: Sendable {
         if configuration.dataMode == .syntheticDemo {
             try await wealthStore.seedSyntheticWealth()
             try await SyntheticLedgerSeeder.seed(in: wealthStore)
+            try await SyntheticDashboardSeeder.seed(in: wealthStore)
         }
 
         return AppDependencies(

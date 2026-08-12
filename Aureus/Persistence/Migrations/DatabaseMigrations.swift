@@ -9,6 +9,7 @@ enum DatabaseMigrations {
     static let permanentV2 = "permanent_v2_wealth"
     static let permanentV3 = "permanent_v3_ledger"
     static let permanentV4 = "permanent_v4_ledger_semantic_fingerprint"
+    static let permanentV5 = "permanent_v5_dashboard_snapshots"
     static let cacheV1 = "cache_v1_foundation"
 
     static func permanentMigrator() -> DatabaseMigrator {
@@ -482,6 +483,150 @@ enum DatabaseMigrations {
         migrator.registerMigration(permanentV4) { db in
             try LedgerImportFingerprintRepair.migrateCandidateFingerprints(in: db)
             try db.execute(sql: "UPDATE schema_metadata SET version = 4 WHERE store_kind = 'permanent'")
+        }
+        migrator.registerMigration(permanentV5) { db in
+            // The v1 rows remain preserved as legacy/incomplete evidence. The table is
+            // rebuilt only to remove its global date uniqueness and add complete-header
+            // semantics; a partial index enforces one complete Dashboard snapshot per day.
+            try db.execute(sql: """
+                CREATE TABLE snapshots_v5 (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    civil_date TEXT NOT NULL CHECK (length(civil_date) = 10),
+                    created_at_ms INTEGER NOT NULL,
+                    total_cny_minor INTEGER NOT NULL,
+                    total_assets_cny_minor INTEGER,
+                    total_liabilities_cny_minor INTEGER,
+                    net_worth_cny_minor INTEGER,
+                    capture_schema TEXT NOT NULL DEFAULT 'foundation_v1',
+                    capture_status TEXT NOT NULL DEFAULT 'legacyIncomplete'
+                        CHECK (capture_status IN ('legacyIncomplete', 'complete')),
+                    is_complete INTEGER NOT NULL DEFAULT 0 CHECK (is_complete IN (0, 1)),
+                    CHECK (
+                        (is_complete = 0
+                            AND capture_status = 'legacyIncomplete'
+                            AND total_assets_cny_minor IS NULL
+                            AND total_liabilities_cny_minor IS NULL
+                            AND net_worth_cny_minor IS NULL)
+                        OR
+                        (is_complete = 1
+                            AND capture_status = 'complete'
+                            AND total_assets_cny_minor IS NOT NULL
+                            AND total_assets_cny_minor >= 0
+                            AND total_liabilities_cny_minor IS NOT NULL
+                            AND total_liabilities_cny_minor >= 0
+                            AND net_worth_cny_minor IS NOT NULL
+                            AND net_worth_cny_minor = total_assets_cny_minor - total_liabilities_cny_minor)
+                    )
+                )
+                """)
+            try db.execute(sql: """
+                INSERT INTO snapshots_v5 (
+                    id, civil_date, created_at_ms, total_cny_minor,
+                    total_assets_cny_minor, total_liabilities_cny_minor,
+                    net_worth_cny_minor, capture_schema, capture_status, is_complete
+                )
+                SELECT id, civil_date, created_at_ms, total_cny_minor,
+                       NULL, NULL, NULL, 'foundation_v1', 'legacyIncomplete', 0
+                FROM snapshots
+                """)
+            // Copy legacy valuation payloads into a constraint-free staging table.
+            // The final child table is created only after the new parent has its
+            // production name so its foreign key can never retain a temporary name.
+            try db.execute(sql: """
+                CREATE TABLE snapshot_valuations_v5_staging AS
+                SELECT id, snapshot_id, source_amount_minor, source_currency_code,
+                       fx_coefficient, fx_source_currency_code, fx_target_currency_code,
+                       converted_cny_minor, provider_identifier, reference_date,
+                       fetched_at_ms, is_stale
+                FROM snapshot_valuations
+                """)
+            try db.execute(sql: "DROP TABLE snapshot_valuations")
+            try db.execute(sql: "DROP TABLE snapshots")
+            try db.execute(sql: "ALTER TABLE snapshots_v5 RENAME TO snapshots")
+            try db.execute(sql: """
+                CREATE TABLE snapshot_valuations (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    snapshot_id TEXT NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                    source_amount_minor INTEGER NOT NULL,
+                    source_currency_code TEXT NOT NULL CHECK (source_currency_code IN ('CNY', 'USD')),
+                    fx_coefficient INTEGER NOT NULL CHECK (fx_coefficient > 0),
+                    fx_source_currency_code TEXT NOT NULL CHECK (fx_source_currency_code IN ('CNY', 'USD')),
+                    fx_target_currency_code TEXT NOT NULL CHECK (fx_target_currency_code = 'CNY'),
+                    converted_cny_minor INTEGER NOT NULL,
+                    provider_identifier TEXT NOT NULL,
+                    reference_date TEXT NOT NULL CHECK (length(reference_date) = 10),
+                    fetched_at_ms INTEGER NOT NULL,
+                    is_stale INTEGER NOT NULL CHECK (is_stale IN (0, 1))
+                )
+                """)
+            try db.execute(sql: """
+                INSERT INTO snapshot_valuations (
+                    id, snapshot_id, source_amount_minor, source_currency_code,
+                    fx_coefficient, fx_source_currency_code, fx_target_currency_code,
+                    converted_cny_minor, provider_identifier, reference_date,
+                    fetched_at_ms, is_stale
+                )
+                SELECT id, snapshot_id, source_amount_minor, source_currency_code,
+                       fx_coefficient, fx_source_currency_code, fx_target_currency_code,
+                       converted_cny_minor, provider_identifier, reference_date,
+                       fetched_at_ms, is_stale
+                FROM snapshot_valuations_v5_staging
+                """)
+            try db.execute(sql: "DROP TABLE snapshot_valuations_v5_staging")
+            try db.execute(sql: """
+                CREATE UNIQUE INDEX snapshots_complete_date_unique
+                ON snapshots(civil_date)
+                WHERE is_complete = 1
+                """)
+            try db.execute(sql: """
+                CREATE INDEX snapshots_complete_history_index
+                ON snapshots(is_complete, civil_date, created_at_ms)
+                """)
+
+            try db.execute(sql: """
+                CREATE TABLE snapshot_items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    snapshot_id TEXT NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+                    container_id TEXT NOT NULL,
+                    container_name TEXT NOT NULL CHECK (length(trim(container_name)) > 0),
+                    container_kind TEXT NOT NULL CHECK (container_kind IN (
+                        'bankCash', 'stock', 'etf', 'fund',
+                        'insurance', 'otherAsset', 'liability'
+                    )),
+                    is_liability INTEGER NOT NULL CHECK (is_liability IN (0, 1)),
+                    original_minor INTEGER NOT NULL CHECK (original_minor >= 0),
+                    original_currency_code TEXT NOT NULL CHECK (original_currency_code IN ('CNY', 'USD')),
+                    fx_coefficient INTEGER NOT NULL CHECK (fx_coefficient > 0),
+                    fx_source_currency_code TEXT NOT NULL CHECK (fx_source_currency_code IN ('CNY', 'USD')),
+                    fx_target_currency_code TEXT NOT NULL CHECK (fx_target_currency_code = 'CNY'),
+                    converted_cny_minor INTEGER NOT NULL CHECK (converted_cny_minor >= 0),
+                    fx_source TEXT NOT NULL CHECK (length(trim(fx_source)) > 0),
+                    fx_reference_date TEXT NOT NULL CHECK (length(fx_reference_date) = 10),
+                    fx_recorded_at_ms INTEGER NOT NULL,
+                    fx_is_manual INTEGER NOT NULL CHECK (fx_is_manual IN (0, 1)),
+                    fx_is_stale INTEGER NOT NULL CHECK (fx_is_stale IN (0, 1)),
+                    UNIQUE(snapshot_id, container_id),
+                    CHECK (is_liability = CASE WHEN container_kind = 'liability' THEN 1 ELSE 0 END),
+                    CHECK (
+                        (original_currency_code = 'CNY'
+                            AND fx_source_currency_code = 'CNY'
+                            AND fx_coefficient = 10000000000
+                            AND converted_cny_minor = original_minor
+                            AND fx_source = 'identity'
+                            AND fx_is_manual = 0)
+                        OR
+                        (original_currency_code = 'USD'
+                            AND fx_source_currency_code = 'USD'
+                            AND fx_is_manual = 1
+                            AND instr(lower(fx_source), 'manual') > 0)
+                    )
+                )
+                """)
+            try db.execute(sql: """
+                CREATE INDEX snapshot_items_snapshot_index
+                ON snapshot_items(snapshot_id, is_liability, container_kind)
+                """)
+            try db.execute(sql: "UPDATE schema_metadata SET version = 5 WHERE store_kind = 'permanent'")
         }
         return migrator
     }
