@@ -29,8 +29,8 @@ struct ProviderBoundaryTests {
         let provider = SyntheticMarketDataProvider(scenario: .success, clock: clock)
         let firstSearch = try await provider.search(query: "synthetic")
         let secondSearch = try await provider.search(query: "synthetic")
-        let firstPrice = try await provider.latestPrice(for: firstSearch[0])
-        let secondPrice = try await provider.latestPrice(for: secondSearch[0])
+        let firstPrice = try await provider.latestQuote(for: firstSearch[0])
+        let secondPrice = try await provider.latestQuote(for: secondSearch[0])
 
         #expect(firstSearch == secondSearch)
         #expect(firstPrice == secondPrice)
@@ -65,7 +65,7 @@ struct ProviderBoundaryTests {
         #expect(await offline.capabilities().entitlement == .offline)
 
         let instrument = try await stale.search(query: "synthetic")[0]
-        #expect(try await stale.latestPrice(for: instrument).quality == .stale)
+        #expect(try await stale.latestQuote(for: instrument).quality == .stale)
     }
 
     @Test("Synthetic FX preserves USD to CNY direction")
@@ -78,7 +78,7 @@ struct ProviderBoundaryTests {
         )
         #expect(rate.rate.sourceCurrency == .usd)
         #expect(rate.rate.targetCurrency == .cny)
-        #expect(rate.providerIdentifier == "synthetic.stage2.fx")
+        #expect(rate.providerIdentifier == "synthetic.stage6.fx")
         #expect(!provider.descriptor.isProduction)
     }
 
@@ -87,7 +87,7 @@ struct ProviderBoundaryTests {
         #expect(ProductionCredentialPolicy.storage == .keychainOnly)
         let store = InMemoryCredentialStore()
         let descriptor = CredentialDescriptor(
-            providerIdentifier: "synthetic.stage2.market",
+            providerIdentifier: "synthetic.stage6.market",
             accountIdentifier: "synthetic-test-account"
         )
         let value = Data([0x01, 0x02, 0x03])

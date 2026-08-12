@@ -11,6 +11,7 @@ enum DatabaseMigrations {
     static let permanentV4 = "permanent_v4_ledger_semantic_fingerprint"
     static let permanentV5 = "permanent_v5_dashboard_snapshots"
     static let cacheV1 = "cache_v1_foundation"
+    static let cacheV2 = "cache_v2_market_data"
 
     static func permanentMigrator() -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
@@ -709,6 +710,47 @@ enum DatabaseMigrations {
                     text_value TEXT
                 )
                 """)
+        }
+        migrator.registerMigration(cacheV2) { db in
+            try db.execute(sql: """
+                CREATE TABLE market_cache_entries (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    provider_identifier TEXT NOT NULL CHECK (length(provider_identifier) > 0),
+                    logical_key TEXT NOT NULL CHECK (length(logical_key) > 0),
+                    data_type TEXT NOT NULL CHECK (data_type IN (
+                        'latest_quote', 'market_status', 'symbol_search', 'symbol_metadata',
+                        'eod_recent', 'eod_historical', 'intraday', 'corporate_action',
+                        'derived_heatmap', 'derived_indicator', 'fx_rate'
+                    )),
+                    payload BLOB NOT NULL,
+                    payload_format TEXT NOT NULL CHECK (payload_format = 'validated-domain-json-v1'),
+                    byte_size INTEGER NOT NULL CHECK (byte_size >= 0),
+                    created_at_ms INTEGER NOT NULL,
+                    fetched_at_ms INTEGER NOT NULL,
+                    expires_at_ms INTEGER NOT NULL,
+                    last_accessed_at_ms INTEGER NOT NULL,
+                    source_revision TEXT,
+                    entitlement_context TEXT NOT NULL,
+                    freshness TEXT NOT NULL CHECK (freshness IN (
+                        'realTime', 'delayed', 'endOfDay', 'stale', 'missing', 'unknown'
+                    )),
+                    deletion_policy TEXT NOT NULL CHECK (deletion_policy IN (
+                        'recoverable', 'disconnect', 'termination'
+                    )),
+                    UNIQUE(provider_identifier, logical_key, data_type)
+                )
+                """)
+            try db.execute(sql: """
+                CREATE INDEX market_cache_cleanup_index
+                ON market_cache_entries(expires_at_ms, data_type, last_accessed_at_ms)
+                """)
+            try db.execute(sql: """
+                CREATE INDEX market_cache_provider_index
+                ON market_cache_entries(provider_identifier, data_type)
+                """)
+            try db.execute(
+                sql: "UPDATE schema_metadata SET version = 2 WHERE store_kind = 'market_cache'"
+            )
         }
         return migrator
     }

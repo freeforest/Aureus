@@ -56,9 +56,9 @@ struct CacheIsolationTests {
         try await cache.reset()
 
         #expect(try await cache.cachedRowCount() == 0)
-        #expect(try await cache.schemaVersion() == 1)
+        #expect(try await cache.schemaVersion() == 2)
         let reopenedCache = try MarketCacheStore(databaseURL: cacheURL)
-        #expect(try await reopenedCache.schemaVersion() == 1)
+        #expect(try await reopenedCache.schemaVersion() == 2)
 
         let permanentURLAfter = wealth.databaseURL
         let permanentHashAfter = try sha256(of: permanentURL)

@@ -48,7 +48,7 @@ enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .analytics: "Stage 9"
         case .ledger: "Stage 4"
         case .goals: "Stage 10"
-        case .settings: "Stage 11"
+        case .settings: "Stage 6"
         }
     }
 }
@@ -85,6 +85,49 @@ final class AppModel {
             startupState = .failed(
                 "Persistence initialization failed. No success state is available; existing data was not intentionally changed."
             )
+        }
+    }
+
+    func runMarketCacheMaintenance() async {
+        guard let dependencies else { return }
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(for: .seconds(6 * 60 * 60))
+                try Task.checkCancellation()
+                let now = dependencies.clock.now()
+                if try await dependencies.marketCacheStore.automaticCleanupIsDue(
+                    reason: .periodic,
+                    now: now
+                ) {
+                    _ = try await dependencies.marketCacheStore.performAutomaticCleanup(
+                        reason: .periodic,
+                        now: now
+                    )
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                // Cache maintenance is best effort. The Settings surface exposes
+                // explicit cache state and recovery without affecting permanent data.
+            }
+        }
+    }
+
+    func performBestEffortCacheMaintenance() async {
+        guard let dependencies else { return }
+        do {
+            let now = dependencies.clock.now()
+            if try await dependencies.marketCacheStore.automaticCleanupIsDue(
+                reason: .background,
+                now: now
+            ) {
+                _ = try await dependencies.marketCacheStore.performAutomaticCleanup(
+                    reason: .background,
+                    now: now
+                )
+            }
+        } catch {
+            // Best effort only; permanent data is outside the cache capability.
         }
     }
 }

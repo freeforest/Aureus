@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AppRootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     let model: AppModel
 
     var body: some View {
@@ -22,6 +23,12 @@ struct AppRootView: View {
         }
         .task {
             await model.start()
+            await model.runMarketCacheMaintenance()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                Task { await model.performBestEffortCacheMaintenance() }
+            }
         }
     }
 }
@@ -59,6 +66,14 @@ struct AppShellView: View {
                     clock: dependencies.clock,
                     mode: mode
                 )
+            } else if model.selection == .settings, let dependencies = model.dependencies {
+                SettingsView(
+                    provider: dependencies.marketDataProvider,
+                    credentialCoordinator: dependencies.credentialCoordinator,
+                    cache: dependencies.marketCacheStore,
+                    clock: dependencies.clock,
+                    mode: mode
+                )
             } else {
                 VStack(spacing: 0) {
                     ModeBanner(mode: mode)
@@ -79,7 +94,7 @@ private struct ModeBanner: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Local Data Mode")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 5 Dashboard Candidate")
+            Text("Stage 6 Market Infrastructure Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

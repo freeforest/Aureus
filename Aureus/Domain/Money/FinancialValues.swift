@@ -23,6 +23,30 @@ enum CurrencyCode: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// Quotation currencies belong to the market-data boundary. Wealth and Ledger
+/// intentionally continue to accept only `CurrencyCode` (CNY/USD).
+enum MarketCurrencyCode: String, CaseIterable, Codable, Sendable {
+    case cny = "CNY"
+    case usd = "USD"
+    case hkd = "HKD"
+    case jpy = "JPY"
+
+    init(validating code: String) throws {
+        guard let currency = MarketCurrencyCode(rawValue: code.uppercased()) else {
+            throw FinancialValueError.unsupportedCurrency(code)
+        }
+        self = currency
+    }
+
+    var wealthCurrency: CurrencyCode? {
+        switch self {
+        case .cny: .cny
+        case .usd: .usd
+        case .hkd, .jpy: nil
+        }
+    }
+}
+
 enum FixedPointMath {
     static let canonicalLocale = Locale(identifier: "en_US_POSIX")
 
@@ -136,6 +160,30 @@ struct MarketPrice: Codable, Equatable, Sendable {
     }
 
     init(decimal: Decimal, quoteCurrency: CurrencyCode) throws {
+        let coefficient = try FixedPointMath.coefficient(from: decimal, scale: Self.scale)
+        try self.init(coefficient: coefficient, quoteCurrency: quoteCurrency)
+    }
+
+    var decimal: Decimal {
+        FixedPointMath.decimal(coefficient: coefficient, scale: Self.scale)
+    }
+}
+
+/// Provider quote prices use the same checked fixed-point scale as manual
+/// wealth prices without widening the permanent wealth currency model.
+struct MarketQuotePrice: Codable, Equatable, Sendable {
+    static let scale = 8
+
+    let coefficient: Int64
+    let quoteCurrency: MarketCurrencyCode
+
+    init(coefficient: Int64, quoteCurrency: MarketCurrencyCode) throws {
+        guard coefficient >= 0 else { throw FinancialValueError.negativePrice }
+        self.coefficient = coefficient
+        self.quoteCurrency = quoteCurrency
+    }
+
+    init(decimal: Decimal, quoteCurrency: MarketCurrencyCode) throws {
         let coefficient = try FixedPointMath.coefficient(from: decimal, scale: Self.scale)
         try self.init(coefficient: coefficient, quoteCurrency: quoteCurrency)
     }

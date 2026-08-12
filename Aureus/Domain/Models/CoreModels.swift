@@ -60,7 +60,7 @@ struct MarketInstrument: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let symbol: String
     let mic: String
-    let currency: CurrencyCode
+    let currency: MarketCurrencyCode
     let displayName: String
 }
 
@@ -116,7 +116,7 @@ struct Trade: Identifiable, Codable, Equatable, Sendable {
 struct Price: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let instrumentID: UUID
-    let value: MarketPrice
+    let value: MarketQuotePrice
     let observedAt: UTCInstant
     let providerIdentifier: String
     let quality: MarketDataQuality
@@ -161,10 +161,19 @@ struct Tag: Identifiable, Codable, Equatable, Sendable {
     let name: String
 }
 
+enum FXRateProvenance: String, Codable, Equatable, Sendable {
+    case identity
+    case directReference
+    case derivedCrossRate
+    case synthetic
+}
+
 struct ExchangeRate: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let rate: FXRate
     let referenceDate: CivilDate
     let fetchedAt: UTCInstant
     let providerIdentifier: String
+    let provenance: FXRateProvenance
+    let freshness: MarketFreshness
 }

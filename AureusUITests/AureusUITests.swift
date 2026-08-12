@@ -28,6 +28,7 @@ final class AureusUITests: XCTestCase {
                 if destination == "dashboard" { expectedIdentifier = "mode.local" }
                 else if destination == "wealth" { expectedIdentifier = "wealth.page" }
                 else if destination == "ledger" { expectedIdentifier = "ledger.empty" }
+                else if destination == "settings" { expectedIdentifier = "settings.content" }
                 else { expectedIdentifier = "destination.\(destination)" }
                 XCTAssertTrue(
                     app.descendants(matching: .any)[expectedIdentifier].waitForExistence(timeout: 5),
@@ -371,6 +372,112 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForNonexistence(app.sheets.firstMatch, timeout: 5))
         XCTAssertFalse(app.alerts["Ledger Error"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.path))
+    }
+
+    @MainActor
+    func testStage6SettingsCredentialEntitlementAndCacheLifecycle() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments()
+        launchApp(app)
+
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.provider.credentialState"],
+            containing: "Missing",
+            timeout: 5
+        ))
+        XCTAssertTrue(app.descendants(matching: .any)["settings.cache.summary"].exists)
+
+        let keyField = app.descendants(matching: .any)["settings.provider.key"]
+        XCTAssertTrue(keyField.waitForExistence(timeout: 5))
+        replaceText(in: keyField, with: "synthetic-stage6-ui-credential-a")
+        app.descendants(matching: .any)["settings.provider.save"].click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.provider.credentialState"],
+            containing: "Configured in Keychain",
+            timeout: 5
+        ))
+        XCTAssertFalse(String(describing: keyField.value ?? "").contains("synthetic-stage6-ui-credential-a"))
+
+        replaceText(in: keyField, with: "synthetic-stage6-ui-credential-b")
+        app.descendants(matching: .any)["settings.provider.save"].click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.status"],
+            containing: "not displayed",
+            timeout: 5
+        ))
+        XCTAssertFalse(String(describing: keyField.value ?? "").contains("synthetic-stage6-ui-credential-b"))
+
+        app.descendants(matching: .any)["settings.provider.validate"].click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.provider.observedPlan"],
+            containing: "Synthetic",
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.provider.entitlement"],
+            containing: "basic",
+            timeout: 5
+        ))
+        for market in ["us", "xhkg", "xshg", "xshe", "xjpx"] {
+            XCTAssertTrue(app.descendants(matching: .any)["settings.provider.market.\(market)"].exists)
+        }
+
+        app.descendants(matching: .any)["settings.cache.removeExpired"].click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.status"],
+            containing: "expired recoverable cache",
+            timeout: 5
+        ))
+
+        app.descendants(matching: .any)["settings.cache.reset"].click()
+        let reset = app.descendants(matching: .any)["settings.cache.reset.confirm"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5)); reset.click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.status"],
+            containing: "reset and rebuilt",
+            timeout: 5
+        ))
+
+        let screenshot = XCUIScreen.main.screenshot().pngRepresentation
+        try screenshot.write(to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6-Settings.png"), options: .atomic)
+
+        app.descendants(matching: .any)["settings.provider.disconnect"].click()
+        let disconnect = app.descendants(matching: .any)["settings.provider.disconnect.confirm"]
+        XCTAssertTrue(disconnect.waitForExistence(timeout: 5)); disconnect.click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.provider.credentialState"],
+            containing: "Missing",
+            timeout: 5
+        ))
+
+        replaceText(in: keyField, with: "synthetic-stage6-ui-credential-c")
+        app.descendants(matching: .any)["settings.provider.save"].click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.provider.credentialState"],
+            containing: "Configured in Keychain",
+            timeout: 5
+        ))
+        app.descendants(matching: .any)["settings.provider.delete"].click()
+        let delete = app.descendants(matching: .any)["settings.provider.delete.confirm"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5)); delete.click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.provider.credentialState"],
+            containing: "Missing",
+            timeout: 5
+        ))
+
+        app.descendants(matching: .any)["sidebar.markets"].click()
+        let marketsPlaceholder = app.descendants(matching: .any)["destination.markets"].firstMatch
+        XCTAssertTrue(marketsPlaceholder.waitForExistence(timeout: 5))
+        let marketsDescription = app.staticTexts.matching(NSPredicate(
+            format: "identifier == %@ AND (value CONTAINS[c] %@ OR label CONTAINS[c] %@)",
+            "destination.markets",
+            "Stage 7 has not been implemented",
+            "Stage 7 has not been implemented"
+        )).firstMatch
+        XCTAssertTrue(marketsDescription.waitForExistence(timeout: 5))
     }
 
     @MainActor

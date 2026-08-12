@@ -21,7 +21,7 @@ struct PersistenceTests {
 
         #expect(permanentURL != cacheURL)
         #expect(try await wealth.schemaVersion() == 5)
-        #expect(try await cache.schemaVersion() == 1)
+        #expect(try await cache.schemaVersion() == 2)
         #expect(try await wealth.foreignKeysEnabled())
         #expect(try await cache.foreignKeysEnabled())
     }
@@ -128,7 +128,7 @@ struct LaunchConfigurationTests {
 }
 
 func temporaryDirectory() throws -> URL {
-    let url = FileManager.default.temporaryDirectory
+    let url = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
         .appendingPathComponent("AureusTests", isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

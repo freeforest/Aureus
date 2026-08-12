@@ -39,6 +39,11 @@
 		A10000000000000000000023 /* SyntheticDashboardSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001F /* SyntheticDashboardSeeder.swift */; };
 		A10000000000000000000024 /* DashboardFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* DashboardFeatureModel.swift */; };
 		A10000000000000000000025 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* DashboardView.swift */; };
+		A10000000000000000000026 /* KeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* KeychainCredentialStore.swift */; };
+		A10000000000000000000027 /* MarketNetworking.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* MarketNetworking.swift */; };
+		A10000000000000000000028 /* MarketDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000024 /* MarketDataService.swift */; };
+		A10000000000000000000029 /* SettingsFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* SettingsFeatureModel.swift */; };
+		A1000000000000000000002A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* SettingsView.swift */; };
 		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
 		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
 		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
@@ -52,6 +57,9 @@
 		A2000000000000000000000A /* LedgerCSVTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000A /* LedgerCSVTests.swift */; };
 		A2000000000000000000000B /* DashboardDomainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000B /* DashboardDomainTests.swift */; };
 		A2000000000000000000000C /* DashboardPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000C /* DashboardPersistenceTests.swift */; };
+		A2000000000000000000000D /* MarketDataInfrastructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000D /* MarketDataInfrastructureTests.swift */; };
+		A2000000000000000000000E /* MarketCacheInfrastructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000E /* MarketCacheInfrastructureTests.swift */; };
+		A2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */; };
 		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
 		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
 /* End PBXBuildFile section */
@@ -107,6 +115,11 @@
 		B1000000000000000000001F /* SyntheticDashboardSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticDashboardSeeder.swift; sourceTree = "<group>"; };
 		B10000000000000000000020 /* DashboardFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardFeatureModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000021 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		B10000000000000000000022 /* KeychainCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainCredentialStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000023 /* MarketNetworking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketNetworking.swift; sourceTree = "<group>"; };
+		B10000000000000000000024 /* MarketDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketDataService.swift; sourceTree = "<group>"; };
+		B10000000000000000000025 /* SettingsFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000026 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
@@ -119,6 +132,9 @@
 		B2000000000000000000000A /* LedgerCSVTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCSVTests.swift; sourceTree = "<group>"; };
 		B2000000000000000000000B /* DashboardDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDomainTests.swift; sourceTree = "<group>"; };
 		B2000000000000000000000C /* DashboardPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPersistenceTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000D /* MarketDataInfrastructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketDataInfrastructureTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000E /* MarketCacheInfrastructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketCacheInfrastructureTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainAndFXInfrastructureTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
 		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -179,6 +195,8 @@
 				D12000000000000000000001 /* Domain */,
 				D13000000000000000000001 /* Persistence */,
 				D14000000000000000000001 /* Features */,
+				D15000000000000000000001 /* Security */,
+				D16000000000000000000001 /* Services */,
 				B10000000000000000000011 /* Aureus.entitlements */,
 			);
 			path = Aureus;
@@ -307,6 +325,7 @@
 				D14100000000000000000001 /* Wealth */,
 				D14200000000000000000001 /* Ledger */,
 				D14300000000000000000001 /* Dashboard */,
+				D14400000000000000000001 /* Settings */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -338,6 +357,30 @@
 			path = Dashboard;
 			sourceTree = "<group>";
 		};
+		D14400000000000000000001 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000025 /* SettingsFeatureModel.swift */,
+				B10000000000000000000026 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		D15000000000000000000001 /* Security */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000022 /* KeychainCredentialStore.swift */);
+			path = Security;
+			sourceTree = "<group>";
+		};
+		D16000000000000000000001 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000023 /* MarketNetworking.swift */,
+				B10000000000000000000024 /* MarketDataService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		D20000000000000000000001 /* AureusTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -353,6 +396,9 @@
 				B2000000000000000000000A /* LedgerCSVTests.swift */,
 				B2000000000000000000000B /* DashboardDomainTests.swift */,
 				B2000000000000000000000C /* DashboardPersistenceTests.swift */,
+				B2000000000000000000000D /* MarketDataInfrastructureTests.swift */,
+				B2000000000000000000000E /* MarketCacheInfrastructureTests.swift */,
+				B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -492,6 +538,11 @@
 				A10000000000000000000023 /* SyntheticDashboardSeeder.swift in Sources */,
 				A10000000000000000000024 /* DashboardFeatureModel.swift in Sources */,
 				A10000000000000000000025 /* DashboardView.swift in Sources */,
+				A10000000000000000000026 /* KeychainCredentialStore.swift in Sources */,
+				A10000000000000000000027 /* MarketNetworking.swift in Sources */,
+				A10000000000000000000028 /* MarketDataService.swift in Sources */,
+				A10000000000000000000029 /* SettingsFeatureModel.swift in Sources */,
+				A1000000000000000000002A /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -511,6 +562,9 @@
 				A2000000000000000000000A /* LedgerCSVTests.swift in Sources */,
 				A2000000000000000000000B /* DashboardDomainTests.swift in Sources */,
 				A2000000000000000000000C /* DashboardPersistenceTests.swift in Sources */,
+				A2000000000000000000000D /* MarketDataInfrastructureTests.swift in Sources */,
+				A2000000000000000000000E /* MarketCacheInfrastructureTests.swift in Sources */,
+				A2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -570,7 +624,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -597,7 +651,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Aureus;
