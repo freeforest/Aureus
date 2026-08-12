@@ -384,7 +384,7 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 10))
         XCTAssertTrue(waitForValueOrLabel(
             app.descendants(matching: .any)["settings.mode"],
-            containing: "Stage 6B Repair Candidate",
+            containing: "Stage 6C Repair Candidate",
             timeout: 5
         ))
         XCTAssertTrue(waitForValueOrLabel(
@@ -428,11 +428,24 @@ final class AureusUITests: XCTestCase {
         for market in ["us", "xhkg", "xshg", "xshe", "xjpx"] {
             XCTAssertTrue(app.descendants(matching: .any)["settings.provider.market.\(market)"].exists)
         }
-        XCTAssertTrue(waitForValueOrLabel(
-            app.descendants(matching: .any)["settings.provider.market.us"],
-            containing: "Live: notVerified",
-            timeout: 5
-        ))
+        for (identifier, expected) in [
+            ("settings.provider.market.us", "Live: mixed"),
+            ("settings.provider.market.xhkg", "Live: succeeded"),
+            ("settings.provider.market.xshg", "Live: denied"),
+            ("settings.provider.market.xshe", "Live: notVerified"),
+            ("settings.provider.endpoint.symbolSearch", "Live: succeeded"),
+            ("settings.provider.endpoint.latestQuote", "Live: denied"),
+            ("settings.provider.endpoint.historicalOHLCV", "Live: mixed"),
+            ("settings.provider.endpoint.splits", "Live: notVerified")
+        ] {
+            let element = app.descendants(matching: .any)[identifier]
+            XCTAssertEqual(
+                app.descendants(matching: .any).matching(identifier: identifier).count,
+                1,
+                "Settings observation accessibility identity must be unique: \(identifier)"
+            )
+            XCTAssertTrue(waitForValueOrLabel(element, containing: expected, timeout: 5))
+        }
 
         app.descendants(matching: .any)["settings.cache.removeExpired"].click()
         XCTAssertTrue(waitForValueOrLabel(
@@ -452,7 +465,7 @@ final class AureusUITests: XCTestCase {
 
         let screenshot = XCUIScreen.main.screenshot().pngRepresentation
         try screenshot.write(
-            to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6B-Settings.png"),
+            to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6C-Settings.png"),
             options: .atomic
         )
 

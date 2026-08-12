@@ -207,6 +207,10 @@ final class SettingsFeatureModel {
             "This endpoint costs \(required) credits, above the currently verified \(available)-credit request window."
         case ProviderBoundaryError.cancelled:
             "The operation was cancelled."
+        case ProviderBoundaryError.transportShutdownTimedOut:
+            "Provider requests did not reach a terminal state. Cache and Keychain credential deletion were not started."
+        case ProviderBoundaryError.invalidTimeArithmetic:
+            "Provider rate-window time arithmetic was invalid; no request was sent."
         case CachePolicyError.persistentRetentionUnverified:
             "Persistent Twelve Data caching is disabled until current retention rights are verified."
         case CachePolicyError.capacityCannotBeSatisfied:

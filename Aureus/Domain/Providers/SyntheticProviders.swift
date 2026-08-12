@@ -27,35 +27,51 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
         case .stale: entitlement = .stale
         case .offline: entitlement = .offline
         }
+        let marketObservation: [(String, ProviderLiveObservation, [String])] = [
+            ("US", .mixed, ["XNAS", "XNYS"]),
+            ("XHKG", .succeeded, ["XHKG"]),
+            ("XSHG", .denied, ["XSHG"]),
+            ("XSHE", .notVerified, []),
+            ("XJPX", .notVerified, [])
+        ]
+        let endpointObservation: [MarketProviderEndpoint: ProviderLiveObservation] = [
+            .symbolSearch: .succeeded,
+            .latestQuote: .denied,
+            .historicalOHLCV: .mixed,
+            .splits: .notVerified,
+            .dividends: .succeeded
+        ]
         return MarketProviderCapabilities(
             provider: descriptor,
             entitlement: entitlement,
             observedPlanName: "Synthetic",
-            markets: [
+            markets: marketObservation.map { mic, live, rawMICs in
                 MarketCapability(
-                    mic: "XSYN",
+                    mic: mic,
                     minimumEntitlement: .basic,
-                    observedEntitlement: entitlement,
-                    freshness: scenario == .stale ? .stale : .endOfDay,
+                    observedEntitlement: live == .succeeded ? entitlement : .unknown,
+                    freshness: scenario == .stale ? .stale : .unknown,
                     catalogEvidence: .notVerified,
-                    liveObservation: scenario == .unsupported ? .denied : .succeeded,
-                    liveObservedMICs: scenario == .unsupported ? [] : ["XNAS"],
+                    liveObservation: scenario == .unsupported ? .denied : live,
+                    liveObservedMICs: rawMICs,
                     supportsSearch: true,
                     supportsHistoricalBars: true,
-                    supportsCorporateActions: true,
+                    supportsCorporateActions: false,
                     evidenceStatus: "SYNTHETIC"
                 )
-            ],
+            },
             supportsSearch: true,
             supportsHistoricalPrices: true,
-            supportsCorporateActions: true,
+            supportsCorporateActions: false,
             endpointCapabilities: MarketProviderEndpoint.allCases.map {
                 ProviderEndpointCapability(
                     endpoint: $0,
                     minimumPlanName: "Synthetic",
                     creditWeight: 1,
                     catalogEvidence: .notVerified,
-                    liveObservation: scenario == .unsupported ? .denied : .succeeded,
+                    liveObservation: scenario == .unsupported
+                        ? .denied
+                        : endpointObservation[$0] ?? .notVerified,
                     observedEntitlement: entitlement
                 )
             },

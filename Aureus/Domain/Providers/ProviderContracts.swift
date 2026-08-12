@@ -81,6 +81,7 @@ enum ProviderLiveObservation: String, Codable, Equatable, Sendable {
     case notVerified
     case succeeded
     case denied
+    case mixed
 }
 
 struct ProviderEndpointCapability: Codable, Equatable, Identifiable, Sendable {
@@ -288,6 +289,8 @@ enum ProviderBoundaryError: Error, Equatable, Sendable {
     case cancelled
     case invalidRequest
     case invalidPayload
+    case invalidTimeArithmetic
+    case transportShutdownTimedOut
     case providerError(statusCode: Int?)
     case retentionUnverified
 }
@@ -297,8 +300,9 @@ protocol MarketDataProvider: Sendable {
 
     func capabilities() async -> MarketProviderCapabilities
     func validateCredential() async throws -> ProviderUsageObservation
+    func prepareForCredentialChange() async throws
     func credentialDidChange() async
-    func disconnect() async
+    func disconnect() async throws
     func search(query: String) async throws -> [MarketInstrument]
     func latestQuote(for instrument: MarketInstrument) async throws -> MarketQuote
     func historicalBars(_ request: MarketHistoryRequest) async throws -> MarketHistoryPage
@@ -314,8 +318,9 @@ extension MarketDataProvider {
         throw ProviderBoundaryError.missingCredential
     }
 
+    func prepareForCredentialChange() async throws {}
     func credentialDidChange() async {}
-    func disconnect() async {}
+    func disconnect() async throws {}
 }
 
 protocol FXRateProvider: Sendable {

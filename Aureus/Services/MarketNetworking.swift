@@ -88,8 +88,10 @@ actor ProviderRequestGate {
     private let initialDailyLimit: Int?
     private var minuteLimit: Int
     private var dailyLimit: Int?
+    private var observedHeaderMinuteLimit: Int?
     private var minuteWindowStart: UTCInstant
     private var dayWindowStart: UTCInstant
+    private var windowArithmeticError: ProviderBoundaryError?
     private var minuteCredits = 0
     private var dailyCredits = 0
     private var activeRequests = 0
@@ -107,21 +109,23 @@ actor ProviderRequestGate {
         initialDailyLimit = dailyLimit
         self.minuteLimit = minuteLimit
         self.dailyLimit = dailyLimit
+        observedHeaderMinuteLimit = nil
         self.clock = clock
         self.sleeper = sleeper
         let now = clock.now()
-        minuteWindowStart = UTCInstant(
-            millisecondsSince1970: Self.windowStart(
-                containing: now.millisecondsSince1970,
-                duration: 60_000
-            )
+        let minuteStart = try? Self.windowStart(
+            containing: now.millisecondsSince1970,
+            duration: 60_000
         )
-        dayWindowStart = UTCInstant(
-            millisecondsSince1970: Self.windowStart(
-                containing: now.millisecondsSince1970,
-                duration: 86_400_000
-            )
+        let dayStart = try? Self.windowStart(
+            containing: now.millisecondsSince1970,
+            duration: 86_400_000
         )
+        minuteWindowStart = UTCInstant(millisecondsSince1970: minuteStart ?? 0)
+        dayWindowStart = UTCInstant(millisecondsSince1970: dayStart ?? 0)
+        windowArithmeticError = minuteStart == nil || dayStart == nil
+            ? .invalidTimeArithmetic
+            : nil
     }
 
     func execute<T: Sendable>(
@@ -129,6 +133,7 @@ actor ProviderRequestGate {
         operation: @Sendable () async throws -> T
     ) async throws -> T {
         guard credits > 0 else { throw ProviderBoundaryError.invalidRequest }
+        try validateWindowState()
         try validateRequestCost(credits)
         try await acquireConcurrencyPermit()
         defer { releaseConcurrencyPermit() }
@@ -137,20 +142,26 @@ actor ProviderRequestGate {
         return try await operation()
     }
 
-    func resetToInitialLimits() {
+    func resetForCredentialIdentity() {
         minuteLimit = initialMinuteLimit
         dailyLimit = initialDailyLimit
+        observedHeaderMinuteLimit = nil
         minuteCredits = 0
         dailyCredits = 0
         let now = clock.now()
-        minuteWindowStart = UTCInstant(millisecondsSince1970: Self.windowStart(
+        let minuteStart = try? Self.windowStart(
             containing: now.millisecondsSince1970,
             duration: 60_000
-        ))
-        dayWindowStart = UTCInstant(millisecondsSince1970: Self.windowStart(
+        )
+        let dayStart = try? Self.windowStart(
             containing: now.millisecondsSince1970,
             duration: 86_400_000
-        ))
+        )
+        minuteWindowStart = UTCInstant(millisecondsSince1970: minuteStart ?? 0)
+        dayWindowStart = UTCInstant(millisecondsSince1970: dayStart ?? 0)
+        windowArithmeticError = minuteStart == nil || dayStart == nil
+            ? .invalidTimeArithmetic
+            : nil
     }
 
     func applyVerifiedLimits(
@@ -158,25 +169,31 @@ actor ProviderRequestGate {
         dailyQuota: ProviderDailyQuota,
         allowIncrease: Bool
     ) {
+        let proposedMinuteLimit: Int
         if let perMinute, perMinute > 0 {
-            minuteLimit = allowIncrease ? perMinute : min(minuteLimit, perMinute)
+            proposedMinuteLimit = allowIncrease
+                ? perMinute
+                : min(initialMinuteLimit, perMinute)
+        } else {
+            proposedMinuteLimit = initialMinuteLimit
         }
+        minuteLimit = min(proposedMinuteLimit, observedHeaderMinuteLimit ?? .max)
         switch dailyQuota {
         case .capped(let perDay) where perDay > 0:
-            if allowIncrease {
-                dailyLimit = perDay
-            } else {
-                dailyLimit = dailyLimit.map { min($0, perDay) } ?? perDay
-            }
+            dailyLimit = allowIncrease
+                ? perDay
+                : initialDailyLimit.map { min($0, perDay) } ?? perDay
         case .uncapped where allowIncrease:
             dailyLimit = nil
         case .capped, .uncapped, .unknown:
-            break
+            dailyLimit = initialDailyLimit
         }
     }
 
     func applyObservedHeaderLimit(perMinute: Int) {
         guard perMinute > 0 else { return }
+        observedHeaderMinuteLimit = observedHeaderMinuteLimit.map { min($0, perMinute) }
+            ?? perMinute
         minuteLimit = min(minuteLimit, perMinute)
     }
 
@@ -184,8 +201,8 @@ actor ProviderRequestGate {
         (minuteLimit, dailyLimit)
     }
 
-    func currentCreditUsage() -> (perMinute: Int, perDay: Int) {
-        rollWindows(now: clock.now())
+    func currentCreditUsage() throws -> (perMinute: Int, perDay: Int) {
+        try rollWindows(now: clock.now())
         return (minuteCredits, dailyCredits)
     }
 
@@ -241,7 +258,7 @@ actor ProviderRequestGate {
         while true {
             try Task.checkCancellation()
             let now = clock.now()
-            rollWindows(now: now)
+            try rollWindows(now: now)
             try validateRequestCost(credits)
 
             let minuteTotal = minuteCredits.addingReportingOverflow(credits)
@@ -271,8 +288,9 @@ actor ProviderRequestGate {
         }
     }
 
-    private func rollWindows(now: UTCInstant) {
-        let minuteStart = Self.windowStart(
+    private func rollWindows(now: UTCInstant) throws {
+        try validateWindowState()
+        let minuteStart = try Self.windowStart(
             containing: now.millisecondsSince1970,
             duration: 60_000
         )
@@ -280,7 +298,7 @@ actor ProviderRequestGate {
             minuteWindowStart = UTCInstant(millisecondsSince1970: minuteStart)
             minuteCredits = 0
         }
-        let dayStart = Self.windowStart(
+        let dayStart = try Self.windowStart(
             containing: now.millisecondsSince1970,
             duration: 86_400_000
         )
@@ -290,10 +308,25 @@ actor ProviderRequestGate {
         }
     }
 
-    private static func windowStart(containing instant: Int64, duration: Int64) -> Int64 {
+    private func validateWindowState() throws {
+        if let windowArithmeticError { throw windowArithmeticError }
+    }
+
+    private static func windowStart(containing instant: Int64, duration: Int64) throws -> Int64 {
+        guard duration > 0 else { throw ProviderBoundaryError.invalidTimeArithmetic }
+        let quotient = instant / duration
         let remainder = instant % duration
-        if remainder >= 0 { return instant - remainder }
-        return instant - remainder - duration
+        let floorQuotient: Int64
+        if remainder < 0 {
+            let adjusted = quotient.subtractingReportingOverflow(1)
+            guard !adjusted.overflow else { throw ProviderBoundaryError.invalidTimeArithmetic }
+            floorQuotient = adjusted.partialValue
+        } else {
+            floorQuotient = quotient
+        }
+        let start = floorQuotient.multipliedReportingOverflow(by: duration)
+        guard !start.overflow else { throw ProviderBoundaryError.invalidTimeArithmetic }
+        return start.partialValue
     }
 
     private static func delayUntilNextWindow(
@@ -302,10 +335,12 @@ actor ProviderRequestGate {
         now: Int64
     ) throws -> Int64 {
         let boundary = start.addingReportingOverflow(duration)
-        guard !boundary.overflow else { throw ProviderBoundaryError.invalidPayload }
+        guard !boundary.overflow else { throw ProviderBoundaryError.invalidTimeArithmetic }
         let delay = boundary.partialValue.subtractingReportingOverflow(now)
-        guard !delay.overflow else { throw ProviderBoundaryError.invalidPayload }
-        return max(1, delay.partialValue)
+        guard !delay.overflow, delay.partialValue > 0 else {
+            throw ProviderBoundaryError.invalidTimeArithmetic
+        }
+        return delay.partialValue
     }
 }
 
@@ -391,6 +426,41 @@ private enum HTTPRetryExecutor {
     }
 }
 
+private final class TransportTerminationRace: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Bool, Never>?
+    private var resolved = false
+
+    func wait(
+        for tasks: [Task<HTTPTransportResponse, Error>],
+        timeoutMilliseconds: Int64
+    ) async -> Bool {
+        guard !tasks.isEmpty else { return true }
+        guard timeoutMilliseconds > 0 else { return false }
+        return await withCheckedContinuation { continuation in
+            lock.withLock { self.continuation = continuation }
+            Task {
+                for task in tasks { _ = await task.result }
+                self.resolve(true)
+            }
+            Task {
+                try? await Task.sleep(for: .milliseconds(timeoutMilliseconds))
+                self.resolve(false)
+            }
+        }
+    }
+
+    private func resolve(_ value: Bool) {
+        let continuation = lock.withLock { () -> CheckedContinuation<Bool, Never>? in
+            guard !resolved else { return nil }
+            resolved = true
+            defer { self.continuation = nil }
+            return self.continuation
+        }
+        continuation?.resume(returning: value)
+    }
+}
+
 actor TwelveDataClient: MarketDataProvider {
     private struct InFlightRequest {
         let requestID: UUID
@@ -398,9 +468,21 @@ actor TwelveDataClient: MarketDataProvider {
         var waiters: [UUID: CheckedContinuation<HTTPTransportResponse, Error>]
     }
 
-    private struct MarketLiveObservation {
-        var successfulMICs: Set<String> = []
-        var wasDenied = false
+    private struct LiveObservationKey: Hashable {
+        let endpoint: MarketProviderEndpoint
+        let rawMIC: String?
+    }
+
+    private struct LiveObservationRecord {
+        let capabilityKey: String?
+        let rawMIC: String?
+        let state: ProviderLiveObservation
+    }
+
+    private enum RequestAdmissionState: Equatable {
+        case accepting
+        case quiescing
+        case disconnected
     }
 
     nonisolated let descriptor = ProviderDescriptor(
@@ -421,11 +503,13 @@ actor TwelveDataClient: MarketDataProvider {
     private let sleeper: any ProviderSleeper
     private let jitter: any RetryJitterSource
     private let baseURL: URL
+    private let shutdownTimeoutMilliseconds: Int64
     private var inFlight: [String: InFlightRequest] = [:]
-    private var isDisconnected = false
+    private var transportTasks: [UUID: Task<HTTPTransportResponse, Error>] = [:]
+    private var requestAdmissionState: RequestAdmissionState = .accepting
+    private var credentialGeneration = UUID()
     private var lastUsage: ProviderUsageObservation?
-    private var marketObservations: [String: MarketLiveObservation] = [:]
-    private var endpointObservations: [MarketProviderEndpoint: ProviderLiveObservation] = [:]
+    private var liveObservations: [LiveObservationKey: LiveObservationRecord] = [:]
 
     init(
         credentialStore: any CredentialStore,
@@ -434,6 +518,7 @@ actor TwelveDataClient: MarketDataProvider {
         clock: any Clock,
         sleeper: any ProviderSleeper = TaskProviderSleeper(),
         jitter: any RetryJitterSource = SystemRetryJitterSource(),
+        shutdownTimeoutMilliseconds: Int64 = 5_000,
         baseURL: URL = URL(string: "https://api.twelvedata.com")!
     ) {
         self.credentialStore = credentialStore
@@ -442,6 +527,7 @@ actor TwelveDataClient: MarketDataProvider {
         self.clock = clock
         self.sleeper = sleeper
         self.jitter = jitter
+        self.shutdownTimeoutMilliseconds = shutdownTimeoutMilliseconds
         self.baseURL = baseURL
     }
 
@@ -456,17 +542,15 @@ actor TwelveDataClient: MarketDataProvider {
             supportsHistoricalBars: Bool,
             evidenceStatus: String
         ) -> MarketCapability {
-            let observation = marketObservations[mic]
-            let liveObservation: ProviderLiveObservation
+            let matching = liveObservations.values.filter { $0.capabilityKey == mic }
+            let liveObservation = Self.aggregateObservation(matching.map(\.state))
             let observedEntitlement: MarketEntitlementState
-            if observation?.wasDenied == true {
-                liveObservation = .denied
+            switch liveObservation {
+            case .denied:
                 observedEntitlement = .upgradeRequired
-            } else if observation?.successfulMICs.isEmpty == false {
-                liveObservation = .succeeded
+            case .succeeded:
                 observedEntitlement = entitlement
-            } else {
-                liveObservation = .notVerified
+            case .mixed, .notVerified:
                 observedEntitlement = .unknown
             }
             return MarketCapability(
@@ -476,7 +560,7 @@ actor TwelveDataClient: MarketDataProvider {
                 freshness: .unknown,
                 catalogEvidence: catalog,
                 liveObservation: liveObservation,
-                liveObservedMICs: observation.map { Array($0.successfulMICs).sorted() } ?? [],
+                liveObservedMICs: Array(Set(matching.compactMap(\.rawMIC))).sorted(),
                 supportsSearch: true,
                 supportsHistoricalBars: supportsHistoricalBars,
                 supportsCorporateActions: false,
@@ -489,14 +573,14 @@ actor TwelveDataClient: MarketDataProvider {
             minimumPlanName: String,
             creditWeight: Int
         ) -> ProviderEndpointCapability {
-            let live = endpointObservations[endpoint] ?? .notVerified
+            let live = aggregateObservation(for: endpoint)
             let observed: MarketEntitlementState
             switch live {
             case .succeeded:
                 observed = entitlement
             case .denied:
                 observed = .upgradeRequired
-            case .notVerified:
+            case .mixed, .notVerified:
                 observed = .unknown
             }
             return ProviderEndpointCapability(
@@ -534,13 +618,13 @@ actor TwelveDataClient: MarketDataProvider {
         ]
         return MarketProviderCapabilities(
             provider: descriptor,
-            entitlement: isDisconnected ? .missing : entitlement,
+            entitlement: requestAdmissionState == .disconnected ? .missing : entitlement,
             observedPlanName: lastUsage?.planName,
             markets: markets,
             supportsSearch: true,
             supportsHistoricalPrices: true,
-            supportsCorporateActions: endpointObservations[.splits] == .succeeded &&
-                endpointObservations[.dividends] == .succeeded,
+            supportsCorporateActions: aggregateObservation(for: .splits) == .succeeded &&
+                aggregateObservation(for: .dividends) == .succeeded,
             endpointCapabilities: [
                 endpointCapability(
                     endpoint: .symbolSearch, minimumPlanName: "Basic", creditWeight: 1
@@ -584,7 +668,6 @@ actor TwelveDataClient: MarketDataProvider {
         if let perDay = dto.dailyLimit, perDay <= 0 {
             throw ProviderBoundaryError.invalidPayload
         }
-        await gate.resetToInitialLimits()
         let minute: Int?
         let dailyQuota: ProviderDailyQuota
         let allowIncrease: Bool
@@ -618,22 +701,27 @@ actor TwelveDataClient: MarketDataProvider {
         return observation
     }
 
-    func credentialDidChange() async {
-        cancelAllSharedRequests()
-        await gate.resetToInitialLimits()
-        isDisconnected = false
+    func prepareForCredentialChange() async throws {
+        try await stopAndAwaitTransportTermination()
         lastUsage = nil
-        marketObservations = [:]
-        endpointObservations = [:]
+        liveObservations = [:]
     }
 
-    func disconnect() async {
-        isDisconnected = true
-        cancelAllSharedRequests()
-        await gate.resetToInitialLimits()
+    func credentialDidChange() async {
+        await gate.resetForCredentialIdentity()
+        credentialGeneration = UUID()
+        requestAdmissionState = .accepting
         lastUsage = nil
-        marketObservations = [:]
-        endpointObservations = [:]
+        liveObservations = [:]
+    }
+
+    func disconnect() async throws {
+        try await stopAndAwaitTransportTermination()
+        await gate.resetForCredentialIdentity()
+        credentialGeneration = UUID()
+        requestAdmissionState = .disconnected
+        lastUsage = nil
+        liveObservations = [:]
     }
 
     func inFlightRequestState() -> (requests: Int, waiters: Int) {
@@ -642,6 +730,8 @@ actor TwelveDataClient: MarketDataProvider {
             inFlight.values.reduce(0) { $0 + $1.waiters.count }
         )
     }
+
+    func transportTaskCount() -> Int { transportTasks.count }
 
     func search(query: String) async throws -> [MarketInstrument] {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -680,7 +770,7 @@ actor TwelveDataClient: MarketDataProvider {
                 )
             }
         }
-        recordEndpointSuccess(.symbolSearch)
+        recordObservation(endpoint: .symbolSearch, marketMIC: nil, state: .succeeded)
         return instruments
     }
 
@@ -711,8 +801,7 @@ actor TwelveDataClient: MarketDataProvider {
         } else {
             observedAt = clock.now()
         }
-        recordEndpointSuccess(.latestQuote)
-        recordSuccessfulMarket(instrument.mic)
+        recordObservation(endpoint: .latestQuote, marketMIC: instrument.mic, state: .succeeded)
         return MarketQuote(
             instrument: instrument,
             price: price,
@@ -780,8 +869,11 @@ actor TwelveDataClient: MarketDataProvider {
         }
         guard !bars.isEmpty else { throw ProviderBoundaryError.missing }
         let nextEnd = bars.count == request.outputSize ? bars.first?.sessionDate : nil
-        recordEndpointSuccess(.historicalOHLCV)
-        recordSuccessfulMarket(request.instrument.mic)
+        recordObservation(
+            endpoint: .historicalOHLCV,
+            marketMIC: request.instrument.mic,
+            state: .succeeded
+        )
         return MarketHistoryPage(
             instrument: request.instrument,
             bars: bars,
@@ -843,7 +935,7 @@ actor TwelveDataClient: MarketDataProvider {
                 fetchedAt: clock.now()
             )
         } }
-        recordEndpointSuccess(.splits)
+        recordObservation(endpoint: .splits, marketMIC: instrument.mic, state: .succeeded)
         return actions
     }
 
@@ -885,7 +977,7 @@ actor TwelveDataClient: MarketDataProvider {
                 fetchedAt: clock.now()
             )
         } }
-        recordEndpointSuccess(.dividends)
+        recordObservation(endpoint: .dividends, marketMIC: instrument.mic, state: .succeeded)
         return actions
     }
 
@@ -896,11 +988,19 @@ actor TwelveDataClient: MarketDataProvider {
         endpoint: MarketProviderEndpoint? = nil,
         marketMIC: String? = nil
     ) async throws -> HTTPTransportResponse {
-        guard !isDisconnected else { throw ProviderBoundaryError.missingCredential }
+        guard requestAdmissionState == .accepting else {
+            throw requestAdmissionState == .disconnected
+                ? ProviderBoundaryError.missingCredential
+                : ProviderBoundaryError.cancelled
+        }
+        let generation = credentialGeneration
         guard let credential = try await credentialStore.credential(for: Self.credentialDescriptor),
               let key = String(data: credential, encoding: .utf8),
               !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ProviderBoundaryError.missingCredential
+        }
+        guard requestAdmissionState == .accepting, generation == credentialGeneration else {
+            throw ProviderBoundaryError.cancelled
         }
 
         var components = URLComponents(
@@ -920,7 +1020,8 @@ actor TwelveDataClient: MarketDataProvider {
             let response = try await sharedResponse(
                 for: deduplicationKey,
                 request: request,
-                creditWeight: creditWeight
+                creditWeight: creditWeight,
+                generation: generation
             )
             await observeCreditHeaders(response.headers)
             return response
@@ -938,7 +1039,8 @@ actor TwelveDataClient: MarketDataProvider {
     private func sharedResponse(
         for key: String,
         request: URLRequest,
-        creditWeight: Int
+        creditWeight: Int,
+        generation: UUID
     ) async throws -> HTTPTransportResponse {
         let waiterID = UUID()
         return try await withTaskCancellationHandler {
@@ -946,6 +1048,11 @@ actor TwelveDataClient: MarketDataProvider {
                 (continuation: CheckedContinuation<HTTPTransportResponse, Error>) in
                 guard !Task.isCancelled else {
                     continuation.resume(throwing: CancellationError())
+                    return
+                }
+                guard requestAdmissionState == .accepting,
+                      generation == credentialGeneration else {
+                    continuation.resume(throwing: ProviderBoundaryError.cancelled)
                     return
                 }
                 if var current = inFlight[key] {
@@ -958,6 +1065,7 @@ actor TwelveDataClient: MarketDataProvider {
                 let gate = self.gate
                 let sleeper = self.sleeper
                 let jitter = self.jitter
+                let requestID = UUID()
                 let task = Task<HTTPTransportResponse, Error> {
                     try await HTTPRetryExecutor.run(
                         request: request,
@@ -968,7 +1076,7 @@ actor TwelveDataClient: MarketDataProvider {
                         jitter: jitter
                     )
                 }
-                let requestID = UUID()
+                transportTasks[requestID] = task
                 inFlight[key] = InFlightRequest(
                     requestID: requestID,
                     task: task,
@@ -1005,6 +1113,7 @@ actor TwelveDataClient: MarketDataProvider {
         requestID: UUID,
         result: Result<HTTPTransportResponse, Error>
     ) {
+        transportTasks[requestID] = nil
         guard let current = inFlight[key], current.requestID == requestID else { return }
         inFlight[key] = nil
         for continuation in current.waiters.values {
@@ -1012,15 +1121,23 @@ actor TwelveDataClient: MarketDataProvider {
         }
     }
 
-    private func cancelAllSharedRequests() {
+    private func stopAndAwaitTransportTermination() async throws {
+        requestAdmissionState = .quiescing
         let requests = Array(inFlight.values)
         inFlight.removeAll()
         for request in requests {
-            request.task.cancel()
             for continuation in request.waiters.values {
                 continuation.resume(throwing: ProviderBoundaryError.cancelled)
             }
         }
+        let captured = transportTasks
+        for task in captured.values { task.cancel() }
+        let terminated = await TransportTerminationRace().wait(
+            for: Array(captured.values),
+            timeoutMilliseconds: shutdownTimeoutMilliseconds
+        )
+        guard terminated else { throw ProviderBoundaryError.transportShutdownTimedOut }
+        for requestID in captured.keys { transportTasks[requestID] = nil }
     }
 
     private func observeCreditHeaders(_ headers: [String: String]) async {
@@ -1094,26 +1211,42 @@ actor TwelveDataClient: MarketDataProvider {
         return items
     }
 
-    private func recordEndpointSuccess(_ endpoint: MarketProviderEndpoint) {
-        endpointObservations[endpoint] = .succeeded
-    }
-
     private func recordDenied(endpoint: MarketProviderEndpoint?, marketMIC: String?) {
-        if let endpoint { endpointObservations[endpoint] = .denied }
-        if let marketMIC {
-            let key = Self.capabilityKey(for: marketMIC)
-            var observation = marketObservations[key] ?? MarketLiveObservation()
-            observation.wasDenied = true
-            marketObservations[key] = observation
-        }
+        guard let endpoint else { return }
+        recordObservation(endpoint: endpoint, marketMIC: marketMIC, state: .denied)
     }
 
-    private func recordSuccessfulMarket(_ mic: String) {
-        let capabilityKey = Self.capabilityKey(for: mic)
-        var observation = marketObservations[capabilityKey] ?? MarketLiveObservation()
-        observation.successfulMICs.insert(mic.uppercased())
-        observation.wasDenied = false
-        marketObservations[capabilityKey] = observation
+    private func recordObservation(
+        endpoint: MarketProviderEndpoint,
+        marketMIC: String?,
+        state: ProviderLiveObservation
+    ) {
+        let rawMIC = marketMIC?.uppercased()
+        let key = LiveObservationKey(endpoint: endpoint, rawMIC: rawMIC)
+        liveObservations[key] = LiveObservationRecord(
+            capabilityKey: rawMIC.map(Self.capabilityKey(for:)),
+            rawMIC: rawMIC,
+            state: state
+        )
+    }
+
+    private func aggregateObservation(for endpoint: MarketProviderEndpoint) -> ProviderLiveObservation {
+        Self.aggregateObservation(
+            liveObservations.compactMap { key, value in
+                key.endpoint == endpoint ? value.state : nil
+            }
+        )
+    }
+
+    private static func aggregateObservation(
+        _ observations: [ProviderLiveObservation]
+    ) -> ProviderLiveObservation {
+        let hasSuccess = observations.contains(.succeeded)
+        let hasDenial = observations.contains(.denied)
+        if hasSuccess && hasDenial { return .mixed }
+        if hasSuccess { return .succeeded }
+        if hasDenial { return .denied }
+        return .notVerified
     }
 
     private static func capabilityKey(for mic: String) -> String {

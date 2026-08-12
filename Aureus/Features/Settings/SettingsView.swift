@@ -83,7 +83,7 @@ struct SettingsView: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Settings" : "Local Provider Settings")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 6B Repair Candidate")
+            Text("Stage 6C Repair Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("settings.mode")

@@ -392,6 +392,7 @@ actor ProviderCredentialCoordinator {
         guard trimmed.count >= 8, let data = trimmed.data(using: .utf8) else {
             throw CredentialStoreError.invalidCredential
         }
+        try await provider.prepareForCredentialChange()
         try await credentialStore.store(data, for: TwelveDataClient.credentialDescriptor)
         await provider.credentialDidChange()
     }
@@ -414,7 +415,7 @@ actor ProviderCredentialCoordinator {
     }
 
     private func revoke(reason: CacheCleanupReason) async throws -> CacheCleanupResult {
-        await provider.disconnect()
+        try await provider.disconnect()
         let cleanup = try await cache.purge(
             providerIdentifier: provider.descriptor.identifier,
             reason: reason,

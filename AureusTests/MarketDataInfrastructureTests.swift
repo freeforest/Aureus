@@ -149,6 +149,8 @@ private actor GenerationalHTTPTransport: HTTPTransport {
     private var calls = 0
     private var pending: [Int: CheckedContinuation<HTTPTransportResponse, Error>] = [:]
     private var callWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
+    private var cancelledCalls: Set<Int> = []
+    private var cancellationWaiters: [Int: [CheckedContinuation<Void, Never>]] = [:]
 
     func data(for request: URLRequest) async throws -> HTTPTransportResponse {
         calls += 1
@@ -156,8 +158,12 @@ private actor GenerationalHTTPTransport: HTTPTransport {
         let ready = callWaiters.filter { $0.0 <= calls }
         callWaiters.removeAll { $0.0 <= calls }
         for (_, waiter) in ready { waiter.resume() }
-        return try await withCheckedThrowingContinuation { continuation in
-            pending[call] = continuation
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                pending[call] = continuation
+            }
+        } onCancel: {
+            Task { await self.recordCancellation(call: call) }
         }
     }
 
@@ -166,6 +172,19 @@ private actor GenerationalHTTPTransport: HTTPTransport {
         await withCheckedContinuation { continuation in
             callWaiters.append((target, continuation))
         }
+    }
+
+    func waitForCancellation(call: Int) async {
+        guard !cancelledCalls.contains(call) else { return }
+        await withCheckedContinuation { continuation in
+            cancellationWaiters[call, default: []].append(continuation)
+        }
+    }
+
+    private func recordCancellation(call: Int) {
+        cancelledCalls.insert(call)
+        let waiters = cancellationWaiters.removeValue(forKey: call) ?? []
+        for waiter in waiters { waiter.resume() }
     }
 
     func succeed(call: Int, response: HTTPTransportResponse) {
@@ -177,6 +196,44 @@ private actor GenerationalHTTPTransport: HTTPTransport {
     }
 
     func callCount() -> Int { calls }
+}
+
+private enum SyntheticLifecycleOrderingError: Error {
+    case cacheWasNotPurgedBeforeCredentialDelete
+    case credentialStoreFailed
+}
+
+private actor LifecycleCredentialStore: CredentialStore {
+    private var value: Data?
+    private let beforeDelete: (@Sendable () async throws -> Void)?
+    private let failStores: Bool
+    private var deletes = 0
+
+    init(
+        value: Data?,
+        failStores: Bool = false,
+        beforeDelete: (@Sendable () async throws -> Void)? = nil
+    ) {
+        self.value = value
+        self.failStores = failStores
+        self.beforeDelete = beforeDelete
+    }
+
+    func credential(for descriptor: CredentialDescriptor) -> Data? { value }
+
+    func store(_ credential: Data, for descriptor: CredentialDescriptor) throws {
+        guard !failStores else { throw SyntheticLifecycleOrderingError.credentialStoreFailed }
+        value = credential
+    }
+
+    func deleteCredential(for descriptor: CredentialDescriptor) async throws {
+        try await beforeDelete?()
+        deletes += 1
+        value = nil
+    }
+
+    func currentValue() -> Data? { value }
+    func deleteCount() -> Int { deletes }
 }
 
 private actor BlockingGateOperation {
@@ -420,7 +477,7 @@ struct MarketDataInfrastructureTests {
             #expect(try await client.search(query: "retry").count == 1)
             #expect(await transport.requests().count == 4)
             #expect(await sleeper.delays() == [2_000, 2_000, 2_000])
-            #expect(await gate.currentCreditUsage() == (perMinute: 4, perDay: 4))
+            #expect(try await gate.currentCreditUsage() == (perMinute: 4, perDay: 4))
         }
     }
 
@@ -552,7 +609,7 @@ struct MarketDataInfrastructureTests {
         let disconnectClient = try await makeClient(transport: disconnectTransport)
         let request = Task { try await disconnectClient.search(query: "disconnect") }
         await disconnectTransport.waitUntilStarted()
-        await disconnectClient.disconnect()
+        try await disconnectClient.disconnect()
         await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await request.value }
         await disconnectTransport.waitUntilCancelled()
         #expect(await disconnectClient.inFlightRequestState() == (requests: 0, waiters: 0))
@@ -579,14 +636,17 @@ struct MarketDataInfrastructureTests {
         #expect(await client.inFlightRequestState() == (requests: 0, waiters: 0))
     }
 
-    @Test("Disconnect generation callback is harmless after immediate credential restart")
+    @Test("Disconnect waits for its old generation before credential restart")
     func disconnectGenerationIsolation() async throws {
         let transport = GenerationalHTTPTransport()
         let client = try await makeClient(transport: transport)
         let first = Task { try await client.search(query: "restart") }
         await transport.waitForCallCount(1)
-        await client.disconnect()
+        let disconnect = Task { try await client.disconnect() }
+        await transport.waitForCancellation(call: 1)
         await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await first.value }
+        await transport.failCancelled(call: 1)
+        try await disconnect.value
         await client.credentialDidChange()
 
         let second = Task { try await client.search(query: "restart") }
@@ -599,6 +659,226 @@ struct MarketDataInfrastructureTests {
         #expect(try await second.value.first?.symbol == "SYN-R")
         #expect(await transport.callCount() == 2)
         #expect(await client.inFlightRequestState() == (requests: 0, waiters: 0))
+    }
+
+    @Test("Revoke waits for transport terminal before provider cache purge and credential delete")
+    func revokeLifecycleOrdering() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite"))
+        let now = clock.now()
+        let providerEntry = try lifecycleCacheEntry(key: "revoke-order", fetchedAt: now)
+        try await cache.store(providerEntry, authorization: .authorized)
+        let credential = Data("synthetic-stage6-old-credential".utf8)
+        let store = LifecycleCredentialStore(value: credential) {
+            let state = try await cache.lookup(
+                providerIdentifier: "twelve-data",
+                logicalKey: "revoke-order",
+                dataType: .latestQuote,
+                now: now,
+                allowStale: true
+            )
+            guard state == .missing else {
+                throw SyntheticLifecycleOrderingError.cacheWasNotPurgedBeforeCredentialDelete
+            }
+        }
+        let transport = GenerationalHTTPTransport()
+        let gate = ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper())
+        let client = TwelveDataClient(
+            credentialStore: store,
+            transport: transport,
+            gate: gate,
+            clock: clock,
+            sleeper: RecordingProviderSleeper(),
+            jitter: ZeroRetryJitterSource(),
+            shutdownTimeoutMilliseconds: 1_000,
+            baseURL: URL(string: "https://synthetic-provider.invalid")!
+        )
+        let coordinator = ProviderCredentialCoordinator(
+            credentialStore: store,
+            provider: client,
+            cache: cache,
+            clock: clock
+        )
+        let request = Task { try await client.search(query: "revoke-order") }
+        await transport.waitForCallCount(1)
+
+        let revoke = Task { try await coordinator.disconnect() }
+        await transport.waitForCancellation(call: 1)
+        #expect(try await cache.lookup(
+            providerIdentifier: "twelve-data",
+            logicalKey: "revoke-order",
+            dataType: .latestQuote,
+            now: now,
+            allowStale: true
+        ) != .missing)
+        #expect(await store.currentValue() == credential)
+        #expect(await store.deleteCount() == 0)
+
+        await transport.failCancelled(call: 1)
+        _ = try await revoke.value
+        await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await request.value }
+        #expect(try await cache.lookup(
+            providerIdentifier: "twelve-data",
+            logicalKey: "revoke-order",
+            dataType: .latestQuote,
+            now: now,
+            allowStale: true
+        ) == .missing)
+        #expect(await store.currentValue() == nil)
+        #expect(await store.deleteCount() == 1)
+        #expect(await client.transportTaskCount() == 0)
+    }
+
+    @Test("A non-terminal transport blocks purge and credential deletion with a typed error")
+    func shutdownTimeoutPreservesCredentialAndCache() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite"))
+        let now = clock.now()
+        let providerEntry = try lifecycleCacheEntry(key: "shutdown-timeout", fetchedAt: now)
+        try await cache.store(providerEntry, authorization: .authorized)
+        let credential = Data("synthetic-stage6-timeout-credential".utf8)
+        let store = LifecycleCredentialStore(value: credential)
+        let transport = GenerationalHTTPTransport()
+        let client = TwelveDataClient(
+            credentialStore: store,
+            transport: transport,
+            gate: ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper()),
+            clock: clock,
+            sleeper: RecordingProviderSleeper(),
+            jitter: ZeroRetryJitterSource(),
+            shutdownTimeoutMilliseconds: 20,
+            baseURL: URL(string: "https://synthetic-provider.invalid")!
+        )
+        let coordinator = ProviderCredentialCoordinator(
+            credentialStore: store,
+            provider: client,
+            cache: cache,
+            clock: clock
+        )
+        let request = Task { try await client.search(query: "shutdown-timeout") }
+        await transport.waitForCallCount(1)
+
+        await #expect(throws: ProviderBoundaryError.transportShutdownTimedOut) {
+            _ = try await coordinator.deleteCredential()
+        }
+        #expect(await store.currentValue() == credential)
+        #expect(await store.deleteCount() == 0)
+        #expect(try await cache.lookup(
+            providerIdentifier: "twelve-data",
+            logicalKey: "shutdown-timeout",
+            dataType: .latestQuote,
+            now: now,
+            allowStale: true
+        ) != .missing)
+
+        await transport.failCancelled(call: 1)
+        await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await request.value }
+        for _ in 0..<100 {
+            if await client.transportTaskCount() == 0 { break }
+            await Task.yield()
+        }
+        #expect(await client.transportTaskCount() == 0)
+    }
+
+    @Test("Credential rotation waits for old transport and resets only the new identity usage")
+    func rotationLifecycleOrderingAndQuotaIdentity() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite"))
+        let now = clock.now()
+        let providerEntry = try lifecycleCacheEntry(key: "rotation-keeps-cache", fetchedAt: now)
+        try await cache.store(providerEntry, authorization: .authorized)
+        let oldCredential = Data("synthetic-stage6-old-rotation".utf8)
+        let newCredentialText = "synthetic-stage6-new-rotation"
+        let store = LifecycleCredentialStore(value: oldCredential)
+        let transport = GenerationalHTTPTransport()
+        let gate = ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper())
+        let client = TwelveDataClient(
+            credentialStore: store,
+            transport: transport,
+            gate: gate,
+            clock: clock,
+            sleeper: RecordingProviderSleeper(),
+            jitter: ZeroRetryJitterSource(),
+            shutdownTimeoutMilliseconds: 1_000,
+            baseURL: URL(string: "https://synthetic-provider.invalid")!
+        )
+        let coordinator = ProviderCredentialCoordinator(
+            credentialStore: store,
+            provider: client,
+            cache: cache,
+            clock: clock
+        )
+        let oldRequest = Task { try await client.search(query: "rotation") }
+        await transport.waitForCallCount(1)
+
+        let rotation = Task { try await coordinator.save(newCredentialText) }
+        await transport.waitForCancellation(call: 1)
+        #expect(await store.currentValue() == oldCredential)
+        await #expect(throws: ProviderBoundaryError.cancelled) {
+            _ = try await client.search(query: "rotation-blocked")
+        }
+        #expect(await transport.callCount() == 1)
+
+        await transport.failCancelled(call: 1)
+        try await rotation.value
+        await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await oldRequest.value }
+        #expect(await store.currentValue() == Data(newCredentialText.utf8))
+        #expect(try await cache.lookup(
+            providerIdentifier: "twelve-data",
+            logicalKey: "rotation-keeps-cache",
+            dataType: .latestQuote,
+            now: now,
+            allowStale: true
+        ) != .missing)
+
+        let newRequest = Task { try await client.search(query: "rotation") }
+        await transport.waitForCallCount(2)
+        await transport.succeed(call: 2, response: response(
+            #"{"data":[{"symbol":"SYN-NEW","instrument_name":"Synthetic New Credential","mic_code":"XNAS","currency":"USD"}]}"#
+        ))
+        #expect(try await newRequest.value.first?.symbol == "SYN-NEW")
+        #expect(try await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
+        #expect(await transport.callCount() == 2)
+        #expect(await client.transportTaskCount() == 0)
+    }
+
+    @Test("A credential-store rotation failure leaves the old identity quiesced and unchanged")
+    func rotationStoreFailureRemainsSafe() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite"))
+        let oldCredential = Data("synthetic-stage6-old-store-failure".utf8)
+        let store = LifecycleCredentialStore(value: oldCredential, failStores: true)
+        let transport = GenerationalHTTPTransport()
+        let client = TwelveDataClient(
+            credentialStore: store,
+            transport: transport,
+            gate: ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper()),
+            clock: clock,
+            sleeper: RecordingProviderSleeper(),
+            jitter: ZeroRetryJitterSource(),
+            shutdownTimeoutMilliseconds: 1_000,
+            baseURL: URL(string: "https://synthetic-provider.invalid")!
+        )
+        let coordinator = ProviderCredentialCoordinator(
+            credentialStore: store,
+            provider: client,
+            cache: cache,
+            clock: clock
+        )
+
+        await #expect(throws: SyntheticLifecycleOrderingError.credentialStoreFailed) {
+            try await coordinator.save("synthetic-stage6-new-store-failure")
+        }
+        #expect(await store.currentValue() == oldCredential)
+        await #expect(throws: ProviderBoundaryError.cancelled) {
+            _ = try await client.search(query: "must-remain-quiesced")
+        }
+        #expect(await transport.callCount() == 0)
+        #expect(await client.transportTaskCount() == 0)
     }
 
     @Test("Request gate enforces concurrency two and rejects impossible credit weight")
@@ -670,11 +950,11 @@ struct MarketDataInfrastructureTests {
         let queued = Task { try await gate.execute(credits: 1) { 2 } }
         queued.cancel()
         await #expect(throws: CancellationError.self) { _ = try await queued.value }
-        #expect(await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
+        #expect(try await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
 
         first.cancel()
         await #expect(throws: CancellationError.self) { _ = try await first.value }
-        #expect(await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
+        #expect(try await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
 
         let startedOperation = BlockingGateOperation()
         let started = Task {
@@ -683,7 +963,7 @@ struct MarketDataInfrastructureTests {
         await startedOperation.waitUntilStarted()
         started.cancel()
         await #expect(throws: CancellationError.self) { _ = try await started.value }
-        #expect(await gate.currentCreditUsage() == (perMinute: 2, perDay: 2))
+        #expect(try await gate.currentCreditUsage() == (perMinute: 2, perDay: 2))
     }
 
     @Test("Provider usage can lower limits while unknown plan text cannot raise Basic defaults")
@@ -720,6 +1000,71 @@ struct MarketDataInfrastructureTests {
         #expect(paid.dailyLimit == .uncapped)
         #expect(await paidGate.currentLimits().perMinute == 55)
         #expect(await paidGate.currentLimits().perDay == nil)
+    }
+
+    @Test("Credential validation preserves every actual attempt in rolling credit usage")
+    func validationCreditUsageIsPreserved() async throws {
+        let basicBody = #"{"plan_name":"Basic","api_credits_per_minute":8,"daily_limit":800}"#
+        let transport = ScriptedHTTPTransport([
+            .response(status: 200, body: basicBody),
+            .response(status: 200, body: basicBody)
+        ])
+        let gate = ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper())
+        let client = try await makeClient(transport: transport, gate: gate)
+
+        _ = try await client.validateCredential()
+        #expect(try await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
+        _ = try await client.validateCredential()
+        #expect(try await gate.currentCreditUsage() == (perMinute: 2, perDay: 2))
+
+        let retryTransport = ScriptedHTTPTransport([
+            .response(status: 503, body: "{}"),
+            .response(status: 200, body: basicBody)
+        ])
+        let retrySleeper = RecordingProviderSleeper()
+        let retryGate = ProviderRequestGate(
+            minuteLimit: 8,
+            dailyLimit: 800,
+            clock: clock,
+            sleeper: retrySleeper
+        )
+        let retryClient = try await makeClient(
+            transport: retryTransport,
+            sleeper: retrySleeper,
+            gate: retryGate
+        )
+        _ = try await retryClient.validateCredential()
+        #expect(try await retryGate.currentCreditUsage() == (perMinute: 2, perDay: 2))
+        #expect(await retryTransport.requests().count == 2)
+    }
+
+    @Test("Paid uncapped daily quota preserves minute usage and stricter headers win")
+    func paidQuotaAndHeaderConservatism() async throws {
+        let paidTransport = ScriptedHTTPTransport([
+            .response(
+                status: 200,
+                body: #"{"plan_name":"Pro","api_credits_per_minute":55}"#
+            )
+        ])
+        let paidGate = ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper())
+        let paidClient = try await makeClient(transport: paidTransport, gate: paidGate)
+        let paid = try await paidClient.validateCredential()
+        #expect(paid.dailyLimit == .uncapped)
+        #expect(await paidGate.currentLimits() == (perMinute: 55, perDay: nil))
+        #expect(try await paidGate.currentCreditUsage() == (perMinute: 1, perDay: 1))
+
+        let headerTransport = ScriptedHTTPTransport([
+            .response(
+                status: 200,
+                body: #"{"plan_name":"Pro","api_credits_per_minute":55}"#,
+                headers: ["api-credits-used": "1", "api-credits-left": "3"]
+            )
+        ])
+        let headerGate = ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper())
+        let headerClient = try await makeClient(transport: headerTransport, gate: headerGate)
+        _ = try await headerClient.validateCredential()
+        #expect(await headerGate.currentLimits().perMinute == 4)
+        #expect(try await headerGate.currentCreditUsage() == (perMinute: 1, perDay: 1))
     }
 
     @Test("Plan, endpoint, and market live observations remain independent")
@@ -775,6 +1120,68 @@ struct MarketDataInfrastructureTests {
         }?.liveObservation == .notVerified)
 
         await client.credentialDidChange()
+        capabilities = await client.capabilities()
+        #expect(capabilities.markets.allSatisfy { $0.liveObservation == .notVerified })
+        #expect(capabilities.endpointCapabilities.allSatisfy {
+            $0.liveObservation == .notVerified
+        })
+    }
+
+    @Test("Endpoint and market observations retain simultaneous success and denial facts")
+    func mixedEndpointMarketObservations() async throws {
+        let usHistory = #"{"meta":{"currency":"USD","exchange_timezone":"America/New_York","mic_code":"XNAS"},"values":[{"datetime":"2026-01-14","open":"10","high":"12","low":"9","close":"11","volume":"1"}]}"#
+        let hongKongHistory = #"{"meta":{"currency":"HKD","exchange_timezone":"Asia/Hong_Kong","mic_code":"XHKG"},"values":[{"datetime":"2026-01-14","open":"10","high":"12","low":"9","close":"11","volume":"1"}]}"#
+        let transport = ScriptedHTTPTransport([
+            .response(status: 200, body: usHistory),
+            .response(status: 403, body: "{}"),
+            .response(status: 200, body: hongKongHistory)
+        ])
+        let client = try await makeClient(transport: transport, minuteLimit: 100)
+        let usRequest = try MarketHistoryRequest(
+            instrument: instrument(), interval: .oneDay, adjustment: .all, outputSize: 10
+        )
+        let hongKongInstrument = MarketInstrument(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000006002")!,
+            symbol: "SYN-HK",
+            mic: "XHKG",
+            currency: .hkd,
+            displayName: "Synthetic Hong Kong Instrument"
+        )
+        let hongKongRequest = try MarketHistoryRequest(
+            instrument: hongKongInstrument,
+            interval: .oneDay,
+            adjustment: .all,
+            outputSize: 10
+        )
+
+        _ = try await client.historicalBars(usRequest)
+        await #expect(throws: ProviderBoundaryError.unsupportedEntitlement) {
+            _ = try await client.historicalBars(hongKongRequest)
+        }
+        var capabilities = await client.capabilities()
+        #expect(capabilities.markets.first { $0.mic == "US" }?.liveObservation == .succeeded)
+        #expect(capabilities.markets.first { $0.mic == "US" }?.liveObservedMICs == ["XNAS"])
+        #expect(capabilities.markets.first { $0.mic == "XHKG" }?.liveObservation == .denied)
+        #expect(capabilities.markets.first { $0.mic == "XHKG" }?.liveObservedMICs == ["XHKG"])
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .historicalOHLCV
+        }?.liveObservation == .mixed)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .latestQuote
+        }?.liveObservation == .notVerified)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .symbolSearch
+        }?.liveObservation == .notVerified)
+
+        _ = try await client.historicalBars(hongKongRequest)
+        capabilities = await client.capabilities()
+        #expect(capabilities.markets.first { $0.mic == "US" }?.liveObservation == .succeeded)
+        #expect(capabilities.markets.first { $0.mic == "XHKG" }?.liveObservation == .succeeded)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .historicalOHLCV
+        }?.liveObservation == .succeeded)
+
+        try await client.disconnect()
         capabilities = await client.capabilities()
         #expect(capabilities.markets.allSatisfy { $0.liveObservation == .notVerified })
         #expect(capabilities.endpointCapabilities.allSatisfy {
@@ -947,6 +1354,56 @@ struct MarketDataInfrastructureTests {
         #expect(await headerGate.currentLimits().perMinute == 100)
     }
 
+    @Test("Rate windows handle negative time and reject unrepresentable Int64 boundaries")
+    func checkedRateWindowArithmetic() async throws {
+        let negativeClock = MutableProviderClock(milliseconds: -1)
+        let negativeSleeper = AdvancingProviderSleeper(clock: negativeClock)
+        let negativeGate = ProviderRequestGate(
+            minuteLimit: 1,
+            dailyLimit: 10,
+            clock: negativeClock,
+            sleeper: negativeSleeper
+        )
+        _ = try await negativeGate.execute(credits: 1) { 1 }
+        _ = try await negativeGate.execute(credits: 1) { 2 }
+        #expect(await negativeSleeper.delays() == [1])
+
+        let minimumGate = ProviderRequestGate(
+            minuteLimit: 1,
+            dailyLimit: 1,
+            clock: FixedClock(instant: UTCInstant(millisecondsSince1970: .min)),
+            sleeper: RecordingProviderSleeper()
+        )
+        await #expect(throws: ProviderBoundaryError.invalidTimeArithmetic) {
+            _ = try await minimumGate.execute(credits: 1) { 1 }
+        }
+        await #expect(throws: ProviderBoundaryError.invalidTimeArithmetic) {
+            _ = try await minimumGate.currentCreditUsage()
+        }
+
+        let maximumMinuteGate = ProviderRequestGate(
+            minuteLimit: 1,
+            dailyLimit: 10,
+            clock: FixedClock(instant: UTCInstant(millisecondsSince1970: .max)),
+            sleeper: RecordingProviderSleeper()
+        )
+        _ = try await maximumMinuteGate.execute(credits: 1) { 1 }
+        await #expect(throws: ProviderBoundaryError.invalidTimeArithmetic) {
+            _ = try await maximumMinuteGate.execute(credits: 1) { 2 }
+        }
+
+        let maximumDayGate = ProviderRequestGate(
+            minuteLimit: 10,
+            dailyLimit: 1,
+            clock: FixedClock(instant: UTCInstant(millisecondsSince1970: .max)),
+            sleeper: RecordingProviderSleeper()
+        )
+        _ = try await maximumDayGate.execute(credits: 1) { 1 }
+        await #expect(throws: ProviderBoundaryError.invalidTimeArithmetic) {
+            _ = try await maximumDayGate.execute(credits: 1) { 2 }
+        }
+    }
+
     private func makeClient(
         transport: any HTTPTransport,
         sleeper: any ProviderSleeper = RecordingProviderSleeper(),
@@ -992,5 +1449,20 @@ struct MarketDataInfrastructureTests {
         headers: [String: String] = [:]
     ) -> HTTPTransportResponse {
         HTTPTransportResponse(data: Data(body.utf8), statusCode: status, headers: headers)
+    }
+
+    private func lifecycleCacheEntry(
+        key: String,
+        fetchedAt: UTCInstant
+    ) throws -> MarketCacheEntry {
+        try MarketCacheEntry(
+            providerIdentifier: "twelve-data",
+            logicalKey: key,
+            dataType: .latestQuote,
+            payload: Data("synthetic-lifecycle-cache".utf8),
+            fetchedAt: fetchedAt,
+            entitlementContext: "synthetic-test",
+            freshness: .unknown
+        )
     }
 }
