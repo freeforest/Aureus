@@ -294,17 +294,15 @@ struct LedgerCSVTests {
         #expect(!preview.canImport)
     }
 
-    @Test("Atomic import rolls back every row on duplicate constraint")
+    @Test("Atomic import derives canonical fingerprints and rolls back a semantic duplicate batch")
     func atomicImportRollback() async throws {
         let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
         let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
         let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
-        let fingerprint = "synthetic-duplicate-fingerprint"
-        let firstBase = try context.entry(kind: .income)
-        let secondBase = try context.entry(kind: .expense)
-        func copy(_ entry: LedgerEntry) throws -> LedgerEntry { try LedgerEntry(id: entry.id, kind: entry.kind, civilDate: entry.civilDate, recordedAt: entry.recordedAt, description: entry.description, postings: entry.postings, importFingerprint: fingerprint) }
+        let first = try entryForFingerprint(context: context)
+        let second = try semanticCopy(first, id: UUID(), importFingerprint: "caller-stale-fingerprint")
         await #expect(throws: LedgerPersistenceError.duplicateFingerprint) {
-            try await store.importLedgerEntries([try copy(firstBase), try copy(secondBase)], batchID: UUID(), importedAt: context.instant)
+            try await store.importLedgerEntries([first, second], batchID: UUID(), importedAt: context.instant)
         }
         #expect(try await store.ledgerTransactionCount() == 0)
     }
@@ -341,19 +339,98 @@ struct LedgerCSVTests {
             categories: [], tags: [], rules: [], existingFingerprints: []
         )
         #expect(preview.canImport)
-        let fingerprint = try #require(preview.validEntries.first { $0.id == racing.id }?.importFingerprint)
-        let intervening = try LedgerEntry(
-            id: UUID(), kind: racing.kind, civilDate: racing.civilDate, recordedAt: racing.recordedAt,
-            description: racing.description, payee: racing.payee, category: racing.category,
-            tags: racing.tags, postings: racing.postings, note: racing.note,
-            importFingerprint: fingerprint
-        )
+        let intervening = try semanticCopy(racing, id: UUID())
         try await store.createLedgerEntry(intervening)
+        #expect(try await store.fetchLedgerEntries().first?.importFingerprint == nil)
         await #expect(throws: LedgerPersistenceError.duplicateFingerprint) {
             try await store.importLedgerEntries(preview.validEntries, batchID: UUID(), importedAt: context.instant)
         }
         #expect(try await store.ledgerTransactionCount() == 1)
         #expect(try await store.fetchLedgerEntries().map(\.id) == [intervening.id])
+    }
+
+    @Test("Preview includes manual entries whose persisted import fingerprint is nil")
+    func manualEntryParticipatesInPreviewDeduplication() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
+        let manual = try entryForFingerprint(context: context)
+        try await store.createLedgerEntry(manual)
+        let identities = try await store.existingImportIdentities()
+        #expect(identities.transactionIDs == Set([manual.id]))
+        #expect(identities.fingerprints == Set([try LedgerCSV.semanticFingerprint(for: manual)]))
+
+        let candidate = try semanticCopy(manual, id: UUID())
+        let preview = try LedgerCSV.preview(
+            data: LedgerCSV.export([candidate]),
+            containers: [context.source], categories: [], tags: [], rules: [],
+            existingFingerprints: identities.fingerprints,
+            existingTransactionIDs: identities.transactionIDs
+        )
+        #expect(preview.rows.first?.duplicateReasons == [.existingFingerprint])
+        #expect(!preview.canImport)
+        #expect(try await store.fetchLedgerEntries().first?.importFingerprint == nil)
+    }
+
+    @Test("An edited transaction with a cleared fingerprint still participates in Preview deduplication")
+    func editedEntryParticipatesInPreviewDeduplication() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
+        let imported = try entryForFingerprint(context: context, description: "Synthetic Before Edit")
+        try await store.importLedgerEntries([imported], batchID: UUID(), importedAt: context.instant)
+        #expect(try await store.fetchLedgerEntries().first?.importFingerprint != nil)
+
+        let editedBase = try entryForFingerprint(context: context, description: "Synthetic After Edit")
+        let edited = try semanticCopy(editedBase, id: imported.id)
+        try await store.updateLedgerEntry(edited)
+        #expect(try await store.fetchLedgerEntries().first?.importFingerprint == nil)
+
+        let identities = try await store.existingImportIdentities()
+        let candidate = try semanticCopy(edited, id: UUID())
+        let preview = try LedgerCSV.preview(
+            data: LedgerCSV.export([candidate]), containers: [context.source],
+            categories: [], tags: [], rules: [],
+            existingFingerprints: identities.fingerprints,
+            existingTransactionIDs: identities.transactionIDs
+        )
+        #expect(preview.rows.first?.duplicateReasons == [.existingFingerprint])
+        #expect(!preview.canImport)
+    }
+
+    @Test("Existing semantic duplicate groups are preserved and block another import")
+    func existingDuplicateGroupIsPreserved() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
+        let first = try entryForFingerprint(context: context)
+        let second = try semanticCopy(first, id: UUID())
+        try await store.createLedgerEntry(first)
+        try await store.createLedgerEntry(second)
+
+        let identities = try await store.existingImportIdentities()
+        #expect(identities.transactionIDs == Set([first.id, second.id]))
+        #expect(identities.fingerprints.count == 1)
+        let incoming = try semanticCopy(first, id: UUID(), importFingerprint: "untrusted-caller-value")
+        await #expect(throws: LedgerPersistenceError.duplicateFingerprint) {
+            try await store.importLedgerEntries([incoming], batchID: UUID(), importedAt: context.instant)
+        }
+        #expect(try await store.ledgerTransactionCount() == 2)
+        #expect(Set(try await store.fetchLedgerEntries().map(\.id)) == Set([first.id, second.id]))
+    }
+
+    @Test("Import persistence replaces a stale caller fingerprint with the canonical value")
+    func persistenceCanonicalizesIncomingFingerprint() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make(); try await store.createWealthContainer(context.source)
+        let base = try entryForFingerprint(context: context, description: "Synthetic Canonical Import")
+        let incoming = try semanticCopy(base, id: base.id, importFingerprint: "stale-caller-fingerprint")
+        let expected = try LedgerCSV.semanticFingerprint(for: incoming)
+        try await store.importLedgerEntries([incoming], batchID: UUID(), importedAt: context.instant)
+        let stored = try #require(try await store.fetchLedgerEntries().first)
+        #expect(stored.importFingerprint == expected)
+        #expect(stored.importFingerprint != "stale-caller-fingerprint")
     }
 
     private func entryForFingerprint(
@@ -385,6 +462,29 @@ struct LedgerCSVTests {
         var second = exported[1]
         set(&second, "transaction_id", UUID().uuidString)
         return [exported[0], exported[1], second]
+    }
+
+    private func semanticCopy(
+        _ entry: LedgerEntry,
+        id: UUID,
+        importFingerprint: String? = nil
+    ) throws -> LedgerEntry {
+        let postings = try entry.postings.map {
+            try LedgerPosting(role: $0.role, containerID: $0.containerID, valuation: $0.valuation)
+        }
+        return try LedgerEntry(
+            id: id,
+            kind: entry.kind,
+            civilDate: entry.civilDate,
+            recordedAt: entry.recordedAt,
+            description: entry.description,
+            payee: entry.payee,
+            category: entry.category,
+            tags: entry.tags,
+            postings: postings,
+            note: entry.note,
+            importFingerprint: importFingerprint
+        )
     }
 
     private func semanticPreview(

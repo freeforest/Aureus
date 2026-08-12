@@ -10,6 +10,8 @@ enum LedgerCSVError: Error, Equatable, Sendable, CustomStringConvertible {
     case unknownContainer(String)
     case unknownCategory(String)
     case unknownTag(String)
+    case ambiguousCategory(String)
+    case ambiguousTag(String)
     case convertedValueMismatch
 
     var description: String {
@@ -22,6 +24,8 @@ enum LedgerCSVError: Error, Equatable, Sendable, CustomStringConvertible {
         case .unknownContainer(let value): "Unknown container: \(value)."
         case .unknownCategory(let value): "Unknown category: \(value)."
         case .unknownTag(let value): "Unknown tag: \(value)."
+        case .ambiguousCategory(let value): "Ambiguous category: \(value). Multiple preserved categories match this name."
+        case .ambiguousTag(let value): "Ambiguous tag: \(value). Multiple preserved tags match this name."
         case .convertedValueMismatch: "Converted CNY does not match the amount and FX rate."
         }
     }
@@ -101,9 +105,12 @@ enum LedgerCSV {
         guard let text = String(data: data, encoding: .utf8) else { throw LedgerCSVError.invalidUTF8 }
         let records = try parseRecords(text)
         guard let first = records.first, first == header else { throw LedgerCSVError.invalidHeader }
-        let containerMap = Dictionary(uniqueKeysWithValues: containers.map { ($0.id.uuidString, $0) })
-        let categoryMap = Dictionary(uniqueKeysWithValues: categories.map { (try! LedgerNameNormalization.key($0.name), $0) })
-        let tagMap = Dictionary(uniqueKeysWithValues: tags.map { (try! LedgerNameNormalization.key($0.name), $0) })
+        let containerMap = Dictionary(
+            containers.map { ($0.id.uuidString, $0) },
+            uniquingKeysWith: { existing, _ in existing }
+        )
+        let categoryResolver = TaxonomyResolver(categories, name: \Category.name)
+        let tagResolver = TaxonomyResolver(tags, name: \Tag.name)
         var fileFingerprints = Set<String>()
         var fileTransactionIDs = Set<UUID>()
         var previewRows: [LedgerImportPreviewRow] = []
@@ -111,11 +118,11 @@ enum LedgerCSV {
             let line = offset + 2
             do {
                 guard fields.count == header.count else { throw LedgerCSVError.malformedCSV("row \(line) has \(fields.count) columns") }
-                let dictionary = Dictionary(uniqueKeysWithValues: zip(header, fields))
+                let dictionary = Dictionary(zip(header, fields), uniquingKeysWith: { existing, _ in existing })
                 guard dictionary["schema_version"] == schemaVersion else { throw LedgerCSVError.unsupportedSchema(dictionary["schema_version"] ?? "") }
                 let parsed = try importedEntry(
-                    dictionary, containers: containerMap, categories: categoryMap,
-                    tags: tagMap, rules: rules
+                    dictionary, containers: containerMap, categories: categoryResolver,
+                    tags: tagResolver, rules: rules
                 )
                 let fingerprint = try semanticFingerprint(for: parsed.entry)
                 let entry = try LedgerEntry(
@@ -155,8 +162,8 @@ enum LedgerCSV {
     private static func importedEntry(
         _ fields: [String: String],
         containers: [String: WealthContainer],
-        categories: [String: Category],
-        tags: [String: Tag],
+        categories: TaxonomyResolver<Category>,
+        tags: TaxonomyResolver<Tag>,
         rules: [ClassificationRule]
     ) throws -> (entry: LedgerEntry, ruleApplication: LedgerImportRuleApplication?) {
         guard let id = UUID(uuidString: fields["transaction_id"] ?? ""),
@@ -171,15 +178,21 @@ enum LedgerCSV {
         var category: Category?
         let categoryText = unprotect(fields["category"] ?? "")
         if !categoryText.isEmpty {
-            guard let match = categories[try LedgerNameNormalization.key(categoryText)] else { throw LedgerCSVError.unknownCategory(categoryText) }
-            category = match
+            switch categories.resolve(categoryText) {
+            case .unique(let match): category = match
+            case .ambiguous: throw LedgerCSVError.ambiguousCategory(categoryText)
+            case .missing: throw LedgerCSVError.unknownCategory(categoryText)
+            }
         }
         var entryTags: [Tag] = []
         if let tagText = fields["tags"], !tagText.isEmpty {
             let names = try JSONDecoder().decode([String].self, from: Data(tagText.utf8)).map(unprotect)
             entryTags = try names.map { name in
-                guard let match = tags[try LedgerNameNormalization.key(name)] else { throw LedgerCSVError.unknownTag(name) }
-                return match
+                switch tags.resolve(name) {
+                case .unique(let match): return match
+                case .ambiguous: throw LedgerCSVError.ambiguousTag(name)
+                case .missing: throw LedgerCSVError.unknownTag(name)
+                }
             }
         }
         let description = unprotect(fields["description"] ?? "")
@@ -289,6 +302,42 @@ enum LedgerCSV {
 
     private static func quote(_ value: String) -> String {
         "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    private enum TaxonomyResolution<Value> {
+        case unique(Value)
+        case ambiguous
+        case missing
+    }
+
+    private struct TaxonomyResolver<Value> {
+        private let exact: [String: [Value]]
+        private let normalized: [String: [Value]]
+
+        init(_ values: [Value], name: KeyPath<Value, String>) {
+            var exact: [String: [Value]] = [:]
+            var normalized: [String: [Value]] = [:]
+            for value in values {
+                let displayName = value[keyPath: name]
+                exact[displayName.precomposedStringWithCanonicalMapping, default: []].append(value)
+                if let key = try? LedgerNameNormalization.key(displayName) {
+                    normalized[key, default: []].append(value)
+                }
+            }
+            self.exact = exact
+            self.normalized = normalized
+        }
+
+        func resolve(_ raw: String) -> TaxonomyResolution<Value> {
+            let exactMatches = exact[raw.precomposedStringWithCanonicalMapping] ?? []
+            if exactMatches.count == 1 { return .unique(exactMatches[0]) }
+            if exactMatches.count > 1 { return .ambiguous }
+            guard let key = try? LedgerNameNormalization.key(raw) else { return .missing }
+            let normalizedMatches = normalized[key] ?? []
+            if normalizedMatches.count == 1 { return .unique(normalizedMatches[0]) }
+            if normalizedMatches.count > 1 { return .ambiguous }
+            return .missing
+        }
     }
 
     static func semanticFingerprint(for entry: LedgerEntry) throws -> String {

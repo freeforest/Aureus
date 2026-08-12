@@ -184,41 +184,32 @@ extension WealthStore {
 
     func existingImportFingerprints() throws -> Set<String> {
         try queue.read { db in
-            Set(try String.fetchAll(db, sql: "SELECT import_fingerprint FROM ledger_transactions WHERE import_fingerprint IS NOT NULL"))
+            try Self.canonicalImportIdentities(in: db).fingerprints
         }
     }
 
     func existingImportIdentities() throws -> LedgerImportIdentities {
         try queue.read { db in
-            let ids = Set(try String.fetchAll(db, sql: "SELECT id FROM ledger_transactions").compactMap(UUID.init(uuidString:)))
-            let fingerprints = Set(try String.fetchAll(
-                db,
-                sql: "SELECT import_fingerprint FROM ledger_transactions WHERE import_fingerprint IS NOT NULL"
-            ))
-            return LedgerImportIdentities(transactionIDs: ids, fingerprints: fingerprints)
+            try Self.canonicalImportIdentities(in: db)
         }
     }
 
     func importLedgerEntries(_ entries: [LedgerEntry], batchID: UUID, importedAt: UTCInstant) throws {
         try queue.write { db in
             guard !entries.isEmpty else { return }
-            for entry in entries {
-                if try Int.fetchOne(
-                    db,
-                    sql: "SELECT COUNT(*) FROM ledger_transactions WHERE id = ?",
-                    arguments: [entry.id.uuidString]
-                ) == 1 {
+            let existing = try Self.canonicalImportIdentities(in: db)
+            var transactionIDs = existing.transactionIDs
+            var fingerprints = existing.fingerprints
+            for incoming in entries {
+                guard transactionIDs.insert(incoming.id).inserted else {
                     throw LedgerPersistenceError.duplicateTransactionID
                 }
-                if let fingerprint = entry.importFingerprint,
-                   try Int.fetchOne(
-                       db,
-                       sql: "SELECT COUNT(*) FROM ledger_transactions WHERE import_fingerprint = ?",
-                       arguments: [fingerprint]
-                   ) == 1 {
+                let fingerprint = try LedgerCSV.semanticFingerprint(for: incoming)
+                guard fingerprints.insert(fingerprint).inserted else {
                     throw LedgerPersistenceError.duplicateFingerprint
                 }
-                try Self.insertLedgerEntry(entry, in: db)
+                let canonical = try Self.importEntry(incoming, fingerprint: fingerprint)
+                try Self.insertLedgerEntry(canonical, in: db)
             }
             try db.execute(
                 sql: "INSERT INTO ledger_import_batches (id, schema_version, imported_at_ms, transaction_count) VALUES (?, 'AUREUS_LEDGER_V1', ?, ?)",
@@ -391,6 +382,30 @@ extension WealthStore {
         }
     }
 
+    private static func canonicalImportIdentities(in db: Database) throws -> LedgerImportIdentities {
+        let entries = try fetchLedgerEntries(in: db)
+        return LedgerImportIdentities(
+            transactionIDs: Set(entries.map(\.id)),
+            fingerprints: Set(try entries.map { try LedgerCSV.semanticFingerprint(for: $0) })
+        )
+    }
+
+    private static func importEntry(_ entry: LedgerEntry, fingerprint: String) throws -> LedgerEntry {
+        try LedgerEntry(
+            id: entry.id,
+            kind: entry.kind,
+            civilDate: entry.civilDate,
+            recordedAt: entry.recordedAt,
+            description: entry.description,
+            payee: entry.payee,
+            category: entry.category,
+            tags: entry.tags,
+            postings: entry.postings,
+            note: entry.note,
+            importFingerprint: fingerprint
+        )
+    }
+
     private static func insertClassificationRule(_ rule: ClassificationRule, in db: Database) throws {
         try ClassificationRuleRow(
             id: rule.id.uuidString,
@@ -414,13 +429,13 @@ extension WealthStore {
 
     fileprivate static func fetchLedgerEntries(in db: Database) throws -> [LedgerEntry] {
         let rows = try LedgerTransactionRow.fetchAll(db, sql: "SELECT * FROM ledger_transactions ORDER BY civil_date DESC, recorded_at_ms DESC, id")
-        let categories = Dictionary(uniqueKeysWithValues: try Row.fetchAll(db, sql: "SELECT id, parent_id, name FROM categories").compactMap { row -> (String, Category)? in
-            guard let id = UUID(uuidString: row["id"]) else { return nil }
+        let categories = Dictionary(uniqueKeysWithValues: try Row.fetchAll(db, sql: "SELECT id, parent_id, name FROM categories").map { row -> (String, Category) in
+            guard let id = UUID(uuidString: row["id"]) else { throw LedgerPersistenceError.corruptRecord }
             let rawParent: String? = row["parent_id"]
             return (row["id"], Category(id: id, parentID: rawParent.flatMap(UUID.init(uuidString:)), name: row["name"]))
         })
-        let tags = Dictionary(uniqueKeysWithValues: try Row.fetchAll(db, sql: "SELECT id, name FROM tags").compactMap { row -> (String, Tag)? in
-            guard let id = UUID(uuidString: row["id"]) else { return nil }
+        let tags = Dictionary(uniqueKeysWithValues: try Row.fetchAll(db, sql: "SELECT id, name FROM tags").map { row -> (String, Tag) in
+            guard let id = UUID(uuidString: row["id"]) else { throw LedgerPersistenceError.corruptRecord }
             return (row["id"], Tag(id: id, name: row["name"]))
         })
         return try rows.map { row in
@@ -428,12 +443,22 @@ extension WealthStore {
                   let kind = TransactionKind(rawValue: row.kind),
                   let date = try? CivilDate(canonical: row.civilDate) else { throw LedgerPersistenceError.corruptRecord }
             let postings = try LedgerPostingRow.fetchAll(db, sql: "SELECT * FROM ledger_postings WHERE transaction_id = ? ORDER BY role", arguments: [row.id]).map { try $0.domain() }
-            let linkedTags = try String.fetchAll(db, sql: "SELECT tag_id FROM ledger_transaction_tags WHERE transaction_id = ? ORDER BY tag_id", arguments: [row.id]).compactMap { tags[$0] }
+            let linkedTags = try String.fetchAll(db, sql: "SELECT tag_id FROM ledger_transaction_tags WHERE transaction_id = ? ORDER BY tag_id", arguments: [row.id]).map { tagID in
+                guard let tag = tags[tagID] else { throw LedgerPersistenceError.corruptRecord }
+                return tag
+            }
+            let category: Category?
+            if let categoryID = row.categoryID {
+                guard let storedCategory = categories[categoryID] else { throw LedgerPersistenceError.corruptRecord }
+                category = storedCategory
+            } else {
+                category = nil
+            }
             return try LedgerEntry(
                 id: id, kind: kind, civilDate: date,
                 recordedAt: UTCInstant(millisecondsSince1970: row.recordedAtMS),
                 description: row.description, payee: row.payee,
-                category: row.categoryID.flatMap { categories[$0] }, tags: linkedTags,
+                category: category, tags: linkedTags,
                 postings: postings, note: row.note, importFingerprint: row.importFingerprint
             )
         }

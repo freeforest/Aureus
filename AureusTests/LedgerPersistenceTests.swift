@@ -256,6 +256,157 @@ struct LedgerPersistenceTests {
         #expect(evidence.11 == firstNormalizedState.1)
     }
 
+    @Test("Migrated taxonomy collisions resolve safely through production fetch and CSV Preview")
+    func migratedTaxonomyCollisionPreviewSafety() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("taxonomy-preview/aureus.sqlite")
+        let queue = try DatabaseQueueFactory.open(at: url)
+        let migrator = DatabaseMigrations.permanentMigrator()
+        try migrator.migrate(queue, upTo: DatabaseMigrations.permanentV2)
+
+        let categoryRows: [(String, String, String?)] = [
+            ("71000000-0000-4000-8000-000000000001", "Synthetic Café", nil),
+            ("71000000-0000-4000-8000-000000000002", "synthetic cafe", nil),
+            ("71000000-0000-4000-8000-000000000003", "Synthetic  Space", nil),
+            ("71000000-0000-4000-8000-000000000004", " synthetic space ", nil),
+            ("71000000-0000-4000-8000-000000000005", "Synthetic Exact Duplicate", nil),
+            ("71000000-0000-4000-8000-000000000006", "Synthetic Exact Duplicate", nil),
+            ("71000000-0000-4000-8000-000000000007", "   ", nil),
+            ("71000000-0000-4000-8000-000000000008", "Synthetic Child", "71000000-0000-4000-8000-000000000001"),
+            ("71000000-0000-4000-8000-000000000009", "Synthetic Legal", nil)
+        ]
+        let tagRows: [(String, String)] = [
+            ("72000000-0000-4000-8000-000000000001", "Synthetic Café Tag"),
+            ("72000000-0000-4000-8000-000000000002", "synthetic cafe tag"),
+            ("72000000-0000-4000-8000-000000000003", "Synthetic  Space Tag"),
+            ("72000000-0000-4000-8000-000000000004", " synthetic space tag "),
+            ("72000000-0000-4000-8000-000000000005", "Synthetic Exact Café"),
+            ("72000000-0000-4000-8000-000000000006", "Synthetic Exact Cafe\u{301}"),
+            ("72000000-0000-4000-8000-000000000007", "   "),
+            ("72000000-0000-4000-8000-000000000008", "Synthetic Legal Tag")
+        ]
+        try await queue.write { db in
+            try db.execute(sql: "INSERT INTO accounts (id, name, kind, currency_code) VALUES ('taxonomy-account', 'Synthetic Taxonomy Account', 'cash', 'CNY')")
+            try db.execute(sql: "INSERT INTO wealth_transactions (id, account_id, civil_date, amount_minor, currency_code, type) VALUES ('taxonomy-transaction', 'taxonomy-account', '2026-01-01', 100, 'CNY', 'expense')")
+            for (id, name, parentID) in categoryRows {
+                try db.execute(
+                    sql: "INSERT INTO categories (id, parent_id, name) VALUES (?, ?, ?)",
+                    arguments: [id, parentID, name]
+                )
+            }
+            for (id, name) in tagRows {
+                try db.execute(sql: "INSERT INTO tags (id, name) VALUES (?, ?)", arguments: [id, name])
+            }
+            try db.execute(
+                sql: "INSERT INTO transaction_tags (transaction_id, tag_id) VALUES ('taxonomy-transaction', ?)",
+                arguments: [tagRows[0].0]
+            )
+        }
+        try migrator.migrate(queue)
+        let store = try WealthStore(databaseURL: url)
+        let categories = try await store.fetchCategories()
+        let tags = try await store.fetchTags()
+        let context = try LedgerTestContext.make()
+
+        func category(_ id: String) throws -> Aureus.Category {
+            try #require(categories.first { $0.id.uuidString.lowercased() == id.lowercased() })
+        }
+        func tag(_ id: String) throws -> Aureus.Tag {
+            try #require(tags.first { $0.id.uuidString.lowercased() == id.lowercased() })
+        }
+        func entry(category: Aureus.Category?, tags: [Aureus.Tag], description: String) throws -> LedgerEntry {
+            let base = try context.entry(kind: .expense, description: description)
+            return try LedgerEntry(
+                id: base.id, kind: base.kind, civilDate: base.civilDate, recordedAt: base.recordedAt,
+                description: base.description, category: category, tags: tags, postings: base.postings
+            )
+        }
+        func preview(_ data: Data) throws -> LedgerImportPreview {
+            try LedgerCSV.preview(
+                data: data, containers: [context.source], categories: categories, tags: tags,
+                rules: [], existingFingerprints: []
+            )
+        }
+        func csv(category categoryName: String = "", tags tagNames: [String] = []) throws -> Data {
+            var records = try LedgerCSV.parseRecords(String(decoding: LedgerCSV.export([
+                try context.entry(kind: .expense, description: "Synthetic Resolver Input")
+            ]), as: UTF8.self))
+            records[1][try #require(LedgerCSV.header.firstIndex(of: "category"))] = categoryName
+            records[1][try #require(LedgerCSV.header.firstIndex(of: "tags"))] = String(
+                decoding: try JSONEncoder().encode(tagNames), as: UTF8.self
+            )
+            return encodedLedgerCSV(records)
+        }
+
+        let exactCategory = try category(categoryRows[0].0)
+        let exactTag = try tag(tagRows[0].0)
+        let exactRoundTrip = try preview(LedgerCSV.export([
+            try entry(category: exactCategory, tags: [exactTag], description: "Synthetic Exact Round Trip")
+        ]))
+        #expect(exactRoundTrip.canImport)
+        #expect(exactRoundTrip.validEntries.first?.category?.id == exactCategory.id)
+        #expect(exactRoundTrip.validEntries.first?.tags.map(\.id) == [exactTag.id])
+
+        let normalizedCategory = try preview(csv(category: "SYNTHETIC CAFE"))
+        #expect(normalizedCategory.rows.first?.error == LedgerCSVError.ambiguousCategory("SYNTHETIC CAFE").description)
+        #expect(!normalizedCategory.canImport)
+        let exactDuplicateCategory = try preview(csv(category: "Synthetic Exact Duplicate"))
+        #expect(exactDuplicateCategory.rows.first?.error == LedgerCSVError.ambiguousCategory("Synthetic Exact Duplicate").description)
+        #expect(!exactDuplicateCategory.canImport)
+
+        let normalizedTag = try preview(csv(tags: ["SYNTHETIC CAFE TAG"]))
+        #expect(normalizedTag.rows.first?.error == LedgerCSVError.ambiguousTag("SYNTHETIC CAFE TAG").description)
+        #expect(!normalizedTag.canImport)
+        let exactDuplicateTag = try preview(csv(tags: ["Synthetic Exact Café"]))
+        #expect(exactDuplicateTag.rows.first?.error == LedgerCSVError.ambiguousTag("Synthetic Exact Café").description)
+        #expect(!exactDuplicateTag.canImport)
+
+        let legacyInvalid = try preview(LedgerCSV.export([
+            try entry(
+                category: try category(categoryRows[6].0),
+                tags: [try tag(tagRows[6].0)],
+                description: "Synthetic Invalid Legacy Name Round Trip"
+            )
+        ]))
+        #expect(legacyInvalid.canImport)
+        #expect(legacyInvalid.validEntries.first?.category?.id == UUID(uuidString: categoryRows[6].0))
+        #expect(legacyInvalid.validEntries.first?.tags.first?.id == UUID(uuidString: tagRows[6].0))
+
+        let legal = try preview(LedgerCSV.export([
+            try entry(
+                category: try category(categoryRows[8].0),
+                tags: [try tag(tagRows[7].0)],
+                description: "Synthetic Unreferenced Collision Isolation"
+            )
+        ]))
+        #expect(legal.canImport)
+        #expect(legal.errorCount == 0)
+
+        let preserved = try await queue.read { db in (
+            try Row.fetchAll(db, sql: "SELECT id, name, parent_id FROM categories ORDER BY id").map { row in
+                let id: String = row["id"]
+                let name: String = row["name"]
+                let parent: String? = row["parent_id"]
+                return "\(id)|\(name)|\(parent ?? "nil")"
+            },
+            try Row.fetchAll(db, sql: "SELECT id, name FROM tags ORDER BY id").map { row in
+                let id: String = row["id"]
+                let name: String = row["name"]
+                return "\(id)|\(name)"
+            },
+            try String.fetchOne(db, sql: "SELECT tag_id FROM transaction_tags WHERE transaction_id = 'taxonomy-transaction'"),
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM categories"),
+            try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT normalized_name) FROM categories"),
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM tags"),
+            try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT normalized_name) FROM tags")
+        ) }
+        #expect(preserved.0 == categoryRows.map { "\($0.0)|\($0.1)|\($0.2 ?? "nil")" })
+        #expect(preserved.1 == tagRows.map { "\($0.0)|\($0.1)" })
+        #expect(preserved.2 == tagRows[0].0)
+        #expect(preserved.3 == preserved.4)
+        #expect(preserved.5 == preserved.6)
+    }
+
     @Test("v3 candidate semantic fingerprint repair preserves colliding transactions")
     func candidateFingerprintRepairMigration() throws {
         let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
@@ -344,4 +495,11 @@ struct LedgerPersistenceTests {
         #expect(try await wealth.fetchWealthContainer(id: context.source.id) != nil)
         #expect(try await cache.cachedRowCount() == 0)
     }
+}
+
+private func encodedLedgerCSV(_ records: [[String]]) -> Data {
+    let text = records.map { record in
+        record.map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }.joined(separator: ",")
+    }.joined(separator: "\r\n") + "\r\n"
+    return Data(text.utf8)
 }
