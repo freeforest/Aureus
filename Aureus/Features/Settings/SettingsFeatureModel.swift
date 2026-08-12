@@ -155,9 +155,12 @@ final class SettingsFeatureModel {
         errorMessage = nil
         defer { isWorking = false }
         do {
-            let bytes = Int64(selectedMaximumMiB) * CachePolicyConfiguration.mebibyte
-            try await cache.updateMaximumBytes(bytes)
-            statusMessage = "Market Cache capacity updated to \(selectedMaximumMiB) MiB."
+            let product = Int64(selectedMaximumMiB).multipliedReportingOverflow(
+                by: CachePolicyConfiguration.mebibyte
+            )
+            guard !product.overflow else { throw CachePolicyError.overflow }
+            let result = try await cache.updateMaximumBytes(product.partialValue, now: clock.now())
+            statusMessage = "Market Cache capacity updated to \(selectedMaximumMiB) MiB; removed \(result.removedEntries) recoverable entries (\(result.removedBytes) bytes)."
             try await refreshCacheStatistics()
         } catch {
             errorMessage = safeMessage(for: error)

@@ -36,6 +36,7 @@ struct SettingsView: View {
                 .padding(24)
                 .frame(maxWidth: 900, alignment: .leading)
             }
+            .accessibilityIdentifier("settings.content")
         }
         .task { await model.load() }
         .confirmationDialog(
@@ -74,7 +75,6 @@ struct SettingsView: View {
         } message: {
             Text("This closes, deletes, recreates, and migrates only the Market Cache database and sidecars. It cannot access the Permanent Wealth Store.")
         }
-        .accessibilityIdentifier("settings.content")
     }
 
     private var settingsBanner: some View {
@@ -83,14 +83,14 @@ struct SettingsView: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Settings" : "Local Provider Settings")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 6 Infrastructure Candidate")
+            Text("Stage 6B Repair Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.mode")
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(.bar)
-        .accessibilityIdentifier("settings.mode")
     }
 
     private var providerSection: some View {
@@ -172,16 +172,32 @@ struct SettingsView: View {
                     .font(.headline)
                 ForEach(["US", "XHKG", "XSHG", "XSHE", "XJPX"], id: \.self) { mic in
                     let capability = model.capability(for: mic)
+                    let minimum = capability?.minimumEntitlement.rawValue ?? "unknown"
+                    let catalog = capability?.catalogEvidence.rawValue ?? "notVerified"
+                    let live = capability?.liveObservation.rawValue ?? "notVerified"
+                    let freshness = capability?.freshness.rawValue ?? "unknown"
+                    let observedMICs = capability?.liveObservedMICs ?? []
                     HStack {
                         Text(mic).monospaced().frame(width: 70, alignment: .leading)
-                        Text(capability?.observedEntitlement.rawValue ?? "unknown")
-                        Text(capability?.freshness.rawValue ?? "unknown")
-                            .foregroundStyle(.secondary)
+                        Text("Plan minimum: \(minimum)")
+                        Text("Catalog: \(catalog)")
+                        Text("Live: \(live)")
+                        if !observedMICs.isEmpty {
+                            Text(observedMICs.joined(separator: ", "))
+                                .monospaced()
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
-                        Text(capability?.evidenceStatus ?? "NOT VERIFIED")
+                        Text("Freshness: \(freshness)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "\(mic). Plan minimum: \(minimum). Catalog: \(catalog). Live: \(live). "
+                            + (observedMICs.isEmpty ? "" : "Observed MICs: \(observedMICs.joined(separator: ", ")). ")
+                            + "Freshness: \(freshness)."
+                    )
                     .accessibilityIdentifier("settings.provider.market.\(mic.lowercased())")
                 }
 
@@ -195,10 +211,18 @@ struct SettingsView: View {
                         Text("\(endpoint.creditWeight) credits")
                         Text(endpoint.minimumPlanName)
                         Spacer()
-                        Text(endpoint.catalogEvidence.rawValue)
+                        Text("Catalog: \(endpoint.catalogEvidence.rawValue)")
+                        Text("Live: \(endpoint.liveObservation.rawValue)")
                             .foregroundStyle(.secondary)
                     }
                     .font(.caption)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "\(endpoint.endpoint.rawValue). \(endpoint.creditWeight) credits. "
+                            + "Minimum plan: \(endpoint.minimumPlanName). "
+                            + "Catalog: \(endpoint.catalogEvidence.rawValue). "
+                            + "Live: \(endpoint.liveObservation.rawValue)."
+                    )
                     .accessibilityIdentifier(
                         "settings.provider.endpoint.\(endpoint.endpoint.rawValue)"
                     )
@@ -227,6 +251,14 @@ struct SettingsView: View {
                         GridRow { Text("Oldest entry"); Text(statistics.oldestEntry.map { String($0.millisecondsSince1970) } ?? "None") }
                         GridRow { Text("Last cleanup"); Text(statistics.lastCleanupResult ?? "Not run") }
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "Market Cache. Current usage \(byteString(statistics.currentBytes)). "
+                            + "Capacity \(byteString(statistics.maximumBytes)). "
+                            + "Usage \(statistics.percentageBasisPoints / 100) percent. "
+                            + "Entries \(statistics.entryCount). "
+                            + "Last cleanup \(statistics.lastCleanupResult ?? "Not run")."
+                    )
                     .accessibilityIdentifier("settings.cache.summary")
 
                     ForEach(statistics.providerBreakdown) { provider in

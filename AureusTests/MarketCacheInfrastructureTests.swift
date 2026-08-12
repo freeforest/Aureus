@@ -13,6 +13,7 @@ enum CacheIsolationOperation: String, CaseIterable, Sendable {
     case credentialDelete
     case disconnect
     case confirmedTermination
+    case capacityChange
     case reset
 }
 
@@ -219,6 +220,14 @@ struct MarketCacheInfrastructureTests {
             providerIdentifier: "synthetic.provider", logicalKey: "absent",
             dataType: .latestQuote, now: now, allowStale: true
         ) == .missing)
+        let unknown = try makeEntry(
+            key: "unknown-freshness", type: .latestQuote, freshness: .unknown
+        )
+        try await cache.store(unknown, authorization: .authorized)
+        #expect(try await cache.lookup(
+            providerIdentifier: "synthetic.provider", logicalKey: "unknown-freshness",
+            dataType: .latestQuote, now: now, allowStale: false
+        ) == .fresh(unknown))
     }
 
     @Test("Unverified retention rejects persistent Twelve data without replacing old cache")
@@ -353,6 +362,164 @@ struct MarketCacheInfrastructureTests {
         ))
     }
 
+    @Test("Capacity reduction atomically converges mixed legacy and current cache and persists")
+    func capacityReductionMixedCache() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("cache.sqlite")
+        let initial = try CachePolicyConfiguration.testing(maximumBytes: 2_000)
+        let cache = try MarketCacheStore(databaseURL: url, policy: initial)
+        let expiredFetch = UTCInstant(
+            millisecondsSince1970: now.millisecondsSince1970
+                - MarketCacheDataType.derivedIndicator.timeToLiveMilliseconds - 1
+        )
+        try await cache.store(
+            makeEntry(key: "expired-derived", type: .derivedIndicator, fetchedAt: expiredFetch, payloadSize: 200),
+            authorization: .authorized
+        )
+        try await cache.store(
+            makeEntry(key: "fresh-quote", type: .latestQuote, payloadSize: 200),
+            authorization: .authorized
+        )
+        try await cache.store(
+            makeEntry(key: "fresh-history", payloadSize: 300),
+            authorization: .authorized
+        )
+        let inspection = try DatabaseQueueFactory.open(at: url)
+        try await inspection.write { db in
+            try db.execute(sql: """
+                INSERT INTO cached_instruments (
+                    id, symbol, mic, currency_code, display_name, provider_identifier,
+                    fetched_at_ms, expires_at_ms, last_accessed_at_ms, byte_size
+                ) VALUES ('legacy-capacity-instrument', 'SYN-CAP', 'XSYN', 'CNY',
+                    'Synthetic Capacity Legacy', 'synthetic.legacy', ?, ?, ?, 200)
+                """, arguments: [
+                    now.millisecondsSince1970,
+                    now.millisecondsSince1970 + 1_000_000,
+                    now.millisecondsSince1970
+                ])
+            try db.execute(sql: """
+                INSERT INTO cached_prices (
+                    id, instrument_id, session_date, open_coefficient, high_coefficient,
+                    low_coefficient, close_coefficient, volume_coefficient,
+                    quote_currency_code, provider_identifier, fetched_at_ms,
+                    expires_at_ms, last_accessed_at_ms, byte_size
+                ) VALUES ('legacy-capacity-price', 'legacy-capacity-instrument', '2026-01-14',
+                    1, 1, 1, 1, 1, 'CNY', 'synthetic.legacy', ?, ?, ?, 300)
+                """, arguments: [
+                    now.millisecondsSince1970 - 2_000,
+                    now.millisecondsSince1970 - 1,
+                    now.millisecondsSince1970 - 2_000
+                ])
+        }
+        try inspection.close()
+
+        #expect(try await cache.automaticCleanupIsDue(reason: .periodic, now: now))
+        #expect(try await cache.automaticCleanupIsDue(reason: .background, now: now))
+        let result = try await cache.updateMaximumBytes(1_000, now: now)
+        #expect(result.reason == .capacityChange)
+        #expect(result.removedEntries == 2)
+        #expect(result.removedBytes == 500)
+        #expect(result.remainingBytes <= 800)
+        #expect(try await cache.automaticCleanupIsDue(reason: .periodic, now: now))
+        #expect(try await cache.automaticCleanupIsDue(reason: .background, now: now))
+        #expect(try await cache.lookup(
+            providerIdentifier: "synthetic.provider", logicalKey: "expired-derived",
+            dataType: .derivedIndicator, now: now, allowStale: true
+        ) == .missing)
+
+        let post = try DatabaseQueueFactory.open(at: url)
+        let legacyCounts = try await post.read { db in
+            (
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cached_instruments") ?? -1,
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cached_prices") ?? -1
+            )
+        }
+        try post.close()
+        #expect(legacyCounts == (1, 0))
+        #expect(try await cache.statistics().lastCleanupResult?.contains("capacityChange") == true)
+
+        let reopened = try MarketCacheStore(databaseURL: url, policy: initial)
+        #expect(try await reopened.statistics().maximumBytes == 1_000)
+        #expect(try await reopened.statistics().currentBytes <= 800)
+    }
+
+    @Test("Capacity reduction uses expired then priority then LRU order")
+    func capacityReductionOrdering() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try MarketCacheStore(
+            databaseURL: root.appendingPathComponent("cache.sqlite"),
+            policy: try .testing(maximumBytes: 2_000)
+        )
+        let expiredHistory = UTCInstant(
+            millisecondsSince1970: now.millisecondsSince1970
+                - MarketCacheDataType.eodHistorical.timeToLiveMilliseconds - 1
+        )
+        let oldQuote = UTCInstant(millisecondsSince1970: now.millisecondsSince1970 - 300_000)
+        try await cache.store(makeEntry(key: "expired-history", fetchedAt: expiredHistory, payloadSize: 100), authorization: .authorized)
+        try await cache.store(makeEntry(key: "derived", type: .derivedIndicator, payloadSize: 100), authorization: .authorized)
+        try await cache.store(makeEntry(key: "old-quote", type: .latestQuote, fetchedAt: oldQuote, payloadSize: 100), authorization: .authorized)
+        try await cache.store(makeEntry(key: "new-quote", type: .latestQuote, payloadSize: 400), authorization: .authorized)
+        try await cache.store(makeEntry(key: "history", payloadSize: 400), authorization: .authorized)
+
+        let result = try await cache.updateMaximumBytes(1_000, now: now)
+        #expect(result.removedEntries == 3)
+        #expect(result.remainingBytes == 800)
+        for (key, type) in [
+            ("expired-history", MarketCacheDataType.eodHistorical),
+            ("derived", .derivedIndicator),
+            ("old-quote", .latestQuote)
+        ] {
+            #expect(try await cache.lookup(
+                providerIdentifier: "synthetic.provider", logicalKey: key,
+                dataType: type, now: now, allowStale: true
+            ) == .missing)
+        }
+        #expect(try await cache.lookup(
+            providerIdentifier: "synthetic.provider", logicalKey: "new-quote",
+            dataType: .latestQuote, now: now, allowStale: true
+        ) != .missing)
+        #expect(try await cache.lookup(
+            providerIdentifier: "synthetic.provider", logicalKey: "history",
+            dataType: .eodHistorical, now: now, allowStale: true
+        ) != .missing)
+    }
+
+    @Test("Capacity change failure rolls configuration and cache rows back")
+    func capacityReductionRollback() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("cache.sqlite")
+        let cache = try MarketCacheStore(
+            databaseURL: url,
+            policy: try .testing(maximumBytes: 2_000)
+        )
+        try await cache.store(makeEntry(key: "rollback-a", payloadSize: 600), authorization: .authorized)
+        try await cache.store(makeEntry(key: "rollback-b", payloadSize: 600), authorization: .authorized)
+        let before = try await cache.statistics()
+        let inspection = try DatabaseQueueFactory.open(at: url)
+        try await inspection.write { db in
+            try db.execute(sql: """
+                CREATE TRIGGER synthetic_capacity_delete_failure
+                BEFORE DELETE ON market_cache_entries
+                BEGIN
+                    SELECT RAISE(ABORT, 'synthetic capacity delete failure');
+                END
+                """)
+        }
+        try inspection.close()
+
+        await #expect(throws: (any Error).self) {
+            _ = try await cache.updateMaximumBytes(1_000, now: now)
+        }
+        let after = try await cache.statistics()
+        #expect(after.maximumBytes == before.maximumBytes)
+        #expect(after.currentBytes == before.currentBytes)
+        #expect(after.entryCount == before.entryCount)
+        #expect(after.lastCleanupResult == before.lastCleanupResult)
+    }
+
     @Test(
         "Every automatic, manual, provider, credential, termination, and reset path preserves Permanent Store",
         arguments: CacheIsolationOperation.allCases
@@ -450,6 +617,10 @@ struct MarketCacheInfrastructureTests {
             case .confirmedTermination: _ = try await coordinator.confirmedTermination()
             default: break
             }
+        case .capacityChange:
+            try await cache.store(makeEntry(key: "capacity-a", payloadSize: 350), authorization: .authorized)
+            try await cache.store(makeEntry(key: "capacity-b", payloadSize: 350), authorization: .authorized)
+            _ = try await cache.updateMaximumBytes(500, now: now)
         case .reset:
             try await cache.store(makeEntry(key: "reset"), authorization: .authorized)
             try await cache.reset()
@@ -461,7 +632,8 @@ struct MarketCacheInfrastructureTests {
         key: String,
         type: MarketCacheDataType = .eodHistorical,
         fetchedAt: UTCInstant? = nil,
-        payloadSize: Int = 64
+        payloadSize: Int = 64,
+        freshness: MarketFreshness = .endOfDay
     ) throws -> MarketCacheEntry {
         try MarketCacheEntry(
             providerIdentifier: provider,
@@ -470,7 +642,7 @@ struct MarketCacheInfrastructureTests {
             payload: Data(repeating: 0x53, count: payloadSize),
             fetchedAt: fetchedAt ?? now,
             entitlementContext: "synthetic-test",
-            freshness: .endOfDay
+            freshness: freshness
         )
     }
 

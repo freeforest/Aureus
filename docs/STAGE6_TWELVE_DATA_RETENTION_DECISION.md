@@ -2,6 +2,7 @@
 
 **Status:** `BLOCKED` — Production Twelve Data persistent cache writes remain disabled  
 **Decision date:** 2026-08-13  
+**Stage status:** Stage 6B Repair Candidate — awaiting Reviewer Gate; no Provider inquiry was sent and no credentialed Twelve Data call was run.  
 **Scope:** Twelve Data BYOK, individual personal/internal use in the local-first Aureus macOS app
 
 This record answers only whether Aureus has sufficient current official evidence to persist Twelve Data market data on the user's Mac. It does not change the selected Provider, plan-aware entitlement model, four-market V1 scope, or Stage 6 implementation boundary.

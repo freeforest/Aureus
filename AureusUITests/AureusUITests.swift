@@ -383,6 +383,11 @@ final class AureusUITests: XCTestCase {
         app.descendants(matching: .any)["sidebar.settings"].click()
         XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 10))
         XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.mode"],
+            containing: "Stage 6B Repair Candidate",
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForValueOrLabel(
             app.descendants(matching: .any)["settings.provider.credentialState"],
             containing: "Missing",
             timeout: 5
@@ -423,6 +428,11 @@ final class AureusUITests: XCTestCase {
         for market in ["us", "xhkg", "xshg", "xshe", "xjpx"] {
             XCTAssertTrue(app.descendants(matching: .any)["settings.provider.market.\(market)"].exists)
         }
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.provider.market.us"],
+            containing: "Live: notVerified",
+            timeout: 5
+        ))
 
         app.descendants(matching: .any)["settings.cache.removeExpired"].click()
         XCTAssertTrue(waitForValueOrLabel(
@@ -441,7 +451,10 @@ final class AureusUITests: XCTestCase {
         ))
 
         let screenshot = XCUIScreen.main.screenshot().pngRepresentation
-        try screenshot.write(to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6-Settings.png"), options: .atomic)
+        try screenshot.write(
+            to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6B-Settings.png"),
+            options: .atomic
+        )
 
         app.descendants(matching: .any)["settings.provider.disconnect"].click()
         let disconnect = app.descendants(matching: .any)["settings.provider.disconnect.confirm"]

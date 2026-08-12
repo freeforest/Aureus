@@ -84,6 +84,8 @@ actor ProviderRequestGate {
     private let maximumConcurrentRequests: Int
     private let clock: any Clock
     private let sleeper: any ProviderSleeper
+    private let initialMinuteLimit: Int
+    private let initialDailyLimit: Int?
     private var minuteLimit: Int
     private var dailyLimit: Int?
     private var minuteWindowStart: UTCInstant
@@ -101,6 +103,8 @@ actor ProviderRequestGate {
         sleeper: any ProviderSleeper
     ) {
         self.maximumConcurrentRequests = maximumConcurrentRequests
+        initialMinuteLimit = minuteLimit
+        initialDailyLimit = dailyLimit
         self.minuteLimit = minuteLimit
         self.dailyLimit = dailyLimit
         self.clock = clock
@@ -125,23 +129,49 @@ actor ProviderRequestGate {
         operation: @Sendable () async throws -> T
     ) async throws -> T {
         guard credits > 0 else { throw ProviderBoundaryError.invalidRequest }
-        try await reserveCredits(credits)
+        try validateRequestCost(credits)
         try await acquireConcurrencyPermit()
         defer { releaseConcurrencyPermit() }
         try Task.checkCancellation()
+        try await consumeCredits(credits)
         return try await operation()
     }
 
-    func applyVerifiedLimits(perMinute: Int?, perDay: Int?, allowIncrease: Bool) {
+    func resetToInitialLimits() {
+        minuteLimit = initialMinuteLimit
+        dailyLimit = initialDailyLimit
+        minuteCredits = 0
+        dailyCredits = 0
+        let now = clock.now()
+        minuteWindowStart = UTCInstant(millisecondsSince1970: Self.windowStart(
+            containing: now.millisecondsSince1970,
+            duration: 60_000
+        ))
+        dayWindowStart = UTCInstant(millisecondsSince1970: Self.windowStart(
+            containing: now.millisecondsSince1970,
+            duration: 86_400_000
+        ))
+    }
+
+    func applyVerifiedLimits(
+        perMinute: Int?,
+        dailyQuota: ProviderDailyQuota,
+        allowIncrease: Bool
+    ) {
         if let perMinute, perMinute > 0 {
             minuteLimit = allowIncrease ? perMinute : min(minuteLimit, perMinute)
         }
-        if let perDay, perDay > 0 {
+        switch dailyQuota {
+        case .capped(let perDay) where perDay > 0:
             if allowIncrease {
                 dailyLimit = perDay
             } else {
                 dailyLimit = dailyLimit.map { min($0, perDay) } ?? perDay
             }
+        case .uncapped where allowIncrease:
+            dailyLimit = nil
+        case .capped, .uncapped, .unknown:
+            break
         }
     }
 
@@ -152,6 +182,11 @@ actor ProviderRequestGate {
 
     func currentLimits() -> (perMinute: Int, perDay: Int?) {
         (minuteLimit, dailyLimit)
+    }
+
+    func currentCreditUsage() -> (perMinute: Int, perDay: Int) {
+        rollWindows(now: clock.now())
+        return (minuteCredits, dailyCredits)
     }
 
     private func acquireConcurrencyPermit() async throws {
@@ -187,9 +222,7 @@ actor ProviderRequestGate {
         }
     }
 
-    private func reserveCredits(_ credits: Int) async throws {
-        let now = clock.now()
-        rollWindows(now: now)
+    private func validateRequestCost(_ credits: Int) throws {
         guard credits <= minuteLimit else {
             throw ProviderBoundaryError.requestCostExceedsLimit(
                 requiredCredits: credits,
@@ -202,26 +235,40 @@ actor ProviderRequestGate {
                 availableCredits: dailyLimit
             )
         }
+    }
 
-        if minuteCredits + credits > minuteLimit {
-            let nextBoundary = minuteWindowStart.millisecondsSince1970 + 60_000
-            try await sleeper.sleep(
-                milliseconds: max(1, nextBoundary - now.millisecondsSince1970)
-            )
-            try await reserveCredits(credits)
+    private func consumeCredits(_ credits: Int) async throws {
+        while true {
+            try Task.checkCancellation()
+            let now = clock.now()
+            rollWindows(now: now)
+            try validateRequestCost(credits)
+
+            let minuteTotal = minuteCredits.addingReportingOverflow(credits)
+            guard !minuteTotal.overflow else { throw ProviderBoundaryError.invalidPayload }
+            if minuteTotal.partialValue > minuteLimit {
+                try await sleeper.sleep(milliseconds: try Self.delayUntilNextWindow(
+                    start: minuteWindowStart.millisecondsSince1970,
+                    duration: 60_000,
+                    now: now.millisecondsSince1970
+                ))
+                continue
+            }
+            let dailyTotal = dailyCredits.addingReportingOverflow(credits)
+            guard !dailyTotal.overflow else { throw ProviderBoundaryError.invalidPayload }
+            if let dailyLimit, dailyTotal.partialValue > dailyLimit {
+                try await sleeper.sleep(milliseconds: try Self.delayUntilNextWindow(
+                    start: dayWindowStart.millisecondsSince1970,
+                    duration: 86_400_000,
+                    now: now.millisecondsSince1970
+                ))
+                continue
+            }
+
+            minuteCredits = minuteTotal.partialValue
+            dailyCredits = dailyTotal.partialValue
             return
         }
-        if let dailyLimit, dailyCredits + credits > dailyLimit {
-            let nextBoundary = dayWindowStart.millisecondsSince1970 + 86_400_000
-            try await sleeper.sleep(
-                milliseconds: max(1, nextBoundary - now.millisecondsSince1970)
-            )
-            try await reserveCredits(credits)
-            return
-        }
-
-        minuteCredits += credits
-        dailyCredits += credits
     }
 
     private func rollWindows(now: UTCInstant) {
@@ -244,9 +291,21 @@ actor ProviderRequestGate {
     }
 
     private static func windowStart(containing instant: Int64, duration: Int64) -> Int64 {
-        let quotient = instant / duration
         let remainder = instant % duration
-        return (remainder < 0 ? quotient - 1 : quotient) * duration
+        if remainder >= 0 { return instant - remainder }
+        return instant - remainder - duration
+    }
+
+    private static func delayUntilNextWindow(
+        start: Int64,
+        duration: Int64,
+        now: Int64
+    ) throws -> Int64 {
+        let boundary = start.addingReportingOverflow(duration)
+        guard !boundary.overflow else { throw ProviderBoundaryError.invalidPayload }
+        let delay = boundary.partialValue.subtractingReportingOverflow(now)
+        guard !delay.overflow else { throw ProviderBoundaryError.invalidPayload }
+        return max(1, delay.partialValue)
     }
 }
 
@@ -315,18 +374,33 @@ private enum HTTPRetryExecutor {
         headers: [String: String],
         jitter: any RetryJitterSource
     ) -> Int64 {
-        if let value = headers["retry-after"], let seconds = Int64(value), seconds >= 0 {
-            return seconds * 1_000
+        if let retryAfter = retryAfterMilliseconds(headers["retry-after"]) {
+            return retryAfter
         }
         let base: Int64 = [1_000, 2_000, 4_000][min(attempt, 2)]
-        return base + jitter.milliseconds(upperBound: 250)
+        let jitterValue = jitter.milliseconds(upperBound: 250)
+        guard jitterValue >= 0 else { return base }
+        let total = base.addingReportingOverflow(jitterValue)
+        return total.overflow ? base : total.partialValue
+    }
+
+    static func retryAfterMilliseconds(_ value: String?) -> Int64? {
+        guard let value, let seconds = Int64(value), seconds >= 0 else { return nil }
+        let result = seconds.multipliedReportingOverflow(by: 1_000)
+        return result.overflow ? nil : result.partialValue
     }
 }
 
 actor TwelveDataClient: MarketDataProvider {
     private struct InFlightRequest {
+        let requestID: UUID
         let task: Task<HTTPTransportResponse, Error>
         var waiters: [UUID: CheckedContinuation<HTTPTransportResponse, Error>]
+    }
+
+    private struct MarketLiveObservation {
+        var successfulMICs: Set<String> = []
+        var wasDenied = false
     }
 
     nonisolated let descriptor = ProviderDescriptor(
@@ -350,8 +424,8 @@ actor TwelveDataClient: MarketDataProvider {
     private var inFlight: [String: InFlightRequest] = [:]
     private var isDisconnected = false
     private var lastUsage: ProviderUsageObservation?
-    private var marketObservations: [String: MarketEntitlementState] = [:]
-    private var endpointObservations: Set<MarketProviderEndpoint> = []
+    private var marketObservations: [String: MarketLiveObservation] = [:]
+    private var endpointObservations: [MarketProviderEndpoint: ProviderLiveObservation] = [:]
 
     init(
         credentialStore: any CredentialStore,
@@ -374,46 +448,88 @@ actor TwelveDataClient: MarketDataProvider {
     func capabilities() -> MarketProviderCapabilities {
         let entitlement = lastUsage?.entitlement ?? .unknown
         let observedAt = lastUsage?.observedAt
-        let isBasic = entitlement == .basic
-        let isPro = entitlement == .proOrHigher
 
-        func observed(for mic: String) -> MarketEntitlementState {
-            if let actual = marketObservations[mic] { return actual }
-            if mic == "US" { return isBasic ? .basic : (isPro ? .proOrHigher : .unknown) }
-            if isBasic { return .upgradeRequired }
-            return .unknown
+        func marketCapability(
+            mic: String,
+            minimum: MarketEntitlementState,
+            catalog: ProviderCapabilityEvidence,
+            supportsHistoricalBars: Bool,
+            evidenceStatus: String
+        ) -> MarketCapability {
+            let observation = marketObservations[mic]
+            let liveObservation: ProviderLiveObservation
+            let observedEntitlement: MarketEntitlementState
+            if observation?.wasDenied == true {
+                liveObservation = .denied
+                observedEntitlement = .upgradeRequired
+            } else if observation?.successfulMICs.isEmpty == false {
+                liveObservation = .succeeded
+                observedEntitlement = entitlement
+            } else {
+                liveObservation = .notVerified
+                observedEntitlement = .unknown
+            }
+            return MarketCapability(
+                mic: mic,
+                minimumEntitlement: minimum,
+                observedEntitlement: observedEntitlement,
+                freshness: .unknown,
+                catalogEvidence: catalog,
+                liveObservation: liveObservation,
+                liveObservedMICs: observation.map { Array($0.successfulMICs).sorted() } ?? [],
+                supportsSearch: true,
+                supportsHistoricalBars: supportsHistoricalBars,
+                supportsCorporateActions: false,
+                evidenceStatus: evidenceStatus
+            )
+        }
+
+        func endpointCapability(
+            endpoint: MarketProviderEndpoint,
+            minimumPlanName: String,
+            creditWeight: Int
+        ) -> ProviderEndpointCapability {
+            let live = endpointObservations[endpoint] ?? .notVerified
+            let observed: MarketEntitlementState
+            switch live {
+            case .succeeded:
+                observed = entitlement
+            case .denied:
+                observed = .upgradeRequired
+            case .notVerified:
+                observed = .unknown
+            }
+            return ProviderEndpointCapability(
+                endpoint: endpoint,
+                minimumPlanName: minimumPlanName,
+                creditWeight: creditWeight,
+                catalogEvidence: .officialCatalogOnly,
+                liveObservation: live,
+                observedEntitlement: observed
+            )
         }
 
         let markets = [
-            MarketCapability(
-                mic: "US", minimumEntitlement: .basic, observedEntitlement: observed(for: "US"),
-                freshness: .realTime, supportsSearch: true, supportsHistoricalBars: true,
-                supportsCorporateActions: false,
+            marketCapability(
+                mic: "US", minimum: .basic, catalog: .officialCatalogOnly,
+                supportsHistoricalBars: true,
                 evidenceStatus: "OFFICIAL_CATALOG_ONLY; CORPORATE_ACTIONS_REQUIRE_GROW_OR_HIGHER"
             ),
-            MarketCapability(
-                mic: "XHKG", minimumEntitlement: .proOrHigher,
-                observedEntitlement: observed(for: "XHKG"), freshness: .unknown,
-                supportsSearch: true, supportsHistoricalBars: false,
-                supportsCorporateActions: false, evidenceStatus: "CONFLICTING_EOD_EVIDENCE"
+            marketCapability(
+                mic: "XHKG", minimum: .proOrHigher, catalog: .conflicting,
+                supportsHistoricalBars: false, evidenceStatus: "CONFLICTING_EOD_EVIDENCE"
             ),
-            MarketCapability(
-                mic: "XSHG", minimumEntitlement: .proOrHigher,
-                observedEntitlement: observed(for: "XSHG"), freshness: .endOfDay,
-                supportsSearch: true, supportsHistoricalBars: true,
-                supportsCorporateActions: false, evidenceStatus: "OFFICIAL_CATALOG_NOT_LIVE_VERIFIED"
+            marketCapability(
+                mic: "XSHG", minimum: .proOrHigher, catalog: .officialCatalogOnly,
+                supportsHistoricalBars: true, evidenceStatus: "OFFICIAL_CATALOG_NOT_LIVE_VERIFIED"
             ),
-            MarketCapability(
-                mic: "XSHE", minimumEntitlement: .proOrHigher,
-                observedEntitlement: observed(for: "XSHE"), freshness: .endOfDay,
-                supportsSearch: true, supportsHistoricalBars: true,
-                supportsCorporateActions: false, evidenceStatus: "OFFICIAL_CATALOG_NOT_LIVE_VERIFIED"
+            marketCapability(
+                mic: "XSHE", minimum: .proOrHigher, catalog: .officialCatalogOnly,
+                supportsHistoricalBars: true, evidenceStatus: "OFFICIAL_CATALOG_NOT_LIVE_VERIFIED"
             ),
-            MarketCapability(
-                mic: "XJPX", minimumEntitlement: .proOrHigher,
-                observedEntitlement: observed(for: "XJPX"), freshness: .unknown,
-                supportsSearch: true, supportsHistoricalBars: false,
-                supportsCorporateActions: false, evidenceStatus: "CONFLICTING_EOD_EVIDENCE"
+            marketCapability(
+                mic: "XJPX", minimum: .proOrHigher, catalog: .conflicting,
+                supportsHistoricalBars: false, evidenceStatus: "CONFLICTING_EOD_EVIDENCE"
             )
         ]
         return MarketProviderCapabilities(
@@ -423,41 +539,29 @@ actor TwelveDataClient: MarketDataProvider {
             markets: markets,
             supportsSearch: true,
             supportsHistoricalPrices: true,
-            supportsCorporateActions: isPro &&
-                endpointObservations.contains(.splits) &&
-                endpointObservations.contains(.dividends),
+            supportsCorporateActions: endpointObservations[.splits] == .succeeded &&
+                endpointObservations[.dividends] == .succeeded,
             endpointCapabilities: [
-                ProviderEndpointCapability(
-                    endpoint: .symbolSearch,
-                    minimumPlanName: "Basic",
-                    creditWeight: 1,
-                    catalogEvidence: .officialCatalogOnly,
-                    observedEntitlement: entitlement
+                endpointCapability(
+                    endpoint: .symbolSearch, minimumPlanName: "Basic", creditWeight: 1
                 ),
-                ProviderEndpointCapability(
+                endpointCapability(
+                    endpoint: .latestQuote, minimumPlanName: "Basic for eligible US data",
+                    creditWeight: 1
+                ),
+                endpointCapability(
                     endpoint: .historicalOHLCV,
-                    minimumPlanName: "Basic for eligible US data",
-                    creditWeight: 1,
-                    catalogEvidence: .officialCatalogOnly,
-                    observedEntitlement: entitlement
+                    minimumPlanName: "Basic for eligible US data", creditWeight: 1
                 ),
-                ProviderEndpointCapability(
+                endpointCapability(
                     endpoint: .splits,
                     minimumPlanName: "Grow (Individual) or Venture (Business)",
-                    creditWeight: 20,
-                    catalogEvidence: endpointObservations.contains(.splits)
-                        ? .liveVerified : .officialCatalogOnly,
-                    observedEntitlement: endpointObservations.contains(.splits)
-                        ? entitlement : .unknown
+                    creditWeight: 20
                 ),
-                ProviderEndpointCapability(
+                endpointCapability(
                     endpoint: .dividends,
                     minimumPlanName: "Grow (Individual) or Venture (Business)",
-                    creditWeight: 20,
-                    catalogEvidence: endpointObservations.contains(.dividends)
-                        ? .liveVerified : .officialCatalogOnly,
-                    observedEntitlement: endpointObservations.contains(.dividends)
-                        ? entitlement : .unknown
+                    creditWeight: 20
                 )
             ],
             observedAt: observedAt
@@ -474,58 +578,62 @@ actor TwelveDataClient: MarketDataProvider {
         let dto = try decodeProviderPayload(TwelveUsageDTO.self, from: response.data)
         let plan = dto.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let entitlement = Self.entitlement(forPlanName: plan)
-        let fallbackMinute: Int?
-        let fallbackDay: Int?
+        if let perMinute = dto.perMinuteLimit, perMinute <= 0 {
+            throw ProviderBoundaryError.invalidPayload
+        }
+        if let perDay = dto.dailyLimit, perDay <= 0 {
+            throw ProviderBoundaryError.invalidPayload
+        }
+        await gate.resetToInitialLimits()
+        let minute: Int?
+        let dailyQuota: ProviderDailyQuota
+        let allowIncrease: Bool
         switch entitlement {
         case .basic:
-            fallbackMinute = 8
-            fallbackDay = 800
+            minute = dto.perMinuteLimit ?? 8
+            dailyQuota = .capped(dto.dailyLimit ?? 800)
+            allowIncrease = false
+        case .proOrHigher:
+            minute = dto.perMinuteLimit
+            dailyQuota = dto.dailyLimit.map(ProviderDailyQuota.capped) ?? .uncapped
+            allowIncrease = true
         default:
-            fallbackMinute = nil
-            fallbackDay = nil
+            minute = dto.perMinuteLimit
+            dailyQuota = .unknown
+            allowIncrease = false
         }
-        let minute = dto.perMinuteLimit ?? fallbackMinute
-        let day = dto.dailyLimit ?? fallbackDay
-        let hasProviderLimitEvidence = dto.perMinuteLimit != nil || dto.dailyLimit != nil
         await gate.applyVerifiedLimits(
             perMinute: minute,
-            perDay: day,
-            allowIncrease: entitlement != .unknown && hasProviderLimitEvidence
+            dailyQuota: dailyQuota,
+            allowIncrease: allowIncrease
         )
         let observation = ProviderUsageObservation(
             planName: plan,
             entitlement: entitlement,
             perMinuteLimit: minute,
-            dailyLimit: day,
+            dailyLimit: dailyQuota,
             observedAt: clock.now()
         )
         lastUsage = observation
         return observation
     }
 
-    func credentialDidChange() {
+    func credentialDidChange() async {
+        cancelAllSharedRequests()
+        await gate.resetToInitialLimits()
         isDisconnected = false
         lastUsage = nil
         marketObservations = [:]
-        endpointObservations = []
+        endpointObservations = [:]
     }
 
     func disconnect() async {
         isDisconnected = true
-        let requests = Array(inFlight.values)
-        for request in requests {
-            request.task.cancel()
-            for continuation in request.waiters.values {
-                continuation.resume(throwing: ProviderBoundaryError.cancelled)
-            }
-        }
-        inFlight.removeAll()
-        for request in requests {
-            _ = await request.task.result
-        }
+        cancelAllSharedRequests()
+        await gate.resetToInitialLimits()
         lastUsage = nil
         marketObservations = [:]
-        endpointObservations = []
+        endpointObservations = [:]
     }
 
     func inFlightRequestState() -> (requests: Int, waiters: Int) {
@@ -546,11 +654,16 @@ actor TwelveDataClient: MarketDataProvider {
                 URLQueryItem(name: "symbol", value: normalized),
                 URLQueryItem(name: "outputsize", value: "30")
             ],
-            creditWeight: 1
+            creditWeight: 1,
+            endpoint: .symbolSearch
         )
-        try throwProviderErrorIfPresent(response.data, statusCode: response.statusCode)
+        try throwProviderErrorIfPresent(
+            response.data,
+            statusCode: response.statusCode,
+            endpoint: .symbolSearch
+        )
         let dto = try decodeProviderPayload(TwelveSearchResponseDTO.self, from: response.data)
-        return try validatedProviderMapping {
+        let instruments = try validatedProviderMapping {
             try dto.data.map { item in
                 guard let mic = item.micCode?.uppercased(), mic.count == 4 else {
                     throw ProviderBoundaryError.invalidPayload
@@ -567,21 +680,38 @@ actor TwelveDataClient: MarketDataProvider {
                 )
             }
         }
+        recordEndpointSuccess(.symbolSearch)
+        return instruments
     }
 
     func latestQuote(for instrument: MarketInstrument) async throws -> MarketQuote {
         let response = try await authenticatedRequest(
             path: "/quote",
             queryItems: instrumentQueryItems(instrument),
-            creditWeight: 1
+            creditWeight: 1,
+            endpoint: .latestQuote,
+            marketMIC: instrument.mic
         )
-        try throwProviderErrorIfPresent(response.data, statusCode: response.statusCode)
+        try throwProviderErrorIfPresent(
+            response.data,
+            statusCode: response.statusCode,
+            endpoint: .latestQuote,
+            marketMIC: instrument.mic
+        )
         let dto = try decodeProviderPayload(TwelveQuoteDTO.self, from: response.data)
         let price = try validatedProviderMapping {
             try MarketQuotePrice(decimal: dto.close.decimal, quoteCurrency: instrument.currency)
         }
-        let observedAt = dto.timestamp.map { UTCInstant(millisecondsSince1970: $0 * 1_000) }
-            ?? clock.now()
+        let observedAt: UTCInstant
+        if let timestamp = dto.timestamp {
+            guard timestamp >= 0 else { throw ProviderBoundaryError.invalidPayload }
+            let milliseconds = timestamp.multipliedReportingOverflow(by: 1_000)
+            guard !milliseconds.overflow else { throw ProviderBoundaryError.invalidPayload }
+            observedAt = UTCInstant(millisecondsSince1970: milliseconds.partialValue)
+        } else {
+            observedAt = clock.now()
+        }
+        recordEndpointSuccess(.latestQuote)
         recordSuccessfulMarket(instrument.mic)
         return MarketQuote(
             instrument: instrument,
@@ -589,9 +719,9 @@ actor TwelveDataClient: MarketDataProvider {
             observedAt: observedAt,
             fetchedAt: clock.now(),
             providerIdentifier: descriptor.identifier,
-            // A closed exchange is not evidence that a quote is delayed.
-            quality: .current,
-            freshness: dto.isMarketOpen == true ? .realTime : .unknown
+            // Trading-session status alone does not prove quote freshness.
+            quality: .unknown,
+            freshness: .unknown
         )
     }
 
@@ -609,9 +739,16 @@ actor TwelveDataClient: MarketDataProvider {
         let response = try await authenticatedRequest(
             path: "/time_series",
             queryItems: query,
-            creditWeight: 1
+            creditWeight: 1,
+            endpoint: .historicalOHLCV,
+            marketMIC: request.instrument.mic
         )
-        try throwProviderErrorIfPresent(response.data, statusCode: response.statusCode)
+        try throwProviderErrorIfPresent(
+            response.data,
+            statusCode: response.statusCode,
+            endpoint: .historicalOHLCV,
+            marketMIC: request.instrument.mic
+        )
         let dto = try decodeProviderPayload(TwelveTimeSeriesDTO.self, from: response.data)
         guard dto.meta.micCode.uppercased() == request.instrument.mic,
               let responseCurrency = try? MarketCurrencyCode(validating: dto.meta.currency),
@@ -619,7 +756,7 @@ actor TwelveDataClient: MarketDataProvider {
             throw ProviderBoundaryError.invalidPayload
         }
         let fetchedAt = clock.now()
-        let freshness: MarketFreshness = request.interval.isIntraday ? .delayed : .endOfDay
+        let freshness: MarketFreshness = .unknown
         let bars = try validatedProviderMapping {
             try dto.values.map { value in
                 let sessionDate = try CivilDate(canonical: String(value.datetime.prefix(10)))
@@ -643,6 +780,7 @@ actor TwelveDataClient: MarketDataProvider {
         }
         guard !bars.isEmpty else { throw ProviderBoundaryError.missing }
         let nextEnd = bars.count == request.outputSize ? bars.first?.sessionDate : nil
+        recordEndpointSuccess(.historicalOHLCV)
         recordSuccessfulMarket(request.instrument.mic)
         return MarketHistoryPage(
             instrument: request.instrument,
@@ -661,7 +799,6 @@ actor TwelveDataClient: MarketDataProvider {
         async let splits = fetchSplits(for: instrument, from: startDate, through: endDate)
         async let dividends = fetchDividends(for: instrument, from: startDate, through: endDate)
         let actions = try await splits + dividends
-        recordSuccessfulMarket(instrument.mic)
         return actions.sorted {
             ($0.effectiveDate, $0.kind.rawValue, $0.id) <
                 ($1.effectiveDate, $1.kind.rawValue, $1.id)
@@ -676,9 +813,16 @@ actor TwelveDataClient: MarketDataProvider {
         let response = try await authenticatedRequest(
             path: "/splits",
             queryItems: actionQueryItems(instrument, from: startDate, through: endDate),
-            creditWeight: 20
+            creditWeight: 20,
+            endpoint: .splits,
+            marketMIC: instrument.mic
         )
-        try throwProviderErrorIfPresent(response.data, statusCode: response.statusCode)
+        try throwProviderErrorIfPresent(
+            response.data,
+            statusCode: response.statusCode,
+            endpoint: .splits,
+            marketMIC: instrument.mic
+        )
         let dto = try decodeProviderPayload(TwelveSplitsDTO.self, from: response.data)
         let actions = try validatedProviderMapping { try dto.splits.map { split in
             let date = try CivilDate(canonical: split.date)
@@ -699,7 +843,7 @@ actor TwelveDataClient: MarketDataProvider {
                 fetchedAt: clock.now()
             )
         } }
-        endpointObservations.insert(.splits)
+        recordEndpointSuccess(.splits)
         return actions
     }
 
@@ -711,9 +855,16 @@ actor TwelveDataClient: MarketDataProvider {
         let response = try await authenticatedRequest(
             path: "/dividends",
             queryItems: actionQueryItems(instrument, from: startDate, through: endDate),
-            creditWeight: 20
+            creditWeight: 20,
+            endpoint: .dividends,
+            marketMIC: instrument.mic
         )
-        try throwProviderErrorIfPresent(response.data, statusCode: response.statusCode)
+        try throwProviderErrorIfPresent(
+            response.data,
+            statusCode: response.statusCode,
+            endpoint: .dividends,
+            marketMIC: instrument.mic
+        )
         let dto = try decodeProviderPayload(TwelveDividendsDTO.self, from: response.data)
         let actions = try validatedProviderMapping { try dto.dividends.map { dividend in
             let date = try CivilDate(canonical: dividend.exDate)
@@ -734,14 +885,16 @@ actor TwelveDataClient: MarketDataProvider {
                 fetchedAt: clock.now()
             )
         } }
-        endpointObservations.insert(.dividends)
+        recordEndpointSuccess(.dividends)
         return actions
     }
 
     private func authenticatedRequest(
         path: String,
         queryItems: [URLQueryItem],
-        creditWeight: Int
+        creditWeight: Int,
+        endpoint: MarketProviderEndpoint? = nil,
+        marketMIC: String? = nil
     ) async throws -> HTTPTransportResponse {
         guard !isDisconnected else { throw ProviderBoundaryError.missingCredential }
         guard let credential = try await credentialStore.credential(for: Self.credentialDescriptor),
@@ -772,7 +925,11 @@ actor TwelveDataClient: MarketDataProvider {
             await observeCreditHeaders(response.headers)
             return response
         } catch let error as ProviderHTTPError {
-            throw mapHTTPError(error.response)
+            let mapped = mapHTTPError(error.response)
+            if mapped == .unsupportedEntitlement {
+                recordDenied(endpoint: endpoint, marketMIC: marketMIC)
+            }
+            throw mapped
         } catch is CancellationError {
             throw ProviderBoundaryError.cancelled
         }
@@ -811,13 +968,19 @@ actor TwelveDataClient: MarketDataProvider {
                         jitter: jitter
                     )
                 }
+                let requestID = UUID()
                 inFlight[key] = InFlightRequest(
+                    requestID: requestID,
                     task: task,
                     waiters: [waiterID: continuation]
                 )
                 Task {
                     let result = await task.result
-                    self.finishSharedResponse(for: key, result: result)
+                    self.finishSharedResponse(
+                        for: key,
+                        requestID: requestID,
+                        result: result
+                    )
                 }
             }
         } onCancel: {
@@ -839,20 +1002,35 @@ actor TwelveDataClient: MarketDataProvider {
 
     private func finishSharedResponse(
         for key: String,
+        requestID: UUID,
         result: Result<HTTPTransportResponse, Error>
     ) {
-        guard let current = inFlight.removeValue(forKey: key) else { return }
+        guard let current = inFlight[key], current.requestID == requestID else { return }
+        inFlight[key] = nil
         for continuation in current.waiters.values {
             continuation.resume(with: result)
+        }
+    }
+
+    private func cancelAllSharedRequests() {
+        let requests = Array(inFlight.values)
+        inFlight.removeAll()
+        for request in requests {
+            request.task.cancel()
+            for continuation in request.waiters.values {
+                continuation.resume(throwing: ProviderBoundaryError.cancelled)
+            }
         }
     }
 
     private func observeCreditHeaders(_ headers: [String: String]) async {
         guard let usedText = headers["api-credits-used"],
               let leftText = headers["api-credits-left"],
-              let used = Int(usedText), let left = Int(leftText),
+              let used = Int64(usedText), let left = Int64(leftText),
               used >= 0, left >= 0 else { return }
-        await gate.applyObservedHeaderLimit(perMinute: used + left)
+        let total = used.addingReportingOverflow(left)
+        guard !total.overflow, let limit = Int(exactly: total.partialValue) else { return }
+        await gate.applyObservedHeaderLimit(perMinute: limit)
     }
 
     private func mapHTTPError(_ response: HTTPTransportResponse) -> ProviderBoundaryError {
@@ -866,20 +1044,28 @@ actor TwelveDataClient: MarketDataProvider {
         case 408:
             return .timeout
         case 429:
-            let retryAfter = response.headers["retry-after"].flatMap(Int64.init).map { $0 * 1_000 }
+            let retryAfter = HTTPRetryExecutor.retryAfterMilliseconds(
+                response.headers["retry-after"]
+            )
             return .rateLimited(retryAfterMilliseconds: retryAfter)
         default:
             return .providerError(statusCode: response.statusCode)
         }
     }
 
-    private func throwProviderErrorIfPresent(_ data: Data, statusCode: Int) throws {
+    private func throwProviderErrorIfPresent(
+        _ data: Data,
+        statusCode: Int,
+        endpoint: MarketProviderEndpoint? = nil,
+        marketMIC: String? = nil
+    ) throws {
         guard let error = try? JSONDecoder().decode(TwelveErrorDTO.self, from: data),
               error.status?.lowercased() == "error" else { return }
         switch error.code {
         case 401:
             throw ProviderBoundaryError.invalidOrExpired
         case 403:
+            recordDenied(endpoint: endpoint, marketMIC: marketMIC)
             throw ProviderBoundaryError.unsupportedEntitlement
         case 404:
             throw ProviderBoundaryError.missing
@@ -908,16 +1094,26 @@ actor TwelveDataClient: MarketDataProvider {
         return items
     }
 
+    private func recordEndpointSuccess(_ endpoint: MarketProviderEndpoint) {
+        endpointObservations[endpoint] = .succeeded
+    }
+
+    private func recordDenied(endpoint: MarketProviderEndpoint?, marketMIC: String?) {
+        if let endpoint { endpointObservations[endpoint] = .denied }
+        if let marketMIC {
+            let key = Self.capabilityKey(for: marketMIC)
+            var observation = marketObservations[key] ?? MarketLiveObservation()
+            observation.wasDenied = true
+            marketObservations[key] = observation
+        }
+    }
+
     private func recordSuccessfulMarket(_ mic: String) {
         let capabilityKey = Self.capabilityKey(for: mic)
-        switch lastUsage?.entitlement {
-        case .basic:
-            marketObservations[capabilityKey] = .basic
-        case .proOrHigher:
-            marketObservations[capabilityKey] = .proOrHigher
-        default:
-            marketObservations[capabilityKey] = .unknown
-        }
+        var observation = marketObservations[capabilityKey] ?? MarketLiveObservation()
+        observation.successfulMICs.insert(mic.uppercased())
+        observation.wasDenied = false
+        marketObservations[capabilityKey] = observation
     }
 
     private static func capabilityKey(for mic: String) -> String {
@@ -930,9 +1126,9 @@ actor TwelveDataClient: MarketDataProvider {
 
     private static func entitlement(forPlanName name: String?) -> MarketEntitlementState {
         guard let normalized = name?.lowercased() else { return .unknown }
-        if normalized.contains("basic") { return .basic }
-        if normalized.contains("grow") || normalized.contains("pro") ||
-            normalized.contains("ultra") || normalized.contains("venture") {
+        let token = normalized.split(whereSeparator: { $0.isWhitespace || $0 == "-" }).first
+        if token == "basic" { return .basic }
+        if token == "grow" || token == "pro" || token == "ultra" || token == "venture" {
             return .proOrHigher
         }
         return .unknown

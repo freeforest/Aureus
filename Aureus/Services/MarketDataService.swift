@@ -147,7 +147,7 @@ actor MarketDataService {
                 key: key,
                 type: cacheType,
                 entitlement: "observed-at-request",
-                freshness: request.interval.isIntraday ? .delayed : .endOfDay,
+                freshness: Self.pageFreshness(merged),
                 authorization: marketCacheAuthorization
             )
             return merged
@@ -208,7 +208,7 @@ actor MarketDataService {
                 key: key,
                 type: .corporateAction,
                 entitlement: "observed-at-request",
-                freshness: .endOfDay,
+                freshness: .unknown,
                 authorization: marketCacheAuthorization
             )
             return actions
@@ -311,6 +311,14 @@ actor MarketDataService {
     private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
         do { return try JSONDecoder().decode(type, from: data) }
         catch { throw ProviderBoundaryError.invalidPayload }
+    }
+
+    private static func pageFreshness(_ page: MarketHistoryPage) -> MarketFreshness {
+        guard let first = page.bars.first?.freshness,
+              page.bars.allSatisfy({ $0.freshness == first }) else {
+            return .unknown
+        }
+        return first
     }
 
     private func historyKey(_ request: MarketHistoryRequest) -> String {

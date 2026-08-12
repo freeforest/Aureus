@@ -134,6 +134,7 @@ enum CacheCleanupReason: String, Sendable {
     case launch
     case periodic
     case background
+    case capacityChange
     case highWater
     case removeExpired
     case disconnect
@@ -173,7 +174,7 @@ actor MarketCacheStore {
                 sql: "SELECT integer_value FROM cache_metadata WHERE key = 'configured_maximum_bytes'"
             )
         }) {
-            effectivePolicy = try CachePolicyConfiguration(maximumBytes: storedMaximum)
+            effectivePolicy = try Self.policy(maximumBytes: storedMaximum, basedOn: policy)
         }
     }
 
@@ -470,16 +471,46 @@ actor MarketCacheStore {
         try queue.read { db in try cacheRowCount(in: db) }
     }
 
-    func updateMaximumBytes(_ maximumBytes: Int64) throws {
-        let updated = try CachePolicyConfiguration(maximumBytes: maximumBytes)
-        try queue.write { db in
+    @discardableResult
+    func updateMaximumBytes(
+        _ maximumBytes: Int64,
+        now: UTCInstant
+    ) throws -> CacheCleanupResult {
+        let updated = try Self.policy(maximumBytes: maximumBytes, basedOn: policy)
+        let accesses = pendingAccesses
+        let result = try queue.write { db in
+            try applyAccesses(accesses, in: db)
+            let before = try currentBytes(in: db)
+            let beforeCount = try cacheRowCount(in: db)
+            if before > updated.highWaterBytes {
+                for row in orderedCleanupRows(try cleanupRows(in: db), now: now) {
+                    if try currentBytes(in: db) <= updated.cleanupTargetBytes { break }
+                    try delete(row, in: db)
+                }
+                guard try currentBytes(in: db) <= updated.cleanupTargetBytes else {
+                    throw CachePolicyError.capacityCannotBeSatisfied
+                }
+            }
             try db.execute(sql: """
                 INSERT INTO cache_metadata(key, integer_value, text_value)
                 VALUES ('configured_maximum_bytes', ?, NULL)
                 ON CONFLICT(key) DO UPDATE SET integer_value = excluded.integer_value
                 """, arguments: [maximumBytes])
+            let after = try currentBytes(in: db)
+            let afterCount = try cacheRowCount(in: db)
+            let result = CacheCleanupResult(
+                reason: .capacityChange,
+                removedEntries: max(0, beforeCount - afterCount),
+                removedBytes: max(0, before - after),
+                remainingBytes: after,
+                completedAt: now
+            )
+            try record(result, in: db)
+            return result
         }
+        pendingAccesses.removeAll(keepingCapacity: true)
         effectivePolicy = updated
+        return result
     }
 
     func reset() throws {
@@ -528,6 +559,18 @@ actor MarketCacheStore {
                 entry.entitlementContext, entry.freshness.rawValue,
                 entry.deletionPolicy.rawValue
             ])
+    }
+
+    private func applyAccesses(
+        _ accesses: [String: UTCInstant],
+        in db: Database
+    ) throws {
+        for (id, instant) in accesses {
+            try db.execute(
+                sql: "UPDATE market_cache_entries SET last_accessed_at_ms = ? WHERE id = ?",
+                arguments: [instant.millisecondsSince1970, id]
+            )
+        }
     }
 
     private func decodeEntry(_ row: Row) throws -> MarketCacheEntry {
@@ -732,5 +775,19 @@ actor MarketCacheStore {
         default:
             nil
         }
+    }
+
+    private static func policy(
+        maximumBytes: Int64,
+        basedOn base: CachePolicyConfiguration
+    ) throws -> CachePolicyConfiguration {
+        if base.maximumBytes < CachePolicyConfiguration.minimumMaximumBytes {
+            return try .testing(maximumBytes: maximumBytes)
+        }
+        return try CachePolicyConfiguration(
+            maximumBytes: maximumBytes,
+            highWaterBasisPoints: base.highWaterBasisPoints,
+            cleanupTargetBasisPoints: base.cleanupTargetBasisPoints
+        )
     }
 }

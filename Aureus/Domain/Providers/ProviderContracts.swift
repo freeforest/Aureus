@@ -16,6 +16,7 @@ enum MarketEntitlementState: String, CaseIterable, Codable, Equatable, Sendable 
 
 enum MarketDataQuality: String, CaseIterable, Codable, Equatable, Sendable {
     case current
+    case unknown
     case stale
     case delayed
     case offline
@@ -52,6 +53,9 @@ struct MarketCapability: Codable, Equatable, Identifiable, Sendable {
     let minimumEntitlement: MarketEntitlementState
     let observedEntitlement: MarketEntitlementState
     let freshness: MarketFreshness
+    let catalogEvidence: ProviderCapabilityEvidence
+    let liveObservation: ProviderLiveObservation
+    let liveObservedMICs: [String]
     let supportsSearch: Bool
     let supportsHistoricalBars: Bool
     let supportsCorporateActions: Bool
@@ -60,6 +64,7 @@ struct MarketCapability: Codable, Equatable, Identifiable, Sendable {
 
 enum MarketProviderEndpoint: String, Codable, CaseIterable, Sendable {
     case symbolSearch
+    case latestQuote
     case historicalOHLCV
     case splits
     case dividends
@@ -72,6 +77,12 @@ enum ProviderCapabilityEvidence: String, Codable, Sendable {
     case conflicting
 }
 
+enum ProviderLiveObservation: String, Codable, Equatable, Sendable {
+    case notVerified
+    case succeeded
+    case denied
+}
+
 struct ProviderEndpointCapability: Codable, Equatable, Identifiable, Sendable {
     var id: MarketProviderEndpoint { endpoint }
 
@@ -79,6 +90,7 @@ struct ProviderEndpointCapability: Codable, Equatable, Identifiable, Sendable {
     let minimumPlanName: String
     let creditWeight: Int
     let catalogEvidence: ProviderCapabilityEvidence
+    let liveObservation: ProviderLiveObservation
     let observedEntitlement: MarketEntitlementState
 }
 
@@ -252,8 +264,14 @@ struct ProviderUsageObservation: Codable, Equatable, Sendable {
     let planName: String?
     let entitlement: MarketEntitlementState
     let perMinuteLimit: Int?
-    let dailyLimit: Int?
+    let dailyLimit: ProviderDailyQuota
     let observedAt: UTCInstant
+}
+
+enum ProviderDailyQuota: Codable, Equatable, Sendable {
+    case capped(Int)
+    case uncapped
+    case unknown
 }
 
 enum ProviderBoundaryError: Error, Equatable, Sendable {

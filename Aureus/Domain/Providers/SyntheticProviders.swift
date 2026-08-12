@@ -37,6 +37,9 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
                     minimumEntitlement: .basic,
                     observedEntitlement: entitlement,
                     freshness: scenario == .stale ? .stale : .endOfDay,
+                    catalogEvidence: .notVerified,
+                    liveObservation: scenario == .unsupported ? .denied : .succeeded,
+                    liveObservedMICs: scenario == .unsupported ? [] : ["XNAS"],
                     supportsSearch: true,
                     supportsHistoricalBars: true,
                     supportsCorporateActions: true,
@@ -51,7 +54,8 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
                     endpoint: $0,
                     minimumPlanName: "Synthetic",
                     creditWeight: 1,
-                    catalogEvidence: .liveVerified,
+                    catalogEvidence: .notVerified,
+                    liveObservation: scenario == .unsupported ? .denied : .succeeded,
                     observedEntitlement: entitlement
                 )
             },
@@ -65,7 +69,7 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
             planName: "Synthetic",
             entitlement: .basic,
             perMinuteLimit: 8,
-            dailyLimit: 800,
+            dailyLimit: .capped(800),
             observedAt: clock.now()
         )
     }

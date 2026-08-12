@@ -145,6 +145,60 @@ private actor ControlledHTTPTransport: HTTPTransport {
     func callCount() -> Int { calls }
 }
 
+private actor GenerationalHTTPTransport: HTTPTransport {
+    private var calls = 0
+    private var pending: [Int: CheckedContinuation<HTTPTransportResponse, Error>] = [:]
+    private var callWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
+
+    func data(for request: URLRequest) async throws -> HTTPTransportResponse {
+        calls += 1
+        let call = calls
+        let ready = callWaiters.filter { $0.0 <= calls }
+        callWaiters.removeAll { $0.0 <= calls }
+        for (_, waiter) in ready { waiter.resume() }
+        return try await withCheckedThrowingContinuation { continuation in
+            pending[call] = continuation
+        }
+    }
+
+    func waitForCallCount(_ target: Int) async {
+        guard calls < target else { return }
+        await withCheckedContinuation { continuation in
+            callWaiters.append((target, continuation))
+        }
+    }
+
+    func succeed(call: Int, response: HTTPTransportResponse) {
+        pending.removeValue(forKey: call)?.resume(returning: response)
+    }
+
+    func failCancelled(call: Int) {
+        pending.removeValue(forKey: call)?.resume(throwing: URLError(.cancelled))
+    }
+
+    func callCount() -> Int { calls }
+}
+
+private actor BlockingGateOperation {
+    private var started = false
+    private var startWaiter: CheckedContinuation<Void, Never>?
+
+    func run() async throws -> Int {
+        started = true
+        startWaiter?.resume()
+        startWaiter = nil
+        try await Task.sleep(for: .seconds(60))
+        return 1
+    }
+
+    func waitUntilStarted() async {
+        guard !started else { return }
+        await withCheckedContinuation { continuation in
+            startWaiter = continuation
+        }
+    }
+}
+
 private final class MutableProviderClock: Clock, @unchecked Sendable {
     private let lock = NSLock()
     private var instant: UTCInstant
@@ -314,6 +368,32 @@ struct MarketDataInfrastructureTests {
         #expect(actions.map(\.kind) == [.split, .dividend])
         #expect(actions[1].amount?.coefficient == 12_500_000)
         #expect(Set(await routes.requestedPaths()) == ["/time_series", "/splits", "/dividends"])
+        let capabilities = await client.capabilities()
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .splits
+        }?.liveObservation == .succeeded)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .dividends
+        }?.liveObservation == .succeeded)
+    }
+
+    @Test("Split and dividend live observations are endpoint-specific")
+    func corporateActionObservationsAreIndependent() async throws {
+        let routes = RoutingHTTPTransport(routes: [
+            "/splits": response(#"{"splits":[{"date":"2025-12-01","from_factor":"2","to_factor":"1"}]}"#),
+            "/dividends": response("{}", status: 403)
+        ])
+        let client = try await makeClient(transport: routes, minuteLimit: 100)
+        await #expect(throws: ProviderBoundaryError.unsupportedEntitlement) {
+            _ = try await client.corporateActions(for: instrument(), from: nil, through: nil)
+        }
+        let capabilities = await client.capabilities()
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .splits
+        }?.liveObservation == .succeeded)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .dividends
+        }?.liveObservation == .denied)
     }
 
     @Test("408, 429, and 5xx retry at most three times and respect Retry-After")
@@ -326,14 +406,21 @@ struct MarketDataInfrastructureTests {
                 .response(status: 200, body: #"{"data":[{"symbol":"SYN","instrument_name":"Synthetic Retry","mic_code":"XNAS","currency":"USD"}]}"#)
             ])
             let sleeper = RecordingProviderSleeper()
+            let gate = ProviderRequestGate(
+                minuteLimit: 100,
+                dailyLimit: 1_000,
+                clock: clock,
+                sleeper: sleeper
+            )
             let client = try await makeClient(
                 transport: transport,
                 sleeper: sleeper,
-                minuteLimit: 100
+                gate: gate
             )
             #expect(try await client.search(query: "retry").count == 1)
             #expect(await transport.requests().count == 4)
             #expect(await sleeper.delays() == [2_000, 2_000, 2_000])
+            #expect(await gate.currentCreditUsage() == (perMinute: 4, perDay: 4))
         }
     }
 
@@ -374,6 +461,11 @@ struct MarketDataInfrastructureTests {
                 _ = try await client.search(query: "entitlement")
             }
             #expect(await transport.requests().count == 1)
+            let capabilities = await client.capabilities()
+            #expect(capabilities.endpointCapabilities.first {
+                $0.endpoint == .symbolSearch
+            }?.liveObservation == .denied)
+            #expect(capabilities.markets.allSatisfy { $0.liveObservation == .notVerified })
         }
     }
 
@@ -466,6 +558,49 @@ struct MarketDataInfrastructureTests {
         #expect(await disconnectClient.inFlightRequestState() == (requests: 0, waiters: 0))
     }
 
+    @Test("Old same-key completion cannot remove or resume a newer request generation")
+    func sameKeyGenerationIsolation() async throws {
+        let transport = GenerationalHTTPTransport()
+        let client = try await makeClient(transport: transport)
+        let first = Task { try await client.search(query: "generation") }
+        await transport.waitForCallCount(1)
+        first.cancel()
+        await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await first.value }
+
+        let second = Task { try await client.search(query: "generation") }
+        await transport.waitForCallCount(2)
+        await transport.failCancelled(call: 1)
+        await transport.succeed(call: 2, response: response(
+            #"{"data":[{"symbol":"SYN-B","instrument_name":"Synthetic Generation B","mic_code":"XNAS","currency":"USD"}]}"#
+        ))
+
+        #expect(try await second.value.first?.symbol == "SYN-B")
+        #expect(await transport.callCount() == 2)
+        #expect(await client.inFlightRequestState() == (requests: 0, waiters: 0))
+    }
+
+    @Test("Disconnect generation callback is harmless after immediate credential restart")
+    func disconnectGenerationIsolation() async throws {
+        let transport = GenerationalHTTPTransport()
+        let client = try await makeClient(transport: transport)
+        let first = Task { try await client.search(query: "restart") }
+        await transport.waitForCallCount(1)
+        await client.disconnect()
+        await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await first.value }
+        await client.credentialDidChange()
+
+        let second = Task { try await client.search(query: "restart") }
+        await transport.waitForCallCount(2)
+        await transport.failCancelled(call: 1)
+        await transport.succeed(call: 2, response: response(
+            #"{"data":[{"symbol":"SYN-R","instrument_name":"Synthetic Restart B","mic_code":"XNAS","currency":"USD"}]}"#
+        ))
+
+        #expect(try await second.value.first?.symbol == "SYN-R")
+        #expect(await transport.callCount() == 2)
+        #expect(await client.inFlightRequestState() == (requests: 0, waiters: 0))
+    }
+
     @Test("Request gate enforces concurrency two and rejects impossible credit weight")
     func concurrencyAndCredits() async throws {
         let transport = ConcurrencyHTTPTransport()
@@ -520,6 +655,37 @@ struct MarketDataInfrastructureTests {
         #expect(await daySleeper.delays() == [100])
     }
 
+    @Test("Queued cancellation does not consume credits while a started attempt does")
+    func cancellationCreditAccounting() async throws {
+        let gate = ProviderRequestGate(
+            maximumConcurrentRequests: 1,
+            minuteLimit: 8,
+            dailyLimit: 800,
+            clock: clock,
+            sleeper: RecordingProviderSleeper()
+        )
+        let firstOperation = BlockingGateOperation()
+        let first = Task { try await gate.execute(credits: 1) { try await firstOperation.run() } }
+        await firstOperation.waitUntilStarted()
+        let queued = Task { try await gate.execute(credits: 1) { 2 } }
+        queued.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await queued.value }
+        #expect(await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
+
+        first.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await first.value }
+        #expect(await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
+
+        let startedOperation = BlockingGateOperation()
+        let started = Task {
+            try await gate.execute(credits: 1) { try await startedOperation.run() }
+        }
+        await startedOperation.waitUntilStarted()
+        started.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await started.value }
+        #expect(await gate.currentCreditUsage() == (perMinute: 2, perDay: 2))
+    }
+
     @Test("Provider usage can lower limits while unknown plan text cannot raise Basic defaults")
     func conservativePlanAndHeaders() async throws {
         let actual = ScriptedHTTPTransport([
@@ -544,6 +710,76 @@ struct MarketDataInfrastructureTests {
         #expect(try await unknownClient.validateCredential().entitlement == .unknown)
         #expect(await unknownGate.currentLimits().perMinute == 8)
         #expect(await unknownGate.currentLimits().perDay == 800)
+
+        let paidWithoutDailyCap = ScriptedHTTPTransport([
+            .response(status: 200, body: #"{"plan_name":"Pro","api_credits_per_minute":55}"#)
+        ])
+        let paidGate = ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper())
+        let paidClient = try await makeClient(transport: paidWithoutDailyCap, gate: paidGate)
+        let paid = try await paidClient.validateCredential()
+        #expect(paid.dailyLimit == .uncapped)
+        #expect(await paidGate.currentLimits().perMinute == 55)
+        #expect(await paidGate.currentLimits().perDay == nil)
+    }
+
+    @Test("Plan, endpoint, and market live observations remain independent")
+    func independentCapabilityObservations() async throws {
+        let history = #"{"meta":{"currency":"USD","exchange_timezone":"America/New_York","mic_code":"XNAS"},"values":[{"datetime":"2026-01-14","open":"10","high":"12","low":"9","close":"11","volume":"1"}]}"#
+        let transport = ScriptedHTTPTransport([
+            .response(status: 200, body: #"{"plan_name":"Basic","api_credits_per_minute":8,"daily_limit":800}"#),
+            .response(status: 200, body: #"{"data":[{"symbol":"SYN","instrument_name":"Synthetic Search","mic_code":"XNAS","currency":"USD"}]}"#),
+            .response(status: 200, body: #"{"close":"12.5","timestamp":1768435200,"is_market_open":true}"#),
+            .response(status: 200, body: history)
+        ])
+        let client = try await makeClient(transport: transport, minuteLimit: 8)
+        _ = try await client.validateCredential()
+        var capabilities = await client.capabilities()
+        #expect(capabilities.entitlement == .basic)
+        #expect(capabilities.markets.allSatisfy { $0.liveObservation == .notVerified })
+        #expect(capabilities.endpointCapabilities.allSatisfy {
+            $0.liveObservation == .notVerified
+        })
+
+        _ = try await client.search(query: "SYN")
+        capabilities = await client.capabilities()
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .symbolSearch
+        }?.liveObservation == .succeeded)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .historicalOHLCV
+        }?.liveObservation == .notVerified)
+        #expect(capabilities.markets.first { $0.mic == "US" }?.liveObservation == .notVerified)
+
+        _ = try await client.latestQuote(for: instrument())
+        capabilities = await client.capabilities()
+        let us = capabilities.markets.first { $0.mic == "US" }
+        #expect(us?.liveObservation == .succeeded)
+        #expect(us?.liveObservedMICs == ["XNAS"])
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .latestQuote
+        }?.liveObservation == .succeeded)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .historicalOHLCV
+        }?.liveObservation == .notVerified)
+
+        let request = try MarketHistoryRequest(
+            instrument: instrument(), interval: .oneDay, adjustment: .all, outputSize: 10
+        )
+        _ = try await client.historicalBars(request)
+        capabilities = await client.capabilities()
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .historicalOHLCV
+        }?.liveObservation == .succeeded)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .splits
+        }?.liveObservation == .notVerified)
+
+        await client.credentialDidChange()
+        capabilities = await client.capabilities()
+        #expect(capabilities.markets.allSatisfy { $0.liveObservation == .notVerified })
+        #expect(capabilities.endpointCapabilities.allSatisfy {
+            $0.liveObservation == .notVerified
+        })
     }
 
     @Test("Basic capability keeps Corporate Actions catalog-only and aggregates US MIC observations")
@@ -566,9 +802,12 @@ struct MarketDataInfrastructureTests {
 
         #expect(quote.instrument.mic == "XNAS")
         #expect(us?.observedEntitlement == .basic)
+        #expect(us?.liveObservation == .succeeded)
+        #expect(us?.liveObservedMICs == ["XNAS"])
         #expect(us?.supportsCorporateActions == false)
         #expect(capabilities.supportsCorporateActions == false)
         #expect(capabilities.endpointCapabilities.first(where: { $0.endpoint == .splits })?.creditWeight == 20)
+        #expect(capabilities.endpointCapabilities.first(where: { $0.endpoint == .splits })?.liveObservation == .notVerified)
         #expect(capabilities.endpointCapabilities.first(where: { $0.endpoint == .dividends })?.minimumPlanName.contains("Grow") == true)
 
         let actionTransport = ScriptedHTTPTransport([])
@@ -595,10 +834,117 @@ struct MarketDataInfrastructureTests {
         let quote = try await client.latestQuote(for: instrument())
         let capabilities = await client.capabilities()
 
-        #expect(quote.quality == .current)
+        #expect(quote.quality == .unknown)
         #expect(quote.freshness == .unknown)
         #expect(capabilities.markets.first(where: { $0.mic == "XHKG" })?.evidenceStatus == "CONFLICTING_EOD_EVIDENCE")
         #expect(!capabilities.supportedMICs.contains("XHKG"))
+    }
+
+    @Test("Session status and interval never manufacture provider freshness")
+    func freshnessRequiresExplicitEvidence() async throws {
+        let history = #"{"meta":{"currency":"USD","exchange_timezone":"America/New_York","mic_code":"XNAS"},"values":[{"datetime":"2026-01-14","open":"10","high":"12","low":"9","close":"11","volume":"1"}]}"#
+        let transport = ScriptedHTTPTransport([
+            .response(status: 200, body: #"{"close":"12.5","timestamp":1768435200,"is_market_open":true}"#),
+            .response(status: 200, body: #"{"close":"12.5","timestamp":1768435200,"is_market_open":false}"#),
+            .response(status: 200, body: history),
+            .response(status: 200, body: history)
+        ])
+        let client = try await makeClient(transport: transport)
+        #expect(try await client.latestQuote(for: instrument()).freshness == .unknown)
+        #expect(try await client.latestQuote(for: instrument()).freshness == .unknown)
+        let intraday = try MarketHistoryRequest(
+            instrument: instrument(), interval: .oneMinute, adjustment: .all, outputSize: 10
+        )
+        let daily = try MarketHistoryRequest(
+            instrument: instrument(), interval: .oneDay, adjustment: .all, outputSize: 10
+        )
+        #expect(try await client.historicalBars(intraday).bars.allSatisfy {
+            $0.freshness == .unknown
+        })
+        #expect(try await client.historicalBars(daily).bars.allSatisfy {
+            $0.freshness == .unknown
+        })
+        #expect((await client.capabilities()).markets.allSatisfy {
+            $0.freshness == .unknown
+        })
+    }
+
+    @Test("Untrusted timestamps Retry-After and credit sums cannot overflow")
+    func providerIntegerArithmeticIsChecked() async throws {
+        let invalidTimestamp = ScriptedHTTPTransport([
+            .response(
+                status: 200,
+                body: #"{"close":"12.5","timestamp":9223372036854775807,"is_market_open":true}"#
+            )
+        ])
+        let timestampClient = try await makeClient(transport: invalidTimestamp)
+        await #expect(throws: ProviderBoundaryError.invalidPayload) {
+            _ = try await timestampClient.latestQuote(for: instrument())
+        }
+
+        let negativeTimestamp = ScriptedHTTPTransport([
+            .response(
+                status: 200,
+                body: #"{"close":"12.5","timestamp":-1,"is_market_open":true}"#
+            )
+        ])
+        let negativeTimestampClient = try await makeClient(transport: negativeTimestamp)
+        await #expect(throws: ProviderBoundaryError.invalidPayload) {
+            _ = try await negativeTimestampClient.latestQuote(for: instrument())
+        }
+
+        let legalSeconds = Int64.max / 1_000
+        let legalTimestamp = ScriptedHTTPTransport([
+            .response(
+                status: 200,
+                body: "{\"close\":\"12.5\",\"timestamp\":\(legalSeconds),\"is_market_open\":true}"
+            )
+        ])
+        let legalClient = try await makeClient(transport: legalTimestamp)
+        #expect(
+            try await legalClient.latestQuote(for: instrument()).observedAt.millisecondsSince1970
+                == legalSeconds * 1_000
+        )
+
+        for retryAfter in ["9223372036854775807", "-1"] {
+            let transport = ScriptedHTTPTransport([
+                .response(status: 429, body: "{}", headers: ["Retry-After": retryAfter]),
+                .response(
+                    status: 200,
+                    body: #"{"data":[{"symbol":"SYN","instrument_name":"Synthetic Retry","mic_code":"XNAS","currency":"USD"}]}"#
+                )
+            ])
+            let sleeper = RecordingProviderSleeper()
+            let client = try await makeClient(
+                transport: transport, sleeper: sleeper, minuteLimit: 100
+            )
+            #expect(try await client.search(query: "retry-overflow").count == 1)
+            #expect(await sleeper.delays() == [1_000])
+        }
+
+        let headers = ScriptedHTTPTransport([
+            .response(
+                status: 200,
+                body: #"{"data":[{"symbol":"SYN","instrument_name":"Synthetic Header Overflow","mic_code":"XNAS","currency":"USD"}]}"#,
+                headers: ["api-credits-used": String(Int64.max), "api-credits-left": "1"]
+            ),
+            .response(
+                status: 200,
+                body: #"{"data":[{"symbol":"SYN","instrument_name":"Synthetic Header Legal","mic_code":"XNAS","currency":"USD"}]}"#,
+                headers: ["api-credits-used": "60", "api-credits-left": "40"]
+            )
+        ])
+        let headerGate = ProviderRequestGate(
+            minuteLimit: 200,
+            dailyLimit: 1_000,
+            clock: clock,
+            sleeper: RecordingProviderSleeper()
+        )
+        let headerClient = try await makeClient(transport: headers, gate: headerGate)
+        _ = try await headerClient.search(query: "overflow-header")
+        #expect(await headerGate.currentLimits().perMinute == 200)
+        _ = try await headerClient.search(query: "legal-header")
+        #expect(await headerGate.currentLimits().perMinute == 100)
     }
 
     private func makeClient(
