@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6F Account Bootstrap / External Acceptance — `BLOCKED` pending validated provider evidence and retention rights  
+**Status:** Stage 6G Security Recovery / Terminal Validation Candidate — `BLOCKED` pending retention rights and remaining endpoint/market evidence  
 **Evidence visit:** 2026-08-12–2026-08-13  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -8,7 +8,9 @@
 
 Aureus uses Twelve Data as the selected market-data provider with a user-owned API key (BYOK), and Frankfurter v2 filtered to ECB reference rates for USD/CNY reference FX. The Production App accepts a Twelve Data credential only through its native Settings UI and stores it only in the app-scoped macOS Keychain item.
 
-In Stage 6F the user completed the official Basic Free account flow and personally handled password, CAPTCHA, verification, legal confirmation, and the final credential paste. Production Settings saved the credential to the app-scoped Keychain; an isolated read-only UI test reported only the categorical state `CONFIGURED` and executed 1/1 with zero failures. A bounded Production Validate action was subsequently triggered through the existing Settings control. The plan/entitlement UI did not reach a verifiable Basic result before the 30-second observation timeout, so actual plan, usage headers, and all credentialed endpoint or market capabilities remain `NOT VERIFIED`. No international or Corporate Actions request was made. The local manual secret record was not accessed.
+Stage 6G treated the credential involved in the Stage 6F boundary incident as compromised because it had entered conversation, browser-automation context, and a plaintext temporary file. The Production Disconnect path removed the local credential without reading it, stopped Provider admission, and purged only recoverable Twelve Data cache. The user then personally revoked/rotated the old credential server-side and pasted the replacement directly from the Provider site into the Production SecureField; no replacement credential material passed through conversation, automation, files, logs, screenshots, or test inputs. A read-only Production UI check reported only `CONFIGURED`.
+
+Exactly one subsequent Production Validate action used the existing bounded policy (one initial request and at most three internal retries; maximum theoretical budget four credits). It observed the busy state and reached sanitized terminal category `SUCCESS`; `lastSuccessfulValidation` was present. The categorical Observed Plan and Entitlement both remained `Unknown`, so this result verifies only the replacement credential's terminal validation path. It does not verify Basic, actual usage headers, Search, Quote, OHLCV, adjustment, Corporate Actions, freshness, or any market entitlement. No other Twelve Data endpoint was called. The local manual secret record was not accessed.
 
 The implementation makes the following safety distinctions:
 
@@ -65,7 +67,7 @@ Stage 6E re-read the public first-party Terms, personal-use guidance, historical
 
 Stage 6D adds a local identity-integrity repair: saving a byte-identical Credential after the existing trim/validation step is an idempotent no-op, so it does not rotate the credential generation, reset quota counters or verified limits, clear live observations, cancel transport, or purge cache. Native Picker and Open/Save Panel test helpers now reacquire accessibility elements after each native UI state transition. These synthetic/local checks do not change any Live Acceptance Matrix status.
 
-The isolated 2026-08-13 Stage 6D verification executed 161 Unit/Integration test definitions (194 expanded executions), including 34 focused Market Data Infrastructure tests, with zero failures or skips. The Ledger Picker flow and native CSV Open/Save flow each passed three consecutive focused runs, passed together as 2/2, and the complete UI suite passed 10/10 on its first bounded run. These are local implementation and regression results only; they do not constitute credentialed Twelve Data acceptance.
+The isolated 2026-08-13 Stage 6D verification executed 161 Unit/Integration test definitions (194 expanded executions), including 34 focused Market Data Infrastructure tests, with zero failures or skips. The Ledger Picker flow and native CSV Open/Save flow each passed three consecutive focused runs, passed together as 2/2, and the complete UI suite passed 10/10 on its first bounded run. These are local implementation and regression results only. Stage 6G separately established only the sanitized credential-validation result described above.
 
 ### 3.3 Termination and deletion
 
@@ -83,7 +85,7 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 | FX | Frankfurter v2 provider-filtered ECB rows, USD/CNY derived cross, reference date, fetch instant, fixed-point conversion, stale/offline/missing states and 24-hour cache policy. | PASS — injected-transport tests and one bounded unauthenticated live response |
 | Market Cache | Independent GRDB cache v2, typed metadata/TTL, access tracking, 512 MiB default, 128 MiB–4 GiB range, 90% trigger, 80% target, cleanup ordering, LRU, expired removal, Provider purge, full own-database reset, and write refusal when the bound cannot be met. Legacy `cached_instruments`/`cached_prices` and current entries are all counted and are all eligible for typed expiry/LRU/capacity cleanup. Reducing the configured maximum flushes pending access metadata and atomically persists the policy, cleans both schema generations to the new 80% target, and records `capacityChange`; failure preserves the old policy and data. It does not update launch/periodic/background schedules. | PASS — v1/current migration, mixed-capacity, rollback, scheduling and Permanent-isolation tests |
 | Permanent isolation | Automatic TTL, high-water, LRU, Remove Expired, Provider purge, credential deletion, Disconnect, confirmed termination, and full reset preserve permanent URL/hash/schema plus Wealth, Ledger, Snapshot items and FX provenance. | PASS — parameterized integration tests |
-| Settings | Native Provider/Keychain and cache controls; Missing/Invalid/Upgrade/Unsupported/Rate Limited states; verified Plan, official catalog minimum, endpoint/market Live observed, and Not verified are displayed separately; raw observed MICs and `unknown` freshness remain visible. Capacity-change feedback reports the new bound and recoverable entries/bytes removed. The retention-blocked message, attribution, cache usage and destructive confirmations remain. Markets remains a Stage 7 Placeholder. | PASS — implementation, synthetic lifecycle UI automation, and read-only Production `Missing` observation |
+| Settings | Native Provider/Keychain and cache controls; Missing/Invalid/Upgrade/Unsupported/Rate Limited states; verified Plan, official catalog minimum, endpoint/market Live observed, and Not verified are displayed separately; raw observed MICs and `unknown` freshness remain visible. Capacity-change feedback reports the new bound and recoverable entries/bytes removed. The retention-blocked message, attribution, cache usage and destructive confirmations remain. Markets remains a Stage 7 Placeholder. | PASS — implementation and synthetic lifecycle UI automation; Stage 6G Production state `Configured` and terminal validation `SUCCESS`, with Plan/Entitlement still `Unknown` |
 
 ## 5. Live Provider Acceptance Matrix
 
@@ -91,12 +93,14 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 
 | Acceptance item | Status | Evidence and limitation |
 |---|---|---|
+| Replacement credential terminal validation | VERIFIED | After user-confirmed server-side revocation/rotation and direct Production SecureField save, one bounded Validate action reached sanitized `SUCCESS`; busy and terminal completion were observed. No credential value, URL, payload, request ID, or exact quota was retained. |
+| Actual Provider plan / entitlement | NOT VERIFIED | The same terminal validation displayed categorical Observed Plan `Unknown` and Entitlement `Unknown`; no Basic or paid-plan inference is made. |
 | Basic Free published quota | VERIFIED | Official Pricing/credit pages publish 8 credits/minute and 800/day; no actual-key usage observation was made. |
 | Basic Free Search | NOT VERIFIED | Adapter and synthetic transport tests pass; Stage 6F did not call Search. |
 | Basic Free historical OHLCV | NOT VERIFIED | Official contract and adapter tests exist; no credentialed endpoint was called. |
 | Adjustment modes | NOT VERIFIED | Official docs establish the contract; actual endpoint behavior for a user entitlement was not called. |
 | Split/Dividend actions | NOT VERIFIED | Official docs establish 20 credits per symbol and Grow individual / Venture business minimum access. Basic is not advertised as capable and no entitled endpoint was called. |
-| Usage/credit response headers | NOT VERIFIED | A bounded Production Validate action was triggered, but no categorical plan/usage result was confirmed; no exact quota value was recorded. |
+| Usage/credit response headers | NOT VERIFIED | Terminal validation succeeded, but the sanitized UI did not establish header presence or an actual plan/quota category; no exact quota value was recorded. |
 | United States endpoint entitlement | NOT VERIFIED | Basic catalog path is published, but Stage 6F did not verify a US Search, Quote, or OHLCV endpoint. |
 | `XHKG` | NOT VERIFIED | No Pro-or-higher credential; EOD guide and catalog require entitlement/licensing reconciliation. |
 | `XSHG` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |
@@ -121,4 +125,4 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 
 ## 7. Reviewer-facing Limitations
 
-The implementation candidate can be built and tested without a credential. It does not claim live Twelve Data acceptance, paid entitlement, complete four-market access, exact market freshness, or ordinary persistent-cache rights. A later bounded acceptance run is allowed only after a user independently enters a credential through the Production Settings UI. If no Pro-or-higher test condition exists, all four international-market endpoint rows must remain `NOT VERIFIED` rather than inferred from catalog visibility or synthetic tests.
+The implementation candidate can be built and tested without a credential. Stage 6G verifies only a sanitized terminal validation of the securely rotated replacement credential. It does not claim Basic or paid entitlement, Search/Quote/OHLCV/actions acceptance, complete four-market access, exact market freshness, or ordinary persistent-cache rights. If no Pro-or-higher test condition exists, all four international-market endpoint rows must remain `NOT VERIFIED` rather than inferred from catalog visibility, terminal credential validation, or synthetic tests.
