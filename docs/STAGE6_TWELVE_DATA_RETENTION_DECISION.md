@@ -2,7 +2,7 @@
 
 **Status:** `BLOCKED` — Production Twelve Data persistent cache writes remain disabled  
 **Decision date:** 2026-08-13  
-**Stage status:** Stage 6G Security Recovery / Terminal Validation Candidate — `BLOCKED`; the compromised credential was revoked/rotated by the user, a replacement reports `Configured`, terminal validation succeeded with Plan/Entitlement still `Unknown`, and no Provider inquiry was sent.  
+**Stage status:** Stage 6H External Contract Inquiry — `BLOCKED — WAITING FOR PROVIDER RESPONSE`; one sanitized inquiry was sent through the official Twelve Data Customer Support form, while Plan/Entitlement remain `NOT VERIFIED`.  
 **Scope:** Twelve Data BYOK, individual personal/internal use in the local-first Aureus macOS app
 
 This record answers only whether Aureus has sufficient current official evidence to persist Twelve Data market data on the user's Mac. It does not change the selected Provider, plan-aware entitlement model, four-market V1 scope, or Stage 6 implementation boundary.
@@ -11,7 +11,7 @@ This record answers only whether Aureus has sufficient current official evidence
 
 Current public first-party materials establish that an individual subscriber may process and store data for internal use, subject to the subscription tier, Documentation, exchange restrictions, and termination obligations. The Terms also prohibit storing or caching data beyond timeframes specified in the Documentation. The reviewed public Documentation does not state an unambiguous local persistent-cache duration for each Aureus data type and plan.
 
-Stage 6G corrected the Stage 6F credential-boundary incident without changing retention evidence: the old credential was treated as compromised, disconnected locally without being read, and user-confirmed as revoked/rotated server-side. The replacement was transferred only by the user directly into the Production SecureField. Production Settings reports it configured, and one bounded validation reached sanitized terminal `SUCCESS`, while Plan and Entitlement remained `Unknown`. No user-visible retention term or written Provider response was supplied. The available material still does not close the per-data-type and per-plan duration gap, so this decision and the disabled-write policy are unchanged. The Support Inquiry Packet remains unsent.
+Stage 6G corrected the Stage 6F credential-boundary incident without changing retention evidence: the old credential was treated as compromised, disconnected locally without being read, and user-confirmed as revoked/rotated server-side. The replacement was transferred only by the user directly into the Production SecureField. Production Settings reports it configured, and one bounded validation reached sanitized terminal `SUCCESS`, while Plan and Entitlement remained `Unknown`. On 2026-08-13, Stage 6H sent exactly one sanitized inquiry through the official Twelve Data Customer Support form under the `Other` category. The response is `PENDING`. No user-visible retention term or written Provider response has yet been supplied, so this decision and the disabled-write policy are unchanged. No credentialed endpoint was called in Stage 6H.
 
 Therefore:
 
@@ -49,7 +49,7 @@ Access date for every source below: **2026-08-13**.
 
 ## 4. Support Inquiry Packet
 
-The following can be sent unchanged to Twelve Data Support or licensing. It requests a written, plan-specific answer without disclosing a credential or account identifier.
+The following was submitted once to the official Twelve Data Customer Support form on 2026-08-13 under the `Other` category. The response is `PENDING`. It requests a written, plan-specific answer without disclosing a credential or account identifier.
 
 **Subject:** Local persistent-cache terms for a BYOK open-source macOS desktop app
 
@@ -67,6 +67,7 @@ The following can be sent unchanged to Twelve Data Support or licensing. It requ
 > 6. Whether locally cached data must be deleted immediately when the applicable market entitlement is lost, even if the overall account remains active.
 > 7. What attribution is required inside a private desktop UI, and whether any exchange-specific attribution applies to these five market identifiers.
 > 8. Whether an open-source application may implement this BYOK local-cache behavior when neither the repository nor the application developer receives or redistributes Provider data.
+> 9. Please provide the current officially supported JSON field names, nesting and value types returned by `/api_usage` for the plan name, API credits per minute, daily cap, credits used and credits remaining. Please also confirm whether the response shape differs between Basic and paid Individual plans. We need only the public response contract; please do not include or request an API key.
 >
 > Please identify any Documentation section, plan add-on, exchange agreement, or separate written license that governs these rights. We will keep persistent Twelve Data cache writes disabled until the applicable duration and deletion obligations are confirmed.
 >

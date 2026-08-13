@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6G Security Recovery / Terminal Validation Candidate — `BLOCKED` pending retention rights and remaining endpoint/market evidence  
+**Status:** Stage 6H External Contract Inquiry — `BLOCKED — WAITING FOR PROVIDER RESPONSE`  
 **Evidence visit:** 2026-08-12–2026-08-13  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -63,7 +63,7 @@ The typed architectural TTLs are implemented and tested as freshness/cleanup pol
 
 The endpoint-by-endpoint decision and a copy-ready support inquiry are recorded in [Stage 6 Twelve Data Retention Decision](STAGE6_TWELVE_DATA_RETENTION_DECISION.md). The current result is `BLOCKED`, so Production Twelve Data persistent writes remain disabled.
 
-Stage 6E re-read the public first-party Terms, personal-use guidance, historical-price guidance, and attribution guidance on 2026-08-13. They continue to establish general internal-use, plan, exchange, attribution, and termination boundaries, but do not provide a complete endpoint-by-endpoint maximum local retention duration for this BYOK desktop scenario. No user-visible plan term or Provider support reply was supplied, and the Support Inquiry Packet was not sent.
+Stage 6E re-read the public first-party Terms, personal-use guidance, historical-price guidance, and attribution guidance on 2026-08-13. They continue to establish general internal-use, plan, exchange, attribution, and termination boundaries, but do not provide a complete endpoint-by-endpoint maximum local retention duration for this BYOK desktop scenario. On 2026-08-13, Stage 6H submitted exactly one sanitized inquiry through the official Twelve Data Customer Support form under the `Other` category. The response is `PENDING`; ordinary retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, Plan/Entitlement remain `NOT VERIFIED`, and no credentialed endpoint was called in this documentation/external-communication-only task.
 
 Stage 6D adds a local identity-integrity repair: saving a byte-identical Credential after the existing trim/validation step is an idempotent no-op, so it does not rotate the credential generation, reset quota counters or verified limits, clear live observations, cancel transport, or purge cache. Native Picker and Open/Save Panel test helpers now reacquire accessibility elements after each native UI state transition. These synthetic/local checks do not change any Live Acceptance Matrix status.
 
