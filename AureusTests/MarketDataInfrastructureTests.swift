@@ -196,6 +196,7 @@ private actor GenerationalHTTPTransport: HTTPTransport {
     }
 
     func callCount() -> Int { calls }
+    func wasCancelled(call: Int) -> Bool { cancelledCalls.contains(call) }
 }
 
 private enum SyntheticLifecycleOrderingError: Error {
@@ -206,23 +207,31 @@ private enum SyntheticLifecycleOrderingError: Error {
 private actor LifecycleCredentialStore: CredentialStore {
     private var value: Data?
     private let beforeDelete: (@Sendable () async throws -> Void)?
+    private let failReads: Bool
     private let failStores: Bool
     private var deletes = 0
+    private var stores = 0
 
     init(
         value: Data?,
+        failReads: Bool = false,
         failStores: Bool = false,
         beforeDelete: (@Sendable () async throws -> Void)? = nil
     ) {
         self.value = value
+        self.failReads = failReads
         self.failStores = failStores
         self.beforeDelete = beforeDelete
     }
 
-    func credential(for descriptor: CredentialDescriptor) -> Data? { value }
+    func credential(for descriptor: CredentialDescriptor) throws -> Data? {
+        guard !failReads else { throw SyntheticLifecycleOrderingError.credentialStoreFailed }
+        return value
+    }
 
     func store(_ credential: Data, for descriptor: CredentialDescriptor) throws {
         guard !failStores else { throw SyntheticLifecycleOrderingError.credentialStoreFailed }
+        stores += 1
         value = credential
     }
 
@@ -234,6 +243,7 @@ private actor LifecycleCredentialStore: CredentialStore {
 
     func currentValue() -> Data? { value }
     func deleteCount() -> Int { deletes }
+    func storeCount() -> Int { stores }
 }
 
 private actor BlockingGateOperation {
@@ -843,6 +853,138 @@ struct MarketDataInfrastructureTests {
         #expect(try await gate.currentCreditUsage() == (perMinute: 1, perDay: 1))
         #expect(await transport.callCount() == 2)
         #expect(await client.transportTaskCount() == 0)
+    }
+
+    @Test("Saving the same trimmed credential is an identity-preserving no-op")
+    func sameCredentialSavePreservesIdentityState() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite"))
+        let now = clock.now()
+        let cacheEntry = try lifecycleCacheEntry(key: "same-credential", fetchedAt: now)
+        try await cache.store(cacheEntry, authorization: .authorized)
+
+        let credentialText = "synthetic-stage6-same-credential"
+        let store = LifecycleCredentialStore(value: Data(credentialText.utf8))
+        let transport = GenerationalHTTPTransport()
+        let gate = ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper())
+        let client = TwelveDataClient(
+            credentialStore: store,
+            transport: transport,
+            gate: gate,
+            clock: clock,
+            sleeper: RecordingProviderSleeper(),
+            jitter: ZeroRetryJitterSource(),
+            shutdownTimeoutMilliseconds: 1_000,
+            baseURL: URL(string: "https://synthetic-provider.invalid")!
+        )
+        let coordinator = ProviderCredentialCoordinator(
+            credentialStore: store,
+            provider: client,
+            cache: cache,
+            clock: clock
+        )
+
+        let validation = Task { try await client.validateCredential() }
+        await transport.waitForCallCount(1)
+        await transport.succeed(call: 1, response: response(
+            #"{"plan_name":"Basic","api_credits_per_minute":8,"daily_limit":800}"#
+        ))
+        _ = try await validation.value
+
+        let quote = Task { try await client.latestQuote(for: instrument()) }
+        await transport.waitForCallCount(2)
+        await transport.succeed(call: 2, response: response(
+            #"{"close":"12.5","timestamp":1768435200,"is_market_open":true}"#
+        ))
+        _ = try await quote.value
+
+        let active = Task { try await client.search(query: "same-active") }
+        await transport.waitForCallCount(3)
+        let identityBefore = await client.credentialIdentitySnapshot()
+        let usageBefore = try await gate.currentCreditUsage()
+        let limitsBefore = await gate.currentLimits()
+        let capabilitiesBefore = await client.capabilities()
+
+        try await coordinator.save("  \(credentialText)\n")
+        try await coordinator.save(credentialText)
+
+        #expect(await client.credentialIdentitySnapshot() == identityBefore)
+        #expect(try await gate.currentCreditUsage() == usageBefore)
+        #expect(await gate.currentLimits() == limitsBefore)
+        #expect(await client.capabilities() == capabilitiesBefore)
+        #expect(await client.inFlightRequestState() == (requests: 1, waiters: 1))
+        #expect(await transport.wasCancelled(call: 3) == false)
+        #expect(await transport.callCount() == 3)
+        #expect(await store.storeCount() == 0)
+        #expect(try await cache.lookup(
+            providerIdentifier: "twelve-data",
+            logicalKey: "same-credential",
+            dataType: .latestQuote,
+            now: now,
+            allowStale: true
+        ) != .missing)
+
+        await transport.succeed(call: 3, response: response(
+            #"{"data":[{"symbol":"SYN-SAME","instrument_name":"Synthetic Same Credential","mic_code":"XNAS","currency":"USD"}]}"#
+        ))
+        #expect(try await active.value.first?.symbol == "SYN-SAME")
+        #expect(await client.transportTaskCount() == 0)
+    }
+
+    @Test("Credential first save and retrieval failure have explicit safe outcomes")
+    func credentialFirstSaveAndRetrievalFailure() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite"))
+
+        let emptyStore = LifecycleCredentialStore(value: nil)
+        let firstClient = TwelveDataClient(
+            credentialStore: emptyStore,
+            transport: ScriptedHTTPTransport([]),
+            gate: ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper()),
+            clock: clock,
+            sleeper: RecordingProviderSleeper(),
+            jitter: ZeroRetryJitterSource(),
+            baseURL: URL(string: "https://synthetic-provider.invalid")!
+        )
+        let firstCoordinator = ProviderCredentialCoordinator(
+            credentialStore: emptyStore,
+            provider: firstClient,
+            cache: cache,
+            clock: clock
+        )
+        try await firstCoordinator.save("synthetic-stage6-first-save")
+        #expect(await emptyStore.storeCount() == 1)
+        #expect(await emptyStore.currentValue() != nil)
+        #expect(await firstClient.credentialIdentitySnapshot().acceptsRequests)
+
+        let failingStore = LifecycleCredentialStore(value: nil, failReads: true)
+        let failingClient = TwelveDataClient(
+            credentialStore: failingStore,
+            transport: ScriptedHTTPTransport([]),
+            gate: ProviderRequestGate(clock: clock, sleeper: RecordingProviderSleeper()),
+            clock: clock,
+            sleeper: RecordingProviderSleeper(),
+            jitter: ZeroRetryJitterSource(),
+            baseURL: URL(string: "https://synthetic-provider.invalid")!
+        )
+        let failingCoordinator = ProviderCredentialCoordinator(
+            credentialStore: failingStore,
+            provider: failingClient,
+            cache: cache,
+            clock: clock
+        )
+        let identityBefore = await failingClient.credentialIdentitySnapshot()
+        do {
+            try await failingCoordinator.save("synthetic-stage6-never-reported")
+            Issue.record("Credential retrieval failure must not report success")
+        } catch {
+            #expect(error is SyntheticLifecycleOrderingError)
+            #expect(!String(describing: error).contains("synthetic-stage6-never-reported"))
+        }
+        #expect(await failingStore.storeCount() == 0)
+        #expect(await failingClient.credentialIdentitySnapshot() == identityBefore)
     }
 
     @Test("A credential-store rotation failure leaves the old identity quiesced and unchanged")

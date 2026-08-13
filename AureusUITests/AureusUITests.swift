@@ -341,7 +341,7 @@ final class AureusUITests: XCTestCase {
     @MainActor
     func testLedgerNativeCSVImportPreviewConfirmationAndExport() throws {
         let root = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
-            .appendingPathComponent("Aureus-Stage4A-CSV-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Aureus-Stage6D-CSV-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let importURL = root.appendingPathComponent("Synthetic-Import.csv")
@@ -465,7 +465,7 @@ final class AureusUITests: XCTestCase {
 
         let screenshot = XCUIScreen.main.screenshot().pngRepresentation
         try screenshot.write(
-            to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6C-Settings.png"),
+            to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6D-Settings-\(UUID().uuidString).png"),
             options: .atomic
         )
 
@@ -624,17 +624,18 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func selectPicker(app: XCUIApplication, identifier: String, title: String) {
-        let picker = app.descendants(matching: .any)[identifier]
-        XCTAssertTrue(picker.waitForExistence(timeout: 5), "Missing picker \(identifier)")
-        picker.click()
+        let initialPicker = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(initialPicker.waitForExistence(timeout: 5), "Missing picker \(identifier)")
+        initialPicker.click()
         // Native macOS menu snapshots can fail inside CoreServices UIAgent.
         // Drive the open menu through its built-in type-to-select behavior,
         // then verify the Picker's accessible value instead of querying a
         // transient MenuItem tree or relying on a row position.
         app.typeText(title)
         app.typeKey(.return, modifierFlags: [])
+        let selectedPicker = app.descendants(matching: .any)[identifier]
         XCTAssertTrue(
-            waitForValueOrLabel(picker, containing: title, timeout: 5),
+            waitForValueOrLabel(selectedPicker, containing: title, timeout: 5),
             "Picker \(identifier) did not select \(title)"
         )
     }
@@ -774,7 +775,6 @@ final class AureusUITests: XCTestCase {
                 || app.dialogs.firstMatch.waitForExistence(timeout: 5),
             "Native Open Panel did not appear"
         )
-        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         app.typeKey("g", modifierFlags: [.command, .shift])
         let field = app.textFields["PathTextField"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
@@ -792,11 +792,15 @@ final class AureusUITests: XCTestCase {
         if app.descendants(matching: .any)["ledger.import.preview.summary"].waitForExistence(timeout: 10) {
             return
         }
+        let panel = currentNativePanel(in: app)
         let open = panel.descendants(matching: .button)["OKButton"].firstMatch
         XCTAssertTrue(open.waitForExistence(timeout: 5), "Open Panel did not reach file-selection state")
         XCTAssertTrue(waitForEnabled(open, timeout: 5), "Open button never became enabled")
         if open.isHittable { open.click() } else { app.typeKey(.enter, modifierFlags: []) }
-        XCTAssertTrue(waitForNonexistence(open, timeout: 5), "Open Panel did not dismiss after selecting the synthetic CSV")
+        XCTAssertTrue(
+            waitForNativePanelToDisappear(in: app, timeout: 5),
+            "Open Panel did not dismiss after selecting the synthetic CSV"
+        )
     }
 
     @MainActor
@@ -806,7 +810,6 @@ final class AureusUITests: XCTestCase {
                 || app.dialogs.firstMatch.waitForExistence(timeout: 5),
             "Native Save Panel did not appear"
         )
-        let panel = app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
         app.typeKey("g", modifierFlags: [.command, .shift])
         let goToField = app.textFields["PathTextField"]
         XCTAssertTrue(goToField.waitForExistence(timeout: 5))
@@ -819,6 +822,7 @@ final class AureusUITests: XCTestCase {
         if FileManager.default.fileExists(atPath: path) {
             return
         }
+        let panel = currentNativePanel(in: app)
         let fileNameField = panel.descendants(matching: .textField)["saveAsNameTextField"]
         XCTAssertTrue(fileNameField.waitForExistence(timeout: 5))
         replaceText(in: fileNameField, with: URL(fileURLWithPath: path).lastPathComponent)
@@ -830,11 +834,28 @@ final class AureusUITests: XCTestCase {
         if replace.waitForExistence(timeout: 1) {
             XCTAssertTrue(replace.isHittable); replace.click()
         }
-        XCTAssertTrue(waitForNonexistence(save, timeout: 5), "Save Panel did not dismiss after export")
         XCTAssertTrue(
             waitForFile(at: path, timeout: 5),
             "Native Save Panel dismissed but the synthetic export was not created"
         )
+    }
+
+    @MainActor
+    private func currentNativePanel(in app: XCUIApplication) -> XCUIElement {
+        app.sheets.firstMatch.exists ? app.sheets.firstMatch : app.dialogs.firstMatch
+    }
+
+    @MainActor
+    private func waitForNativePanelToDisappear(
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if !app.sheets.firstMatch.exists && !app.dialogs.firstMatch.exists { return true }
+            Thread.sleep(forTimeInterval: 0.05)
+        } while Date() < deadline
+        return false
     }
 
     @MainActor

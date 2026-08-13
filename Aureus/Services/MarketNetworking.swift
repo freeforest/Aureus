@@ -733,6 +733,10 @@ actor TwelveDataClient: MarketDataProvider {
 
     func transportTaskCount() -> Int { transportTasks.count }
 
+    func credentialIdentitySnapshot() -> (generation: UUID, acceptsRequests: Bool) {
+        (credentialGeneration, requestAdmissionState == .accepting)
+    }
+
     func search(query: String) async throws -> [MarketInstrument] {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty, normalized.count <= 128 else {

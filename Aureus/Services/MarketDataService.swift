@@ -392,6 +392,10 @@ actor ProviderCredentialCoordinator {
         guard trimmed.count >= 8, let data = trimmed.data(using: .utf8) else {
             throw CredentialStoreError.invalidCredential
         }
+        let current = try await credentialStore.credential(
+            for: TwelveDataClient.credentialDescriptor
+        )
+        guard current != data else { return }
         try await provider.prepareForCredentialChange()
         try await credentialStore.store(data, for: TwelveDataClient.credentialDescriptor)
         await provider.credentialDidChange()

@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6C Repair Candidate — awaiting Reviewer Gate  
+**Status:** Stage 6D Repair Candidate — awaiting Reviewer Gate  
 **Evidence visit:** 2026-08-12–2026-08-13  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -60,6 +60,10 @@ The public Terms establish that cache/storage rights are plan- and documentation
 The typed architectural TTLs are implemented and tested as freshness/cleanup policy. They never grant a legal right to persist data: a stricter Provider retention rule wins.
 
 The endpoint-by-endpoint decision and a copy-ready support inquiry are recorded in [Stage 6 Twelve Data Retention Decision](STAGE6_TWELVE_DATA_RETENTION_DECISION.md). The current result is `BLOCKED`, so Production Twelve Data persistent writes remain disabled.
+
+Stage 6D adds a local identity-integrity repair: saving a byte-identical Credential after the existing trim/validation step is an idempotent no-op, so it does not rotate the credential generation, reset quota counters or verified limits, clear live observations, cancel transport, or purge cache. Native Picker and Open/Save Panel test helpers now reacquire accessibility elements after each native UI state transition. These synthetic/local checks do not change any Live Acceptance Matrix status.
+
+The isolated 2026-08-13 Stage 6D verification executed 161 Unit/Integration test definitions (194 expanded executions), including 34 focused Market Data Infrastructure tests, with zero failures or skips. The Ledger Picker flow and native CSV Open/Save flow each passed three consecutive focused runs, passed together as 2/2, and the complete UI suite passed 10/10 on its first bounded run. These are local implementation and regression results only; they do not constitute credentialed Twelve Data acceptance.
 
 ### 3.3 Termination and deletion
 
