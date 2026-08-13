@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6E External Acceptance — `BLOCKED` pending user-owned credential and retention evidence  
+**Status:** Stage 6F Account Bootstrap / External Acceptance — `BLOCKED` pending validated provider evidence and retention rights  
 **Evidence visit:** 2026-08-12–2026-08-13  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -8,7 +8,7 @@
 
 Aureus uses Twelve Data as the selected market-data provider with a user-owned API key (BYOK), and Frankfurter v2 filtered to ECB reference rates for USD/CNY reference FX. The Production App accepts a Twelve Data credential only through its native Settings UI and stores it only in the app-scoped macOS Keychain item.
 
-No Twelve Data account, trial, subscription, API key, or credentialed request was created or used in this execution. In Stage 6E, the existing read-only normal Production Settings test observed the credential state as `Missing` on 2026-08-13; it attached only the categorical value `MISSING` and did not retrieve a Keychain value. The first automation attempt failed during XCTest runner bootstrap before executing a test; one bounded retry executed 1/1 and passed. The local manual secret record was not accessed. The prerequisite gate therefore stopped all credentialed acceptance with zero requests and zero credits. Endpoint behavior that requires an actual Basic or Pro-or-higher entitlement remains `NOT VERIFIED`, even where official documentation establishes the intended contract.
+In Stage 6F the user completed the official Basic Free account flow and personally handled password, CAPTCHA, verification, legal confirmation, and the final credential paste. Production Settings saved the credential to the app-scoped Keychain; an isolated read-only UI test reported only the categorical state `CONFIGURED` and executed 1/1 with zero failures. A bounded Production Validate action was subsequently triggered through the existing Settings control. The plan/entitlement UI did not reach a verifiable Basic result before the 30-second observation timeout, so actual plan, usage headers, and all credentialed endpoint or market capabilities remain `NOT VERIFIED`. No international or Corporate Actions request was made. The local manual secret record was not accessed.
 
 The implementation makes the following safety distinctions:
 
@@ -92,12 +92,12 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 | Acceptance item | Status | Evidence and limitation |
 |---|---|---|
 | Basic Free published quota | VERIFIED | Official Pricing/credit pages publish 8 credits/minute and 800/day; no actual-key usage observation was made. |
-| Basic Free Search | NOT VERIFIED | Adapter and synthetic transport tests pass; no Production Keychain credential was present for a real request. |
+| Basic Free Search | NOT VERIFIED | Adapter and synthetic transport tests pass; Stage 6F did not call Search. |
 | Basic Free historical OHLCV | NOT VERIFIED | Official contract and adapter tests exist; no credentialed endpoint was called. |
 | Adjustment modes | NOT VERIFIED | Official docs establish the contract; actual endpoint behavior for a user entitlement was not called. |
 | Split/Dividend actions | NOT VERIFIED | Official docs establish 20 credits per symbol and Grow individual / Venture business minimum access. Basic is not advertised as capable and no entitled endpoint was called. |
-| Usage/credit response headers | NOT VERIFIED | Published contract is verified; current-key values were not requested or recorded. |
-| United States endpoint entitlement | NOT VERIFIED | Basic catalog path is published, but this execution did not possess or validate a Production Keychain credential. |
+| Usage/credit response headers | NOT VERIFIED | A bounded Production Validate action was triggered, but no categorical plan/usage result was confirmed; no exact quota value was recorded. |
+| United States endpoint entitlement | NOT VERIFIED | Basic catalog path is published, but Stage 6F did not verify a US Search, Quote, or OHLCV endpoint. |
 | `XHKG` | NOT VERIFIED | No Pro-or-higher credential; EOD guide and catalog require entitlement/licensing reconciliation. |
 | `XSHG` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |
 | `XSHE` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |

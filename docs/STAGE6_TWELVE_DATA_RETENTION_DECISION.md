@@ -2,7 +2,7 @@
 
 **Status:** `BLOCKED` — Production Twelve Data persistent cache writes remain disabled  
 **Decision date:** 2026-08-13  
-**Stage status:** Stage 6E External Acceptance — `BLOCKED`; the Production credential remained `Missing`, no Provider inquiry was sent, and no credentialed Twelve Data call was run.  
+**Stage status:** Stage 6F Account Bootstrap / External Acceptance — `BLOCKED`; Production Settings reports `Configured`, bounded validation did not confirm plan/entitlement, and no Provider inquiry was sent.  
 **Scope:** Twelve Data BYOK, individual personal/internal use in the local-first Aureus macOS app
 
 This record answers only whether Aureus has sufficient current official evidence to persist Twelve Data market data on the user's Mac. It does not change the selected Provider, plan-aware entitlement model, four-market V1 scope, or Stage 6 implementation boundary.
@@ -11,7 +11,7 @@ This record answers only whether Aureus has sufficient current official evidence
 
 Current public first-party materials establish that an individual subscriber may process and store data for internal use, subject to the subscription tier, Documentation, exchange restrictions, and termination obligations. The Terms also prohibit storing or caching data beyond timeframes specified in the Documentation. The reviewed public Documentation does not state an unambiguous local persistent-cache duration for each Aureus data type and plan.
 
-Stage 6E rechecked the cited public first-party Terms, personal-use guidance, historical-price guidance, and attribution guidance on 2026-08-13. No user-visible plan term or written Provider response was supplied. The available material still does not close the per-data-type and per-plan duration gap, so this decision and the disabled-write policy are unchanged. The Support Inquiry Packet remains unsent.
+Stage 6F changed only the account/credential prerequisite: the user completed the official Basic account flow and Production Settings now reports the credential as configured. No user-visible retention term or written Provider response was supplied. The available material still does not close the per-data-type and per-plan duration gap, so this decision and the disabled-write policy are unchanged. The Support Inquiry Packet remains unsent.
 
 Therefore:
 

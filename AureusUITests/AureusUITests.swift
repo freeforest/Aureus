@@ -398,11 +398,10 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(keyField.waitForExistence(timeout: 5))
         replaceText(in: keyField, with: "synthetic-stage6-ui-credential-a")
         app.descendants(matching: .any)["settings.provider.save"].click()
-        XCTAssertTrue(waitForValueOrLabel(
-            app.descendants(matching: .any)["settings.provider.credentialState"],
-            containing: "Configured in Keychain",
-            timeout: 5
-        ))
+        let credentialState = app.descendants(matching: .any)["settings.provider.credentialState"]
+        XCTAssertTrue(credentialState.waitForExistence(timeout: 10))
+        let credentialPresentation = "\(credentialState.label) \(String(describing: credentialState.value ?? ""))"
+        XCTAssertTrue(credentialPresentation.localizedCaseInsensitiveContains("Configured in Keychain"))
         XCTAssertFalse(String(describing: keyField.value ?? "").contains("synthetic-stage6-ui-credential-a"))
 
         replaceText(in: keyField, with: "synthetic-stage6-ui-credential-b")
