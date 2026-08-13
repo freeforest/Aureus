@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6D Repair Candidate — awaiting Reviewer Gate  
+**Status:** Stage 6E External Acceptance — `BLOCKED` pending user-owned credential and retention evidence  
 **Evidence visit:** 2026-08-12–2026-08-13  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -8,7 +8,7 @@
 
 Aureus uses Twelve Data as the selected market-data provider with a user-owned API key (BYOK), and Frankfurter v2 filtered to ECB reference rates for USD/CNY reference FX. The Production App accepts a Twelve Data credential only through its native Settings UI and stores it only in the app-scoped macOS Keychain item.
 
-No Twelve Data account, trial, subscription, API key, or credentialed request was created or used in this execution. A read-only normal Production launch observed the Settings credential state as `Missing` on 2026-08-13; it did not retrieve a Keychain value. The local manual secret record was not accessed. Consequently, endpoint behavior that requires an actual Basic or Pro-or-higher entitlement remains `NOT VERIFIED`, even where official documentation establishes the intended contract.
+No Twelve Data account, trial, subscription, API key, or credentialed request was created or used in this execution. In Stage 6E, the existing read-only normal Production Settings test observed the credential state as `Missing` on 2026-08-13; it attached only the categorical value `MISSING` and did not retrieve a Keychain value. The first automation attempt failed during XCTest runner bootstrap before executing a test; one bounded retry executed 1/1 and passed. The local manual secret record was not accessed. The prerequisite gate therefore stopped all credentialed acceptance with zero requests and zero credits. Endpoint behavior that requires an actual Basic or Pro-or-higher entitlement remains `NOT VERIFIED`, even where official documentation establishes the intended contract.
 
 The implementation makes the following safety distinctions:
 
@@ -60,6 +60,8 @@ The public Terms establish that cache/storage rights are plan- and documentation
 The typed architectural TTLs are implemented and tested as freshness/cleanup policy. They never grant a legal right to persist data: a stricter Provider retention rule wins.
 
 The endpoint-by-endpoint decision and a copy-ready support inquiry are recorded in [Stage 6 Twelve Data Retention Decision](STAGE6_TWELVE_DATA_RETENTION_DECISION.md). The current result is `BLOCKED`, so Production Twelve Data persistent writes remain disabled.
+
+Stage 6E re-read the public first-party Terms, personal-use guidance, historical-price guidance, and attribution guidance on 2026-08-13. They continue to establish general internal-use, plan, exchange, attribution, and termination boundaries, but do not provide a complete endpoint-by-endpoint maximum local retention duration for this BYOK desktop scenario. No user-visible plan term or Provider support reply was supplied, and the Support Inquiry Packet was not sent.
 
 Stage 6D adds a local identity-integrity repair: saving a byte-identical Credential after the existing trim/validation step is an idempotent no-op, so it does not rotate the credential generation, reset quota counters or verified limits, clear live observations, cancel transport, or purge cache. Native Picker and Open/Save Panel test helpers now reacquire accessibility elements after each native UI state transition. These synthetic/local checks do not change any Live Acceptance Matrix status.
 
