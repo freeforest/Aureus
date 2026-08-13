@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6H External Contract Inquiry — `BLOCKED — WAITING FOR PROVIDER RESPONSE`  
+**Status:** Stage 6J Retention Contract Follow-up — `BLOCKED`; response `PENDING`  
 **Evidence visit:** 2026-08-12–2026-08-13  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -63,7 +63,11 @@ The typed architectural TTLs are implemented and tested as freshness/cleanup pol
 
 The endpoint-by-endpoint decision and a copy-ready support inquiry are recorded in [Stage 6 Twelve Data Retention Decision](STAGE6_TWELVE_DATA_RETENTION_DECISION.md). The current result is `BLOCKED`, so Production Twelve Data persistent writes remain disabled.
 
-Stage 6E re-read the public first-party Terms, personal-use guidance, historical-price guidance, and attribution guidance on 2026-08-13. They continue to establish general internal-use, plan, exchange, attribution, and termination boundaries, but do not provide a complete endpoint-by-endpoint maximum local retention duration for this BYOK desktop scenario. On 2026-08-13, Stage 6H submitted exactly one sanitized inquiry through the official Twelve Data Customer Support form under the `Other` category. The response is `PENDING`; ordinary retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, Plan/Entitlement remain `NOT VERIFIED`, and no credentialed endpoint was called in this documentation/external-communication-only task.
+Stage 6E re-read the public first-party Terms, personal-use guidance, historical-price guidance, and attribution guidance on 2026-08-13. They continue to establish general internal-use, plan, exchange, attribution, and termination boundaries, but do not provide a complete endpoint-by-endpoint maximum local retention duration for this BYOK desktop scenario. On 2026-08-13, Stage 6H submitted exactly one sanitized inquiry through the official Twelve Data Customer Support form under the `Other` category.
+
+Stage 6I reviewed only the user-supplied sanitized reply to that inquiry. It is classified as a Twelve Data Support response; no sender address, ticket identifier, private URL, signature, header, or complete private email was retained. The reply says local caching is permitted in some cases but does not state the applicable data types, plans, markets, or maximum durations. It states that `XHKG` and `XJPX` historical data require direct exchange licensing, confirms no attribution for internal/private use subject to market-specific rules, and supplies no open-source BYOK or `/api_usage` response contract. Its statement that documentation does not specify deletion requirements conflicts with the current public Terms requirement to delete all Data upon termination. Ordinary retention therefore remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, Plan/Entitlement remain `NOT VERIFIED`, and no credentialed endpoint or follow-up message was sent.
+
+On 2026-08-13, Stage 6J submitted exactly one sanitized follow-up through the official Twelve Data Customer Support form under the `Other` category. The submission asked for explicit Yes/No and numerical answers covering eight groups: Search/reference, Quote/market status, OHLCV/EOD, Split/Dividend, lifecycle deletion, five-market licensing by endpoint, open-source BYOK/attribution, and the `/api_usage` JSON contract. Submission count was 1, attachments were 0, and the response is `PENDING`. No credentialed Provider endpoint was called. Retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, and Stage 7 remains `NO-GO`.
 
 Stage 6D adds a local identity-integrity repair: saving a byte-identical Credential after the existing trim/validation step is an idempotent no-op, so it does not rotate the credential generation, reset quota counters or verified limits, clear live observations, cancel transport, or purge cache. Native Picker and Open/Save Panel test helpers now reacquire accessibility elements after each native UI state transition. These synthetic/local checks do not change any Live Acceptance Matrix status.
 
@@ -72,6 +76,20 @@ The isolated 2026-08-13 Stage 6D verification executed 161 Unit/Integration test
 ### 3.3 Termination and deletion
 
 On explicit key deletion or Disconnect, Aureus stops the Provider client and immediately purges only `provider=twelve-data` recoverable rows. On confirmed subscription/entitlement termination it uses the same strict Provider-scoped purge. A transient network, authentication, or ordinary entitlement error is shown as an error and is not silently recast as confirmed termination. No cleanup path receives a `WealthStore`, permanent database URL, arbitrary delete URL, or recursive filesystem capability.
+
+### 3.4 Stage 6I reply sufficiency
+
+| Inquiry item | Result | Sanitized assessment |
+|---|---|---|
+| Search/reference persistent caching | PARTIALLY ANSWERED | General caching may be permitted in some cases, but Search/reference applicability, Plan and duration are not stated. |
+| Quote/market-status persistent caching | PARTIALLY ANSWERED | General caching language is not mapped to Quote/market status, Plan or duration. |
+| Historical OHLCV/EOD persistent caching | PARTIALLY ANSWERED | No retention duration is supplied; `XHKG` and `XJPX` historical access is said to require direct exchange licensing. |
+| Split/Dividend persistent caching | NOT ANSWERED | No action-specific cache right, Plan or duration is supplied. |
+| Maximum retention duration | NOT ANSWERED | The reply explicitly says the maximum timeframe is not specified. |
+| Refresh and lifecycle deletion duties | CONFLICTS WITH PUBLIC TERMS | Refresh is unanswered. The reply says deletion requirements are unspecified, while current public Terms require deletion of all Data upon termination. |
+| US/`XHKG`/`XSHG`/`XSHE`/`XJPX` differences | PARTIALLY ANSWERED | Only `XHKG` and `XJPX` historical licensing is addressed; US, `XSHG`, `XSHE`, other endpoints and Plan details remain unanswered. |
+| Private attribution and open-source BYOK | PARTIALLY ANSWERED | Internal/private attribution exemption is confirmed subject to exchange rules; open-source BYOK rules are not provided. |
+| `/api_usage` public response contract | NOT ANSWERED | The reply says Documentation does not list field names, nesting or types. |
 
 ## 4. Implemented Infrastructure Acceptance
 
