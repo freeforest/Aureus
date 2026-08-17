@@ -1,7 +1,7 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6J Retention Contract Follow-up — `BLOCKED`; response `PENDING`  
-**Evidence visit:** 2026-08-12–2026-08-13  
+**Status:** Stage 6K Follow-up Reply Sufficiency Review — `BLOCKED`  
+**Evidence visit:** 2026-08-12–2026-08-17  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
 ## 1. Acceptance Boundary
@@ -69,15 +69,42 @@ Stage 6I reviewed only the user-supplied sanitized reply to that inquiry. It is 
 
 On 2026-08-13, Stage 6J submitted exactly one sanitized follow-up through the official Twelve Data Customer Support form under the `Other` category. The submission asked for explicit Yes/No and numerical answers covering eight groups: Search/reference, Quote/market status, OHLCV/EOD, Split/Dividend, lifecycle deletion, five-market licensing by endpoint, open-source BYOK/attribution, and the `/api_usage` JSON contract. Submission count was 1, attachments were 0, and the response is `PENDING`. No credentialed Provider endpoint was called. Retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, and Stage 7 remains `NO-GO`.
 
+Stage 6K reviewed only the user-provided sanitized body of the follow-up reply. Based on the body identifying itself as a Twelve Data response, it is classified as a `CUSTOMER SUPPORT WRITTEN RESPONSE`, not a Licensing/Data Compliance authorization. The reply date was not provided. No sender name, salutation, signature, email address, account or ticket identifier, private URL, header, or complete private message was retained. The reply confirms that no specific maximum retention period is documented for Basic, Grow, Pro or Ultra; states a 30-day deletion deadline after subscription termination or expiration; and reiterates that `XHKG` and `XJPX` historical data requires a direct exchange license. It does not close the remaining per-data-type, refresh, lifecycle, market-endpoint, BYOK/attribution, or `/api_usage` gaps. No Provider request or new Support message was sent.
+
+### 3.3 Stage 6K twenty-item sufficiency matrix
+
+| # | Evidence item | Result | Sanitized assessment |
+|---:|---|---|---|
+| 1 | Search/reference metadata | PARTIALLY ANSWERED | General subscription- and third-party-restriction language is provided, but no explicit persistent-cache permission, Plan mapping or duration is supplied. |
+| 2 | Quote/market status | PARTIALLY ANSWERED | Covered only by the same general statement; no current/delayed/EOD distinction, Plan mapping or duration is supplied. |
+| 3 | Historical OHLCV/EOD | PARTIALLY ANSWERED | No retention duration is supplied; only `XHKG` and `XJPX` direct-license requirements are identified. |
+| 4 | Splits | PARTIALLY ANSWERED | The general no-specified-duration statement applies, but action-specific permission, Plan and lifecycle rules are absent. |
+| 5 | Dividends | PARTIALLY ANSWERED | The general no-specified-duration statement applies, but action-specific permission, Plan and lifecycle rules are absent. |
+| 6 | Maximum retention duration | PARTIALLY ANSWERED | The reply explicitly says no specific maximum is documented for Basic, Grow, Pro or Ultra; it supplies no usable duration. |
+| 7 | Refresh/incremental update | NOT ANSWERED | No refresh duty or effect of incremental update on retention is stated. |
+| 8 | Disconnect deletion deadline | NOT ANSWERED | Disconnect is not addressed. |
+| 9 | Plan downgrade deletion deadline | NOT ANSWERED | Downgrade is not addressed. |
+| 10 | Credential expiry deletion deadline | NOT ANSWERED | Subscription expiration is addressed, but credential expiry is a different lifecycle event and is not answered. |
+| 11 | Market-entitlement-loss deletion deadline | NOT ANSWERED | Loss of an exchange entitlement is not addressed. |
+| 12 | Account/subscription termination deletion deadline | CONFLICTS WITH OFFICIAL TERMS | The reply says within 30 days, while the reviewed public Terms also contain immediate cessation/deletion language. Aureus retains the stricter immediate Provider-scoped purge. |
+| 13 | US endpoint conditions | NOT ANSWERED | No minimum Plan or Search/Quote/OHLCV/action conditions are supplied. |
+| 14 | `XHKG` endpoint and license | PARTIALLY ANSWERED | Direct exchange licensing is stated for historical data only; endpoint scope, minimum Plan and official license process are absent. |
+| 15 | `XSHG` endpoint and license | NOT ANSWERED | No endpoint, Plan or exchange-license condition is supplied. |
+| 16 | `XSHE` endpoint and license | NOT ANSWERED | No endpoint, Plan or exchange-license condition is supplied. |
+| 17 | `XJPX` endpoint and license | PARTIALLY ANSWERED | Direct exchange licensing is stated for historical data only; endpoint scope, minimum Plan and official license process are absent. |
+| 18 | Open-source BYOK | PARTIALLY ANSWERED | Personal/internal non-commercial use and non-redistribution are restated, but open-source per-user BYOK is not explicitly authorized. |
+| 19 | Private/internal attribution | NOT ANSWERED | This reply supplies no attribution requirement or exemption. Existing general public guidance remains separate evidence. |
+| 20 | `/api_usage` contract | NOT ANSWERED | The reply says field names, nesting and types are not documented and supplies no formal contract. |
+
 Stage 6D adds a local identity-integrity repair: saving a byte-identical Credential after the existing trim/validation step is an idempotent no-op, so it does not rotate the credential generation, reset quota counters or verified limits, clear live observations, cancel transport, or purge cache. Native Picker and Open/Save Panel test helpers now reacquire accessibility elements after each native UI state transition. These synthetic/local checks do not change any Live Acceptance Matrix status.
 
 The isolated 2026-08-13 Stage 6D verification executed 161 Unit/Integration test definitions (194 expanded executions), including 34 focused Market Data Infrastructure tests, with zero failures or skips. The Ledger Picker flow and native CSV Open/Save flow each passed three consecutive focused runs, passed together as 2/2, and the complete UI suite passed 10/10 on its first bounded run. These are local implementation and regression results only. Stage 6G separately established only the sanitized credential-validation result described above.
 
-### 3.3 Termination and deletion
+### 3.4 Termination and deletion
 
 On explicit key deletion or Disconnect, Aureus stops the Provider client and immediately purges only `provider=twelve-data` recoverable rows. On confirmed subscription/entitlement termination it uses the same strict Provider-scoped purge. A transient network, authentication, or ordinary entitlement error is shown as an error and is not silently recast as confirmed termination. No cleanup path receives a `WealthStore`, permanent database URL, arbitrary delete URL, or recursive filesystem capability.
 
-### 3.4 Stage 6I reply sufficiency
+### 3.5 Stage 6I reply sufficiency
 
 | Inquiry item | Result | Sanitized assessment |
 |---|---|---|

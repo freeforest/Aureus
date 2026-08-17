@@ -2,7 +2,7 @@
 
 **Status:** `BLOCKED` — Production Twelve Data persistent cache writes remain disabled  
 **Decision date:** 2026-08-13  
-**Stage status:** Stage 6J Retention Contract Follow-up — `BLOCKED`; response `PENDING`, and Plan/Entitlement remain `NOT VERIFIED`.  
+**Stage status:** Stage 6K Follow-up Reply Sufficiency Review — `BLOCKED`; Plan/Entitlement remain `NOT VERIFIED`.  
 **Scope:** Twelve Data BYOK, individual personal/internal use in the local-first Aureus macOS app
 
 This record answers only whether Aureus has sufficient current official evidence to persist Twelve Data market data on the user's Mac. It does not change the selected Provider, plan-aware entitlement model, four-market V1 scope, or Stage 6 implementation boundary.
@@ -16,6 +16,8 @@ Stage 6G corrected the Stage 6F credential-boundary incident without changing re
 Stage 6I reviewed the user-supplied sanitized Support reply. It confirms only that local caching is permitted in some cases and that internal/private use generally does not require attribution. It supplies no per-data-type/plan maximum retention duration, no complete refresh or deletion policy, no open-source BYOK rule, and no `/api_usage` field contract. It also states that `XHKG` and `XJPX` historical access requires direct exchange licensing. Because none of the five cache data types satisfies the complete evidence test, this decision and the disabled-write policy are unchanged. No credentialed endpoint was called and no follow-up was sent.
 
 On 2026-08-13, Stage 6J submitted exactly one sanitized follow-up through the official Twelve Data Customer Support form under the `Other` category. Submission count was 1, attachments were 0, and the response is `PENDING`. The follow-up requests explicit per-data-type, per-Plan, per-market retention periods, deletion deadlines, market-license requirements, BYOK/attribution boundaries, and the official `/api_usage` schema. Sending the inquiry does not resolve the evidence gap: Retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, and Stage 7 remains `NO-GO`. No credentialed Provider endpoint was called.
+
+Stage 6K reviewed only the user-provided sanitized follow-up body. It is classified as a `CUSTOMER SUPPORT WRITTEN RESPONSE`, not a Licensing/Data Compliance authorization. It confirms that no specific maximum retention period is documented for Basic, Grow, Pro or Ultra; states that all data must be deleted within 30 days after subscription termination or expiration; and reiterates that `XHKG` and `XJPX` historical access requires direct exchange licensing. It does not provide per-type persistent-cache permission, any usable maximum duration, refresh rules, Disconnect/downgrade/credential-expiry/market-entitlement-loss deadlines, complete five-market endpoint conditions, explicit open-source BYOK authorization, attribution terms, or an `/api_usage` contract. The 30-day termination statement also does not resolve the reviewed public Terms' immediate-deletion wording, so Aureus keeps the stricter immediate Provider-scoped purge. No Provider request or new Support message was sent.
 
 Therefore:
 
@@ -31,11 +33,11 @@ Access date for every source below: **2026-08-13**.
 
 | Data type | Relevant individual plans | Personal/local BYOK use | Persistent local cache duration | Refresh/update duty | Disconnect/termination duty | Attribution | Decision |
 |---|---|---|---|---|---|---|---|
-| Symbol Search/reference metadata | Basic, Grow, Pro, or higher subject to the current catalog and entitlement | Support says caching is permitted in some cases but does not map that statement to Search/reference or a Plan | Not specified | Not specified | Support says Documentation is silent; current Terms require deletion on termination, so Aureus keeps immediate Provider-scoped purge | Private/internal use generally exempt; market rules may differ | `BLOCKED` for persistent writes |
-| Latest Quote/market status | Plan and market entitlement dependent | General caching statement is not Quote-specific | Not specified | Not specified | Same conservative Terms-based policy | Same as above | `BLOCKED` for persistent writes |
-| Historical OHLCV / EOD | Basic US-focused entry path; international access is plan/entitlement dependent | General caching statement is not sufficient; `XHKG` and `XJPX` historical access requires direct exchange licensing | Not specified | Incremental guidance is not a retention grant | Same conservative Terms-based policy | Same as above | `BLOCKED` for persistent writes |
-| Splits | Grow individual / Venture business and above; 20 credits per symbol in current official API Documentation | Support reply does not answer Split caching | Not specified | Not specified | Same conservative Terms-based policy | Same as above | `BLOCKED`; Basic request is rejected before transport |
-| Dividends | Grow individual / Venture business and above; 20 credits per symbol in current official API Documentation | Support reply does not answer Dividend caching | Not specified | Not specified | Same conservative Terms-based policy | Same as above | `BLOCKED`; Basic request is rejected before transport |
+| Symbol Search/reference metadata | Basic, Grow, Pro, or higher subject to the current catalog and entitlement | General subscription-bound retention statement; no Search-specific permission or Plan mapping | No specific maximum documented | Not specified | Only subscription termination/expiration is answered as 30 days; all other lifecycle events are missing, and Aureus keeps stricter immediate purge | Existing general private/internal guidance; this reply adds no attribution detail | `BLOCKED FOR PERSISTENT WRITES` |
+| Latest Quote/market status | Plan and market entitlement dependent | No Quote-specific permission or current/delayed/EOD distinction | No specific maximum documented | Not specified | Same incomplete lifecycle evidence and stricter purge | Same as above | `BLOCKED FOR PERSISTENT WRITES` |
+| Historical OHLCV / EOD | Basic US-focused entry path; international access is plan/entitlement dependent | `XHKG` and `XJPX` historical access requires direct exchange licensing; no full per-market permission | No specific maximum documented | Incremental guidance remains unconfirmed as a retention rule | Same incomplete lifecycle evidence and stricter purge | Same as above | `BLOCKED FOR PERSISTENT WRITES` |
+| Splits | Grow individual / Venture business and above; 20 credits per symbol in current official API Documentation | No Split-specific persistent-cache permission | No specific maximum documented | Not specified | Same incomplete lifecycle evidence and stricter purge | Same as above | `BLOCKED FOR PERSISTENT WRITES`; Basic request is rejected before transport |
+| Dividends | Grow individual / Venture business and above; 20 credits per symbol in current official API Documentation | No Dividend-specific persistent-cache permission | No specific maximum documented | Not specified | Same incomplete lifecycle evidence and stricter purge | Same as above | `BLOCKED FOR PERSISTENT WRITES`; Basic request is rejected before transport |
 
 ## 3. Official Source Register
 
@@ -81,11 +83,11 @@ The following was submitted once to the official Twelve Data Customer Support fo
 
 The current private `TwelveUsageDTO` accepts top-level optional `String` values under `plan_name` or `plan`, an optional top-level `Int` under `api_credits_per_minute`, and an optional top-level `Int` under `daily_limit`. `ProviderUsageObservation` maps those values to an optional Plan name, entitlement, optional minute limit and a typed capped/uncapped/unknown daily quota. It does not treat credits-used or credits-remaining fields as Domain authority.
 
-The Support reply says the Documentation does not list the JSON field names, nesting or value types and supplies no replacement contract. Result: **NOT VERIFIED — neither `COMPATIBLE` nor `PROVEN CONTRACT MISMATCH` can be established.** Production source is unchanged; a separate authorized repair would be required only if a concrete official contract later proves a mismatch.
+The follow-up reply again says the Documentation does not list the JSON field names, nesting or value types and supplies no replacement contract. Result: **NOT VERIFIED — neither `COMPATIBLE` nor `PROVEN CONTRACT MISMATCH` can be established.** Production source is unchanged; a separate authorized repair would be required only if a concrete official contract later proves a mismatch.
 
 ## 6. Submitted Follow-up
 
-`SENT — 2026-08-13 through the official Twelve Data Customer Support form (Other). Submission count: 1. Attachments: 0. Response: PENDING.`
+`SENT — 2026-08-13 through the official Twelve Data Customer Support form (Other). Submission count: 1. Attachments: 0. Response: RECEIVED AND REVIEWED IN STAGE 6K.`
 
 **Subject:** Follow-up: explicit local retention periods, deletion deadlines, market licensing, and /api_usage schema
 
@@ -112,6 +114,12 @@ The Support reply says the Documentation does not list the JSON field names, nes
 >
 > Thank you.
 
-## 7. Unblock Condition
+## 7. Stage 6K Decision
+
+None of the five data types satisfies the complete evidence test. Each remains `BLOCKED FOR PERSISTENT WRITES` because the reply supplies no explicit type-specific permission, usable maximum retention duration, refresh rule, complete lifecycle-deletion policy, complete market scope, and attribution condition together.
+
+The 30-day termination/expiration statement is retained as written evidence, but it does not authorize ordinary persistent caching and does not override the stricter immediate purge already selected from conflicting public Terms language. The `XHKG` and `XJPX` statements confirm only historical-data licensing requirements; they do not establish endpoint access or an acquisition process. Production Twelve Data persistent writes remain disabled and Stage 7 remains `NO-GO`.
+
+## 8. Unblock Condition
 
 This item can move from `BLOCKED` only after an applicable official plan page, Documentation provision, user-visible official plan term, or written Twelve Data response clearly states the retention duration and deletion obligations for the intended BYOK personal-local scenario. Stage 6/Reviewer must then map the granted duration to each cache data type and retain the stricter of legal retention and architectural freshness TTL.
