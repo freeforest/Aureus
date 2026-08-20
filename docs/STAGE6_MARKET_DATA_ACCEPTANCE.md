@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6L Personal Local Mode Rebaseline Candidate — Awaiting Reviewer Gate  
+**Status:** Stage 6M Session Store Implementation Candidate — Awaiting Reviewer Gate  
 **Evidence visit:** 2026-08-12–2026-08-17  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -27,9 +27,9 @@ The implementation makes the following safety distinctions:
 
 The user's latest explicit decision limits Aureus to one user's Mac for personal/internal, non-commercial use. It is not hosted and does not display, share, resell, or redistribute Twelve Data data to third parties. Open-source program source remains separate from Provider data, credentials, and user financial data.
 
-| Data path | Stage 6L policy |
+| Data path | Stage 6M implementation and policy |
 |---|---|
-| Transient Session Use | Search, Quote, OHLCV, and entitled Corporate Actions may be processed in a future bounded in-memory work set after the actual endpoint × MIC succeeds. The proposed store is actor-owned, limited to 64 MiB, uses typed TTL/LRU and request reuse, is never serialized, and is cleared on App termination, Disconnect, Credential rotation, confirmed entitlement loss, termination, or explicit user clear. |
+| Transient Session Use | Search, Quote, OHLCV, and entitled Corporate Actions route through an actor-owned 64 MiB in-memory store after the actual endpoint × MIC succeeds. It uses typed payloads/TTL, deterministic LRU, checked logical byte accounting, and request reuse; it is never serialized and is cleared on process termination, Disconnect, Credential rotation, confirmed entitlement loss, termination, or explicit user clear. |
 | Persistent Twelve Data Storage | **Disabled by product policy.** No Production Twelve Data description, Quote, OHLCV, Split, Dividend, freshness, or raw response is written to GRDB, Permanent Store, Snapshot, Backup, Export, log, or file. Retention rights remain `BLOCKED`. |
 | User-authored Market Preferences | Minimal symbol/MIC identifiers and UI preferences may persist without Provider descriptions or values. They are not endpoint, Plan, freshness, or exchange-entitlement evidence. |
 
@@ -186,7 +186,7 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 
 The implementation candidate can be built and tested without a credential. Stage 6G verifies only a sanitized terminal validation of the securely rotated replacement credential. It does not claim Basic or paid entitlement, Search/Quote/OHLCV/actions acceptance, complete four-market access, exact market freshness, or ordinary persistent-cache rights. If no Pro-or-higher test condition exists, all four international-market endpoint rows must remain `NOT VERIFIED` rather than inferred from catalog visibility, terminal credential validation, or synthetic tests.
 
-## 8. Stage 6L gate rebaseline candidate
+## 8. Stage 6M session-store candidate
 
 This document proposes, but does not decide, two separate Reviewer gates:
 
@@ -197,11 +197,21 @@ This document proposes, but does not decide, two separate Reviewer gates:
 - Production Twelve Data persistent writes remain closed;
 - a separately authorized bounded Basic US Search and Historical OHLCV live acceptance must succeed;
 - rate, typed error, entitlement, freshness, and raw MIC states must be observable;
-- the 64 MiB session-only data path requires implementation and isolation tests before Stage 7 authorization;
+- the implemented 64 MiB session-only data path requires Reviewer acceptance of its implementation and isolation evidence before Stage 7 authorization;
 - unauthorized endpoints and markets remain explicitly unavailable.
 
 ### Deferred Persistent Cache Gate
 
 Retention evidence remains `BLOCKED` and Production persistent writes remain `Disabled`. Under the 2026-08-17 product policy, this is no longer proposed as a Stage 7 implementation prerequisite. Any future disk cache for Twelve Data requires a new explicit user decision, applicable retention rights, separate architecture review, and implementation authorization.
 
-International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` until the Reviewer accepts this rebaseline and authorizes the bounded Basic US acceptance/session-store work.
+International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` until the Reviewer accepts the Stage 6M evidence and separately authorizes bounded Basic US acceptance.
+
+### Stage 6M local implementation evidence
+
+- One dependency-injected `TransientMarketSessionStore` actor is shared by `MarketDataService`, credential lifecycle coordination, and Settings within each App dependency graph; Production, Demo, and UI-test graphs receive distinct instances.
+- Search, Quote, Historical OHLCV, Split, and Dividend session lookups use typed values only. Fresh hits reuse memory, expired values may provide stale fallback only for offline/timeout failures, and credential/entitlement failures remain typed errors.
+- Twelve Data query methods neither read nor write `MarketCacheStore`. Historical incremental merge uses only the session baseline. Startup safely purges recoverable legacy Twelve Data disk rows without touching unrelated Provider rows or the Permanent Store.
+- Same-Credential save remains an identity-preserving no-op. Rotation and Disconnect wait for the transport barrier before session clear; Disconnect then purges Twelve Data disk rows before Keychain deletion. Generation tokens reject late writes from the old identity.
+- Settings exposes entry count, deterministic logical bytes, the 64 MiB maximum, session-only disclosure, and `Clear Session Market Data`. The disk section is labeled `Authorized Persistent Market Cache` and explicitly states Twelve Data persistent writes are disabled.
+
+These are synthetic/local implementation facts only. They do not elevate any Live Acceptance Matrix row.

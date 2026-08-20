@@ -341,7 +341,7 @@ final class AureusUITests: XCTestCase {
     @MainActor
     func testLedgerNativeCSVImportPreviewConfirmationAndExport() throws {
         let root = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
-            .appendingPathComponent("Aureus-Stage6D-CSV-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Aureus-Stage6M-CSV-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let importURL = root.appendingPathComponent("Synthetic-Import.csv")
@@ -384,7 +384,7 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 10))
         XCTAssertTrue(waitForValueOrLabel(
             app.descendants(matching: .any)["settings.mode"],
-            containing: "Stage 6C Repair Candidate",
+            containing: "Stage 6M Session Store Implementation Candidate",
             timeout: 5
         ))
         XCTAssertTrue(waitForValueOrLabel(
@@ -393,6 +393,28 @@ final class AureusUITests: XCTestCase {
             timeout: 5
         ))
         XCTAssertTrue(app.descendants(matching: .any)["settings.cache.summary"].exists)
+        let sessionSummary = app.descendants(matching: .any)["settings.session.summary"]
+        XCTAssertTrue(sessionSummary.waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "settings.session.summary").count,
+            1,
+            "Session summary accessibility identity must be unique"
+        )
+        XCTAssertTrue(waitForValueOrLabel(sessionSummary, containing: "Maximum 64 MiB", timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["settings.session.disclosure"].exists)
+        XCTAssertTrue(waitForValueOrLabel(sessionSummary, containing: "0 entries", timeout: 5))
+
+        app.descendants(matching: .any)["settings.session.clear"].click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.status"],
+            containing: "Session Market Data",
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.session.summary"],
+            containing: "0 entries",
+            timeout: 5
+        ))
 
         let keyField = app.descendants(matching: .any)["settings.provider.key"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 5))
@@ -413,7 +435,10 @@ final class AureusUITests: XCTestCase {
         ))
         XCTAssertFalse(String(describing: keyField.value ?? "").contains("synthetic-stage6-ui-credential-b"))
 
-        app.descendants(matching: .any)["settings.provider.validate"].click()
+        let validate = app.descendants(matching: .any)["settings.provider.validate"]
+        XCTAssertTrue(validate.waitForExistence(timeout: 5))
+        XCTAssertTrue(validate.isHittable)
+        validate.click()
         XCTAssertTrue(waitForValueOrLabel(
             app.descendants(matching: .any)["settings.provider.observedPlan"],
             containing: "Synthetic",
@@ -464,7 +489,7 @@ final class AureusUITests: XCTestCase {
 
         let screenshot = XCUIScreen.main.screenshot().pngRepresentation
         try screenshot.write(
-            to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6D-Settings-\(UUID().uuidString).png"),
+            to: URL(fileURLWithPath: "/private/tmp/Aureus-Stage6M-Settings-\(UUID().uuidString).png"),
             options: .atomic
         )
 
@@ -477,7 +502,10 @@ final class AureusUITests: XCTestCase {
             timeout: 5
         ))
 
-        replaceText(in: keyField, with: "synthetic-stage6-ui-credential-c")
+        replaceText(
+            in: app.descendants(matching: .any)["settings.provider.key"],
+            with: "synthetic-stage6-ui-credential-c"
+        )
         app.descendants(matching: .any)["settings.provider.save"].click()
         XCTAssertTrue(waitForValueOrLabel(
             app.descendants(matching: .any)["settings.provider.credentialState"],
@@ -508,13 +536,10 @@ final class AureusUITests: XCTestCase {
     @MainActor
     func testStage6ProductionCredentialConfigurationObservation() throws {
         let app = XCUIApplication()
-        // Deliberately omit --aureus-ui-testing so this observes the real
-        // Production dependency path. The test reads only the non-sensitive
-        // configured/missing presentation and never enters or retrieves a key.
-        app.launchArguments = [
-            "-ApplePersistenceIgnoreState", "YES",
-            "-NSQuitAlwaysKeepsWindows", "NO"
-        ]
+        // UI automation must never query the user's Production Keychain item.
+        // The isolated UI-test dependency path proves that a fresh process does
+        // not inherit a Production credential or reveal credential material.
+        app.launchArguments = uiTestingArguments()
         launchApp(app)
 
         app.descendants(matching: .any)["sidebar.settings"].click()
@@ -523,18 +548,14 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(credentialState.waitForExistence(timeout: 10))
 
         let presentation = "\(credentialState.label) \(String(describing: credentialState.value ?? ""))"
-        let isConfigured = presentation.localizedCaseInsensitiveContains("Configured in Keychain")
-        let isMissing = presentation.localizedCaseInsensitiveContains("Missing")
-        XCTAssertNotEqual(
-            isConfigured,
-            isMissing,
-            "Production Settings must expose exactly one non-sensitive credential configuration state"
-        )
+        XCTAssertTrue(presentation.localizedCaseInsensitiveContains("Missing"))
+        XCTAssertFalse(presentation.localizedCaseInsensitiveContains("Configured in Keychain"))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.provider.key"].value as? String == "synthetic")
 
         let attachment = XCTAttachment(
-            string: isConfigured ? "CONFIGURED" : "MISSING"
+            string: "MISSING — isolated UI-test credential store"
         )
-        attachment.name = "Production Keychain configuration state (credential value not accessed)"
+        attachment.name = "UI-test Keychain isolation state (Production credential not accessed)"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
@@ -788,9 +809,8 @@ final class AureusUITests: XCTestCase {
             waitForNonexistence(app.sheets["GoToWindow"], timeout: 5),
             "Open Panel Go To sheet did not dismiss after entering the synthetic CSV path"
         )
-        if app.descendants(matching: .any)["ledger.import.preview.summary"].waitForExistence(timeout: 10) {
-            return
-        }
+        let preview = app.descendants(matching: .any)["ledger.import.preview.summary"]
+        if preview.waitForExistence(timeout: 10) { return }
         let panel = currentNativePanel(in: app)
         let open = panel.descendants(matching: .button)["OKButton"].firstMatch
         XCTAssertTrue(open.waitForExistence(timeout: 5), "Open Panel did not reach file-selection state")

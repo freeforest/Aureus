@@ -71,6 +71,7 @@ struct AppShellView: View {
                     provider: dependencies.marketDataProvider,
                     credentialCoordinator: dependencies.credentialCoordinator,
                     cache: dependencies.marketCacheStore,
+                    sessionStore: dependencies.marketSessionStore,
                     clock: dependencies.clock,
                     mode: mode
                 )

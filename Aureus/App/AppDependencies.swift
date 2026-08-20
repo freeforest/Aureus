@@ -3,6 +3,7 @@ import Foundation
 struct AppDependencies: Sendable {
     let wealthStore: WealthStore
     let marketCacheStore: MarketCacheStore
+    let marketSessionStore: TransientMarketSessionStore
     let marketDataProvider: any MarketDataProvider
     let fxRateProvider: any FXRateProvider
     let marketDataService: MarketDataService
@@ -21,6 +22,7 @@ struct AppDependencies: Sendable {
 
         let wealthStore = try WealthStore(databaseURL: paths.permanentDatabaseURL)
         let marketCacheStore = try MarketCacheStore(databaseURL: paths.marketCacheDatabaseURL)
+        let marketSessionStore = TransientMarketSessionStore()
         let fixedClock = FixedClock(
             instant: UTCInstant(millisecondsSince1970: 1_768_435_200_000)
         )
@@ -35,12 +37,10 @@ struct AppDependencies: Sendable {
         let credentialStore: any CredentialStore
         let marketDataProvider: any MarketDataProvider
         let fxRateProvider: any FXRateProvider
-        let cacheAuthorization: ProviderCacheAuthorization
         if configuration.usesTemporaryStores {
             credentialStore = InMemoryCredentialStore()
             marketDataProvider = SyntheticMarketDataProvider(scenario: .success, clock: clock)
             fxRateProvider = SyntheticFXRateProvider(clock: clock)
-            cacheAuthorization = .authorized
         } else {
             let keychain = KeychainCredentialStore()
             let marketSleeper = TaskProviderSleeper()
@@ -71,33 +71,36 @@ struct AppDependencies: Sendable {
                 clock: clock,
                 sleeper: marketSleeper
             )
-            // Current public Twelve Data terms do not disclose a safe typed
-            // retention duration. Network results remain usable for the call,
-            // but persistent Twelve Data cache writes stay disabled.
-            cacheAuthorization = .unverified
         }
 
         let marketDataService = MarketDataService(
             marketProvider: marketDataProvider,
             fxProvider: fxRateProvider,
             cache: marketCacheStore,
-            clock: clock,
-            marketCacheAuthorization: cacheAuthorization
+            sessionStore: marketSessionStore,
+            clock: clock
         )
         let credentialCoordinator = ProviderCredentialCoordinator(
             credentialStore: credentialStore,
             provider: marketDataProvider,
             cache: marketCacheStore,
+            sessionStore: marketSessionStore,
             clock: clock
         )
 
         if try await marketCacheStore.automaticCleanupIsDue(reason: .launch, now: clock.now()) {
             _ = try await marketCacheStore.performAutomaticCleanup(reason: .launch, now: clock.now())
         }
+        _ = try await marketCacheStore.purge(
+            providerIdentifier: TwelveDataClient.credentialDescriptor.providerIdentifier,
+            reason: .sessionOnlyPolicy,
+            now: clock.now()
+        )
 
         return AppDependencies(
             wealthStore: wealthStore,
             marketCacheStore: marketCacheStore,
+            marketSessionStore: marketSessionStore,
             marketDataProvider: marketDataProvider,
             fxRateProvider: fxRateProvider,
             marketDataService: marketDataService,

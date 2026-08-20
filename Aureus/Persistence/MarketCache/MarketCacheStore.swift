@@ -140,6 +140,7 @@ enum CacheCleanupReason: String, Sendable {
     case disconnect
     case credentialDeleted
     case confirmedTermination
+    case sessionOnlyPolicy
     case manualReset
 }
 
@@ -383,7 +384,8 @@ actor MarketCacheStore {
 
     func purge(providerIdentifier: String, reason: CacheCleanupReason, now: UTCInstant) throws -> CacheCleanupResult {
         precondition(
-            reason == .disconnect || reason == .credentialDeleted || reason == .confirmedTermination
+            reason == .disconnect || reason == .credentialDeleted ||
+                reason == .confirmedTermination || reason == .sessionOnlyPolicy
         )
         try flushAccessTimes()
         return try queue.write { db in

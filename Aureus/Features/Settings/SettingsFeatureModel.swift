@@ -14,6 +14,7 @@ final class SettingsFeatureModel {
     private(set) var endpointCapabilities: [ProviderEndpointCapability] = []
     private(set) var lastSuccessfulValidation: UTCInstant?
     private(set) var cacheStatistics: MarketCacheStatistics?
+    private(set) var sessionStatistics: TransientMarketSessionStatistics?
     private(set) var statusMessage: String?
     private(set) var errorMessage: String?
     var selectedMaximumMiB = 512
@@ -21,17 +22,20 @@ final class SettingsFeatureModel {
     @ObservationIgnored private let provider: any MarketDataProvider
     @ObservationIgnored private let credentialCoordinator: ProviderCredentialCoordinator
     @ObservationIgnored private let cache: MarketCacheStore
+    @ObservationIgnored private let sessionStore: TransientMarketSessionStore
     @ObservationIgnored private let clock: any Clock
 
     init(
         provider: any MarketDataProvider,
         credentialCoordinator: ProviderCredentialCoordinator,
         cache: MarketCacheStore,
+        sessionStore: TransientMarketSessionStore,
         clock: any Clock
     ) {
         self.provider = provider
         self.credentialCoordinator = credentialCoordinator
         self.cache = cache
+        self.sessionStore = sessionStore
         self.clock = clock
     }
 
@@ -41,6 +45,7 @@ final class SettingsFeatureModel {
         do {
             isConfigured = try await credentialCoordinator.isConfigured()
             await refreshCapabilities()
+            await refreshSessionStatistics()
             try await refreshCacheStatistics()
         } catch {
             errorMessage = safeMessage(for: error)
@@ -60,6 +65,7 @@ final class SettingsFeatureModel {
             isConfigured = true
             statusMessage = "Twelve Data credential saved in Keychain. The key is not displayed."
             await refreshCapabilities()
+            await refreshSessionStatistics()
         } catch {
             errorMessage = safeMessage(for: error)
         }
@@ -96,7 +102,8 @@ final class SettingsFeatureModel {
             lastSuccessfulValidation = nil
             capabilities = []
             endpointCapabilities = []
-            statusMessage = "Disconnected. Keychain credential and Twelve Data recoverable cache were deleted."
+            statusMessage = "Disconnected. Session Market Data, Keychain credential, and Twelve Data recoverable disk cache were deleted."
+            await refreshSessionStatistics()
             try await refreshCacheStatistics()
         } catch {
             errorMessage = safeMessage(for: error)
@@ -116,7 +123,8 @@ final class SettingsFeatureModel {
             lastSuccessfulValidation = nil
             capabilities = []
             endpointCapabilities = []
-            statusMessage = "Key deleted. New requests stopped and Twelve Data recoverable cache was removed."
+            statusMessage = "Key deleted. New requests stopped, Session Market Data was cleared, and Twelve Data recoverable disk cache was removed."
+            await refreshSessionStatistics()
             try await refreshCacheStatistics()
         } catch {
             errorMessage = safeMessage(for: error)
@@ -134,6 +142,15 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+    }
+
+    func clearSessionMarketData() async {
+        isWorking = true
+        errorMessage = nil
+        defer { isWorking = false }
+        let result = await sessionStore.clearAll()
+        statusMessage = "Cleared \(result.removedEntries) Session Market Data entries (\(result.removedBytes) logical bytes)."
+        await refreshSessionStatistics()
     }
 
     func resetCache() async {
@@ -183,6 +200,10 @@ final class SettingsFeatureModel {
         let statistics = try await cache.statistics()
         cacheStatistics = statistics
         selectedMaximumMiB = Int(statistics.maximumBytes / CachePolicyConfiguration.mebibyte)
+    }
+
+    private func refreshSessionStatistics() async {
+        sessionStatistics = await sessionStore.statistics()
     }
 
     private func safeMessage(for error: Error) -> String {

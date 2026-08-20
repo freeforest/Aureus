@@ -332,6 +332,136 @@ private actor ConcurrencyHTTPTransport: HTTPTransport {
     func maximumConcurrent() -> Int { maximum }
 }
 
+private actor SessionMarketProvider: MarketDataProvider {
+    enum Scenario: Sendable { case success, offline, invalidCredential }
+
+    nonisolated let descriptor = ProviderDescriptor(
+        identifier: "synthetic.session.market",
+        displayName: "Synthetic Session Market",
+        kind: .synthetic
+    )
+    private let clock: any Clock
+    private var scenario: Scenario
+    private var counts: [MarketProviderEndpoint: Int] = [:]
+
+    init(clock: any Clock, scenario: Scenario = .success) {
+        self.clock = clock
+        self.scenario = scenario
+    }
+
+    func setScenario(_ value: Scenario) { scenario = value }
+    func callCount(_ endpoint: MarketProviderEndpoint) -> Int { counts[endpoint, default: 0] }
+
+    func capabilities() -> MarketProviderCapabilities {
+        MarketProviderCapabilities(
+            provider: descriptor,
+            entitlement: .basic,
+            observedPlanName: "Synthetic",
+            markets: [],
+            supportsSearch: true,
+            supportsHistoricalPrices: true,
+            supportsCorporateActions: true,
+            endpointCapabilities: [],
+            observedAt: clock.now()
+        )
+    }
+
+    func search(query: String) throws -> [MarketInstrument] {
+        try check(.symbolSearch)
+        return [instrument()]
+    }
+
+    func latestQuote(for instrument: MarketInstrument) throws -> MarketQuote {
+        try check(.latestQuote)
+        return MarketQuote(
+            instrument: instrument,
+            price: try MarketQuotePrice(coefficient: 12_340_000_000, quoteCurrency: .usd),
+            observedAt: clock.now(),
+            fetchedAt: clock.now(),
+            providerIdentifier: descriptor.identifier,
+            quality: .unknown,
+            freshness: .unknown
+        )
+    }
+
+    func historicalBars(_ request: MarketHistoryRequest) throws -> MarketHistoryPage {
+        try check(.historicalOHLCV)
+        let bar = try MarketOHLCVBar(
+            sessionDate: request.startDate ?? CivilDate(canonical: "2026-01-15"),
+            openedAt: nil,
+            open: MarketQuotePrice(coefficient: 10_000_000_000, quoteCurrency: request.instrument.currency),
+            high: MarketQuotePrice(coefficient: 13_000_000_000, quoteCurrency: request.instrument.currency),
+            low: MarketQuotePrice(coefficient: 9_000_000_000, quoteCurrency: request.instrument.currency),
+            close: MarketQuotePrice(coefficient: 12_000_000_000, quoteCurrency: request.instrument.currency),
+            volume: AssetQuantity(coefficient: 1_000_000_000),
+            adjustment: request.adjustment,
+            providerIdentifier: descriptor.identifier,
+            fetchedAt: clock.now(),
+            freshness: .unknown
+        )
+        return MarketHistoryPage(
+            instrument: request.instrument,
+            bars: [bar],
+            nextEndDate: nil,
+            sourceRevision: "synthetic-session-v1",
+            providerIdentifier: descriptor.identifier
+        )
+    }
+
+    func corporateActions(
+        for instrument: MarketInstrument,
+        from startDate: CivilDate?,
+        through endDate: CivilDate?
+    ) throws -> [MarketCorporateAction] {
+        try check(.splits)
+        counts[.dividends, default: 0] += 1
+        let date = try CivilDate(canonical: "2026-01-15")
+        return [
+            MarketCorporateAction(
+                id: "synthetic-split",
+                instrument: instrument,
+                kind: .split,
+                effectiveDate: date,
+                amount: nil,
+                splitFrom: 1,
+                splitTo: 2,
+                providerIdentifier: descriptor.identifier,
+                fetchedAt: clock.now()
+            ),
+            MarketCorporateAction(
+                id: "synthetic-dividend",
+                instrument: instrument,
+                kind: .dividend,
+                effectiveDate: date,
+                amount: try MarketQuotePrice(coefficient: 50_000_000, quoteCurrency: .usd),
+                splitFrom: nil,
+                splitTo: nil,
+                providerIdentifier: descriptor.identifier,
+                fetchedAt: clock.now()
+            )
+        ]
+    }
+
+    private func check(_ endpoint: MarketProviderEndpoint) throws {
+        counts[endpoint, default: 0] += 1
+        switch scenario {
+        case .success: return
+        case .offline: throw ProviderBoundaryError.offline
+        case .invalidCredential: throw ProviderBoundaryError.invalidOrExpired
+        }
+    }
+
+    private func instrument() -> MarketInstrument {
+        MarketInstrument(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000006901")!,
+            symbol: "SYN",
+            mic: "XNAS",
+            currency: .usd,
+            displayName: "Synthetic Session Instrument"
+        )
+    }
+}
+
 @Suite("Stage 6 market provider networking")
 struct MarketDataInfrastructureTests {
     private let clock = FixedClock(
@@ -679,6 +809,15 @@ struct MarketDataInfrastructureTests {
         let now = clock.now()
         let providerEntry = try lifecycleCacheEntry(key: "revoke-order", fetchedAt: now)
         try await cache.store(providerEntry, authorization: .authorized)
+        let session = TransientMarketSessionStore()
+        let sessionGeneration = await session.generation(for: "twelve-data")
+        _ = try await session.store(
+            providerIdentifier: "twelve-data",
+            logicalKey: "revoke-order",
+            payload: .search([instrument()]),
+            fetchedAt: now,
+            generation: sessionGeneration
+        )
         let credential = Data("synthetic-stage6-old-credential".utf8)
         let store = LifecycleCredentialStore(value: credential) {
             let state = try await cache.lookup(
@@ -689,6 +828,9 @@ struct MarketDataInfrastructureTests {
                 allowStale: true
             )
             guard state == .missing else {
+                throw SyntheticLifecycleOrderingError.cacheWasNotPurgedBeforeCredentialDelete
+            }
+            guard await session.statistics().entryCount == 0 else {
                 throw SyntheticLifecycleOrderingError.cacheWasNotPurgedBeforeCredentialDelete
             }
         }
@@ -708,6 +850,7 @@ struct MarketDataInfrastructureTests {
             credentialStore: store,
             provider: client,
             cache: cache,
+            sessionStore: session,
             clock: clock
         )
         let request = Task { try await client.search(query: "revoke-order") }
@@ -724,6 +867,7 @@ struct MarketDataInfrastructureTests {
         ) != .missing)
         #expect(await store.currentValue() == credential)
         #expect(await store.deleteCount() == 0)
+        #expect(await session.statistics().entryCount == 1)
 
         await transport.failCancelled(call: 1)
         _ = try await revoke.value
@@ -737,6 +881,7 @@ struct MarketDataInfrastructureTests {
         ) == .missing)
         #expect(await store.currentValue() == nil)
         #expect(await store.deleteCount() == 1)
+        #expect(await session.statistics().entryCount == 0)
         #expect(await client.transportTaskCount() == 0)
     }
 
@@ -748,6 +893,15 @@ struct MarketDataInfrastructureTests {
         let now = clock.now()
         let providerEntry = try lifecycleCacheEntry(key: "shutdown-timeout", fetchedAt: now)
         try await cache.store(providerEntry, authorization: .authorized)
+        let session = TransientMarketSessionStore()
+        let sessionGeneration = await session.generation(for: "twelve-data")
+        _ = try await session.store(
+            providerIdentifier: "twelve-data",
+            logicalKey: "shutdown-timeout",
+            payload: .search([instrument()]),
+            fetchedAt: now,
+            generation: sessionGeneration
+        )
         let credential = Data("synthetic-stage6-timeout-credential".utf8)
         let store = LifecycleCredentialStore(value: credential)
         let transport = GenerationalHTTPTransport()
@@ -765,6 +919,7 @@ struct MarketDataInfrastructureTests {
             credentialStore: store,
             provider: client,
             cache: cache,
+            sessionStore: session,
             clock: clock
         )
         let request = Task { try await client.search(query: "shutdown-timeout") }
@@ -775,6 +930,7 @@ struct MarketDataInfrastructureTests {
         }
         #expect(await store.currentValue() == credential)
         #expect(await store.deleteCount() == 0)
+        #expect(await session.statistics().entryCount == 1)
         #expect(try await cache.lookup(
             providerIdentifier: "twelve-data",
             logicalKey: "shutdown-timeout",
@@ -800,6 +956,15 @@ struct MarketDataInfrastructureTests {
         let now = clock.now()
         let providerEntry = try lifecycleCacheEntry(key: "rotation-keeps-cache", fetchedAt: now)
         try await cache.store(providerEntry, authorization: .authorized)
+        let session = TransientMarketSessionStore()
+        let oldSessionGeneration = await session.generation(for: "twelve-data")
+        _ = try await session.store(
+            providerIdentifier: "twelve-data",
+            logicalKey: "rotation-old-session",
+            payload: .search([instrument()]),
+            fetchedAt: now,
+            generation: oldSessionGeneration
+        )
         let oldCredential = Data("synthetic-stage6-old-rotation".utf8)
         let newCredentialText = "synthetic-stage6-new-rotation"
         let store = LifecycleCredentialStore(value: oldCredential)
@@ -819,6 +984,7 @@ struct MarketDataInfrastructureTests {
             credentialStore: store,
             provider: client,
             cache: cache,
+            sessionStore: session,
             clock: clock
         )
         let oldRequest = Task { try await client.search(query: "rotation") }
@@ -836,6 +1002,14 @@ struct MarketDataInfrastructureTests {
         try await rotation.value
         await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await oldRequest.value }
         #expect(await store.currentValue() == Data(newCredentialText.utf8))
+        #expect(await session.statistics().entryCount == 0)
+        #expect(try await session.store(
+            providerIdentifier: "twelve-data",
+            logicalKey: "late-old-generation",
+            payload: .search([instrument()]),
+            fetchedAt: now,
+            generation: oldSessionGeneration
+        ) == .ignoredStaleGeneration)
         #expect(try await cache.lookup(
             providerIdentifier: "twelve-data",
             logicalKey: "rotation-keeps-cache",
@@ -863,6 +1037,15 @@ struct MarketDataInfrastructureTests {
         let now = clock.now()
         let cacheEntry = try lifecycleCacheEntry(key: "same-credential", fetchedAt: now)
         try await cache.store(cacheEntry, authorization: .authorized)
+        let session = TransientMarketSessionStore()
+        let sessionGeneration = await session.generation(for: "twelve-data")
+        _ = try await session.store(
+            providerIdentifier: "twelve-data",
+            logicalKey: "same-credential",
+            payload: .search([instrument()]),
+            fetchedAt: now,
+            generation: sessionGeneration
+        )
 
         let credentialText = "synthetic-stage6-same-credential"
         let store = LifecycleCredentialStore(value: Data(credentialText.utf8))
@@ -882,6 +1065,7 @@ struct MarketDataInfrastructureTests {
             credentialStore: store,
             provider: client,
             cache: cache,
+            sessionStore: session,
             clock: clock
         )
 
@@ -917,6 +1101,8 @@ struct MarketDataInfrastructureTests {
         #expect(await transport.wasCancelled(call: 3) == false)
         #expect(await transport.callCount() == 3)
         #expect(await store.storeCount() == 0)
+        #expect(await session.statistics().entryCount == 1)
+        #expect(await session.generation(for: "twelve-data") == sessionGeneration)
         #expect(try await cache.lookup(
             providerIdentifier: "twelve-data",
             logicalKey: "same-credential",
@@ -1544,6 +1730,347 @@ struct MarketDataInfrastructureTests {
         await #expect(throws: ProviderBoundaryError.invalidTimeArithmetic) {
             _ = try await maximumDayGate.execute(credits: 1) { 2 }
         }
+    }
+
+    @Test("Transient Session Store provides TTL, deterministic LRU, capacity, replacement, and clear")
+    func transientSessionStoreCoreLifecycle() async throws {
+        let provider = "synthetic.session.market"
+        let now = clock.now()
+        let payload = TransientMarketSessionPayload.search([instrument()])
+        let probe = TransientMarketSessionStore(maximumBytes: 8_192)
+        let probeGeneration = await probe.generation(for: provider)
+        #expect(try await probe.store(
+            providerIdentifier: provider,
+            logicalKey: "one",
+            payload: payload,
+            fetchedAt: now,
+            generation: probeGeneration
+        ) == .stored)
+        let oneEntryBytes = await probe.statistics().accountedBytes
+        #expect(oneEntryBytes > 0)
+
+        let exact = TransientMarketSessionStore(maximumBytes: oneEntryBytes)
+        let exactGeneration = await exact.generation(for: provider)
+        #expect(try await exact.store(
+            providerIdentifier: provider,
+            logicalKey: "one",
+            payload: payload,
+            fetchedAt: now,
+            generation: exactGeneration
+        ) == .stored)
+        #expect(await exact.statistics().accountedBytes == oneEntryBytes)
+
+        let oversize = TransientMarketSessionStore(maximumBytes: oneEntryBytes - 1)
+        let oversizeGeneration = await oversize.generation(for: provider)
+        #expect(try await oversize.store(
+            providerIdentifier: provider,
+            logicalKey: "one",
+            payload: payload,
+            fetchedAt: now,
+            generation: oversizeGeneration
+        ) == .notStoredOversize)
+        #expect(await oversize.statistics().entryCount == 0)
+
+        _ = try await probe.store(
+            providerIdentifier: provider,
+            logicalKey: "two",
+            payload: payload,
+            fetchedAt: now,
+            generation: probeGeneration
+        )
+        _ = try await probe.lookup(
+            providerIdentifier: provider,
+            logicalKey: "one",
+            dataType: .search,
+            now: now
+        )
+        let twoEntriesBytes = await probe.statistics().accountedBytes
+        _ = try await probe.updateMaximumBytes(twoEntriesBytes - oneEntryBytes / 2)
+        #expect(try await probe.lookup(
+            providerIdentifier: provider,
+            logicalKey: "one",
+            dataType: .search,
+            now: now
+        ) != .missing)
+        #expect(try await probe.lookup(
+            providerIdentifier: provider,
+            logicalKey: "two",
+            dataType: .search,
+            now: now
+        ) == .missing)
+
+        let beforeReplacement = await probe.statistics()
+        _ = try await probe.store(
+            providerIdentifier: provider,
+            logicalKey: "one",
+            payload: payload,
+            fetchedAt: now,
+            generation: probeGeneration
+        )
+        #expect(await probe.statistics().accountedBytes == beforeReplacement.accountedBytes)
+        let cleared = try await probe.clear(providerIdentifier: provider)
+        #expect(cleared.removedEntries == 1)
+        #expect(await probe.statistics().entryCount == 0)
+        #expect(await probe.clearAll().removedEntries == 0)
+    }
+
+    @Test("Transient Session Store reports fresh stale missing and rejects stale generations safely")
+    func transientSessionStoreFreshnessAndGeneration() async throws {
+        let provider = "synthetic.session.market"
+        let store = TransientMarketSessionStore(maximumBytes: 4_096)
+        let generation = await store.generation(for: provider)
+        let quote = MarketQuote(
+            instrument: instrument(),
+            price: try MarketQuotePrice(coefficient: 10_000_000_000, quoteCurrency: .usd),
+            observedAt: clock.now(),
+            fetchedAt: clock.now(),
+            providerIdentifier: provider,
+            quality: .unknown,
+            freshness: .unknown
+        )
+        _ = try await store.store(
+            providerIdentifier: provider,
+            logicalKey: "quote",
+            payload: .quote(quote),
+            fetchedAt: clock.now(),
+            generation: generation
+        )
+        #expect(try await store.lookup(
+            providerIdentifier: provider,
+            logicalKey: "quote",
+            dataType: .quote,
+            now: clock.now()
+        ) != .missing)
+        let staleNow = UTCInstant(
+            millisecondsSince1970: clock.now().millisecondsSince1970 + 15 * 60 * 1_000 + 1
+        )
+        guard case .stale = try await store.lookup(
+            providerIdentifier: provider,
+            logicalKey: "quote",
+            dataType: .quote,
+            now: staleNow
+        ) else {
+            Issue.record("Expected a stale session quote")
+            return
+        }
+        #expect(try await store.lookup(
+            providerIdentifier: provider,
+            logicalKey: "missing",
+            dataType: .quote,
+            now: staleNow
+        ) == .missing)
+
+        _ = try await store.clear(providerIdentifier: provider)
+        #expect(try await store.store(
+            providerIdentifier: provider,
+            logicalKey: "late-old-generation",
+            payload: .quote(quote),
+            fetchedAt: staleNow,
+            generation: generation
+        ) == .ignoredStaleGeneration)
+        #expect(await store.statistics().entryCount == 0)
+
+        let currentGeneration = await store.generation(for: provider)
+        await #expect(throws: TransientMarketSessionStoreError.accountingOverflow) {
+            _ = try await store.store(
+                providerIdentifier: provider,
+                logicalKey: "overflow",
+                payload: .quote(quote),
+                fetchedAt: UTCInstant(millisecondsSince1970: .max),
+                generation: currentGeneration
+            )
+        }
+    }
+
+    @Test("Market service routes every Twelve Data value through session memory only")
+    func sessionOnlyServiceRouting() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let providerClock = MutableProviderClock(milliseconds: clock.now().millisecondsSince1970)
+        let provider = SessionMarketProvider(clock: providerClock)
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite"))
+        let diskSentinel = try lifecycleCacheEntry(key: "old-persistent-row", fetchedAt: clock.now())
+        try await cache.store(diskSentinel, authorization: .authorized)
+        let session = TransientMarketSessionStore()
+        let service = MarketDataService(
+            marketProvider: provider,
+            fxProvider: SyntheticFXRateProvider(clock: providerClock),
+            cache: cache,
+            sessionStore: session,
+            clock: providerClock
+        )
+        let request = try MarketHistoryRequest(
+            instrument: instrument(),
+            interval: .oneDay,
+            adjustment: .all,
+            startDate: try CivilDate(canonical: "2026-01-15")
+        )
+
+        _ = try await service.search(query: "SYN")
+        _ = try await service.search(query: "SYN")
+        _ = try await service.latestQuote(for: instrument())
+        _ = try await service.latestQuote(for: instrument())
+        _ = try await service.historicalBars(request)
+        _ = try await service.historicalBars(request)
+        _ = try await service.corporateActions(for: instrument(), from: nil, through: nil)
+        _ = try await service.corporateActions(for: instrument(), from: nil, through: nil)
+
+        #expect(await provider.callCount(.symbolSearch) == 1)
+        #expect(await provider.callCount(.latestQuote) == 1)
+        #expect(await provider.callCount(.historicalOHLCV) == 1)
+        #expect(await provider.callCount(.splits) == 1)
+        #expect(await provider.callCount(.dividends) == 1)
+        #expect(await session.statistics().entryCount == 5)
+        #expect(try await cache.cachedRowCount() == 1)
+        #expect(try await cache.lookup(
+            providerIdentifier: "twelve-data",
+            logicalKey: "old-persistent-row",
+            dataType: .latestQuote,
+            now: clock.now(),
+            allowStale: true
+        ) != .missing)
+    }
+
+    @Test("Session stale fallback is limited to recoverable failures and never hides credential errors")
+    func sessionStaleFallbackBoundaries() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let providerClock = MutableProviderClock(milliseconds: clock.now().millisecondsSince1970)
+        let provider = SessionMarketProvider(clock: providerClock)
+        let session = TransientMarketSessionStore()
+        let service = MarketDataService(
+            marketProvider: provider,
+            fxProvider: SyntheticFXRateProvider(clock: providerClock),
+            cache: try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite")),
+            sessionStore: session,
+            clock: providerClock
+        )
+        let original = try await service.latestQuote(for: instrument())
+        providerClock.advance(milliseconds: 15 * 60 * 1_000 + 1)
+        await provider.setScenario(.offline)
+        let stale = try await service.latestQuote(for: instrument())
+        #expect(stale.price == original.price)
+        #expect(stale.quality == .offline)
+        #expect(stale.freshness == .stale)
+
+        await provider.setScenario(.invalidCredential)
+        await #expect(throws: ProviderBoundaryError.invalidOrExpired) {
+            _ = try await service.latestQuote(for: instrument())
+        }
+
+        _ = await session.clearAll()
+        await provider.setScenario(.offline)
+        await #expect(throws: ProviderBoundaryError.missing) {
+            _ = try await service.search(query: "missing-offline")
+        }
+    }
+
+    @Test("App dependency graphs isolate local and Demo sessions and purge only legacy Twelve Data rows")
+    func appDependencySessionIsolationAndStartupPurge() async throws {
+        let localRoot = try temporaryDirectory()
+        let demoRoot = try temporaryDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: localRoot)
+            try? FileManager.default.removeItem(at: demoRoot)
+        }
+        let localPaths = RuntimePaths.temporary(root: localRoot)
+        let preflightCache = try MarketCacheStore(databaseURL: localPaths.marketCacheDatabaseURL)
+        let twelveEntry = try lifecycleCacheEntry(key: "legacy-twelve-row", fetchedAt: clock.now())
+        let fxEntry = try MarketCacheEntry(
+            providerIdentifier: "frankfurter-ecb",
+            logicalKey: "synthetic-fx-row",
+            dataType: .fxRate,
+            payload: Data("synthetic-authorized-fx".utf8),
+            fetchedAt: clock.now(),
+            entitlementContext: "synthetic-test",
+            freshness: .unknown
+        )
+        try await preflightCache.store(twelveEntry, authorization: .authorized)
+        try await preflightCache.store(fxEntry, authorization: .authorized)
+
+        let local = try await AppDependencies.make(configuration: LaunchConfiguration(
+            dataMode: .local,
+            usesTemporaryStores: true,
+            temporaryRoot: localRoot
+        ))
+        let demo = try await AppDependencies.make(configuration: LaunchConfiguration(
+            dataMode: .syntheticDemo,
+            usesTemporaryStores: true,
+            temporaryRoot: demoRoot
+        ))
+        #expect(try await local.marketCacheStore.lookup(
+            providerIdentifier: "twelve-data",
+            logicalKey: "legacy-twelve-row",
+            dataType: .latestQuote,
+            now: clock.now(),
+            allowStale: true
+        ) == .missing)
+        #expect(try await local.marketCacheStore.lookup(
+            providerIdentifier: "frankfurter-ecb",
+            logicalKey: "synthetic-fx-row",
+            dataType: .fxRate,
+            now: clock.now(),
+            allowStale: true
+        ) != .missing)
+
+        let localGeneration = await local.marketSessionStore.generation(for: "synthetic.market")
+        _ = try await local.marketSessionStore.store(
+            providerIdentifier: "synthetic.market",
+            logicalKey: "local-only",
+            payload: .search([instrument()]),
+            fetchedAt: clock.now(),
+            generation: localGeneration
+        )
+        #expect(await local.marketSessionStore.statistics().entryCount == 1)
+        #expect(await demo.marketSessionStore.statistics().entryCount == 0)
+
+        let demoGeneration = await demo.marketSessionStore.generation(for: "synthetic.market")
+        _ = try await demo.marketSessionStore.store(
+            providerIdentifier: "synthetic.market",
+            logicalKey: "demo-only",
+            payload: .search([instrument()]),
+            fetchedAt: clock.now(),
+            generation: demoGeneration
+        )
+        _ = await local.marketSessionStore.clearAll()
+        #expect(await local.marketSessionStore.statistics().entryCount == 0)
+        #expect(await demo.marketSessionStore.statistics().entryCount == 1)
+    }
+
+    @MainActor
+    @Test("Settings clear reports deterministic Session Market Data statistics")
+    func settingsSessionClear() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let dependencies = try await AppDependencies.make(configuration: LaunchConfiguration(
+            dataMode: .local,
+            usesTemporaryStores: true,
+            temporaryRoot: root
+        ))
+        let providerIdentifier = dependencies.marketDataProvider.descriptor.identifier
+        let generation = await dependencies.marketSessionStore.generation(for: providerIdentifier)
+        _ = try await dependencies.marketSessionStore.store(
+            providerIdentifier: providerIdentifier,
+            logicalKey: "settings-session-entry",
+            payload: .search([instrument()]),
+            fetchedAt: clock.now(),
+            generation: generation
+        )
+        let model = SettingsFeatureModel(
+            provider: dependencies.marketDataProvider,
+            credentialCoordinator: dependencies.credentialCoordinator,
+            cache: dependencies.marketCacheStore,
+            sessionStore: dependencies.marketSessionStore,
+            clock: dependencies.clock
+        )
+
+        await model.load()
+        #expect(model.sessionStatistics?.entryCount == 1)
+        #expect((model.sessionStatistics?.accountedBytes ?? 0) > 0)
+        await model.clearSessionMarketData()
+        #expect(model.sessionStatistics?.entryCount == 0)
+        #expect(model.sessionStatistics?.accountedBytes == 0)
+        #expect(model.statusMessage?.contains("Session Market Data") == true)
     }
 
     private func makeClient(

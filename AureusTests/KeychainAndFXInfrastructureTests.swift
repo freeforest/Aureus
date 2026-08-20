@@ -298,8 +298,8 @@ struct KeychainAndFXInfrastructureTests {
             ),
             fxProvider: fx,
             cache: cache,
-            clock: FixedClock(instant: now),
-            marketCacheAuthorization: .authorized
+            sessionStore: TransientMarketSessionStore(),
+            clock: FixedClock(instant: now)
         )
 
         let stale = try await service.referenceRate(source: .usd, target: .cny, on: date)
@@ -356,22 +356,23 @@ struct KeychainAndFXInfrastructureTests {
             sourceRevision: "synthetic-v1",
             providerIdentifier: provider.descriptor.identifier
         )
-        let entry = try MarketCacheEntry(
+        let sessionStore = TransientMarketSessionStore()
+        let generation = await sessionStore.generation(for: provider.descriptor.identifier)
+        _ = try await sessionStore.store(
             providerIdentifier: provider.descriptor.identifier,
             logicalKey: "history|SYN|XNAS|1day|all|2026-01-01|2026-01-15",
-            dataType: .eodRecent,
-            payload: try JSONEncoder().encode(oldPage),
-            fetchedAt: oldBar.fetchedAt,
-            entitlementContext: "synthetic-test",
-            freshness: .endOfDay
+            payload: .historical(oldPage),
+            fetchedAt: UTCInstant(
+                millisecondsSince1970: now.millisecondsSince1970 - 46_800_000
+            ),
+            generation: generation
         )
-        try await cache.store(entry, authorization: .authorized)
         let service = MarketDataService(
             marketProvider: provider,
             fxProvider: SyntheticFXRateProvider(clock: clock),
             cache: cache,
-            clock: clock,
-            marketCacheAuthorization: .authorized
+            sessionStore: sessionStore,
+            clock: clock
         )
 
         let merged = try await service.historicalBars(request)

@@ -468,7 +468,7 @@ The market cache is recoverable, bounded, and physically separate from permanent
 
 ### Twelve Data V1 transient session store
 
-Twelve Data Production responses do not use this disk cache in V1. A later authorized implementation candidate must use a separate actor-owned in-memory store with:
+Twelve Data Production responses do not use this disk cache in V1. Stage 6M implements a separate dependency-injected, actor-owned in-memory store with:
 
 - a 64 MiB hard limit;
 - typed TTL and deterministic LRU eviction;
@@ -478,6 +478,8 @@ Twelve Data Production responses do not use this disk cache in V1. A later autho
 - `Clear Session Market Data` in Settings;
 - clearing on App termination, explicit user clear, Disconnect, Credential rotation, confirmed entitlement loss, and termination;
 - no `WealthStore`, Permanent Store URL, persistent Market Cache write capability, or arbitrary delete URL.
+
+Search, Quote, Historical OHLCV, Split, and Dividend use this store exclusively for completed-response reuse. Historical incremental merge takes its baseline from session memory. Twelve Data disk rows are ignored by query paths and removed only through the isolated Provider-scoped purge capability. Each Production, Demo, or UI-test dependency graph owns a distinct store; no global singleton or cross-launch restoration exists.
 
 While the current process retains session data, offline UI may show a timestamped stale/offline memory value. After relaunch, an offline miss is `Market Data Unavailable Offline`, never an empty success and never a Synthetic Provider fallback. User-authored minimal symbol/MIC identifiers and UI preferences are outside this session data only when they contain no Provider description, value, action, freshness payload, or raw response.
 

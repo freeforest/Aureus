@@ -11,6 +11,7 @@ struct SettingsView: View {
         provider: any MarketDataProvider,
         credentialCoordinator: ProviderCredentialCoordinator,
         cache: MarketCacheStore,
+        sessionStore: TransientMarketSessionStore,
         clock: any Clock,
         mode: AppDataMode
     ) {
@@ -18,6 +19,7 @@ struct SettingsView: View {
             provider: provider,
             credentialCoordinator: credentialCoordinator,
             cache: cache,
+            sessionStore: sessionStore,
             clock: clock
         ))
         self.mode = mode
@@ -29,6 +31,7 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     providerSection
+                    sessionSection
                     cacheSection
                     operationMessages
                     laterStageSection
@@ -83,7 +86,7 @@ struct SettingsView: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Settings" : "Local Provider Settings")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 6C Repair Candidate")
+            Text("Stage 6M Session Store Implementation Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("settings.mode")
@@ -227,7 +230,7 @@ struct SettingsView: View {
                         "settings.provider.endpoint.\(endpoint.endpoint.rawValue)"
                     )
                 }
-                Text("Persistent Twelve Data cache is disabled while public retention duration remains unverified. Frankfurter/ECB reference-rate cache uses a 24-hour TTL.")
+                Text("Twelve Data V1 persistent writes are disabled. Validated market responses use only the current App session. Frankfurter/ECB reference-rate cache remains independent with a 24-hour TTL.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -239,8 +242,41 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings.provider")
     }
 
+    private var sessionSection: some View {
+        GroupBox("Session Market Data") {
+            VStack(alignment: .leading, spacing: 14) {
+                if let statistics = model.sessionStatistics {
+                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
+                        GridRow { Text("Entries"); Text("\(statistics.entryCount)") }
+                        GridRow { Text("Logical usage"); Text(byteString(statistics.accountedBytes)) }
+                        GridRow { Text("Maximum"); Text("64 MiB") }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "Session Market Data. \(statistics.entryCount) entries. "
+                            + "Logical usage \(statistics.accountedBytes) bytes. Maximum 64 MiB."
+                    )
+                    .accessibilityIdentifier("settings.session.summary")
+                }
+
+                Text("Twelve Data values exist only in memory for this App session. They disappear on App exit, Disconnect, credential rotation, or Clear. Nothing in this section is written to SQLite, files, UserDefaults, Backup, or Export.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings.session.disclosure")
+
+                Button("Clear Session Market Data", role: .destructive) {
+                    Task { await model.clearSessionMarketData() }
+                }
+                .disabled(model.isWorking)
+                .accessibilityIdentifier("settings.session.clear")
+            }
+            .padding(10)
+        }
+        .accessibilityIdentifier("settings.session")
+    }
+
     private var cacheSection: some View {
-        GroupBox("Bounded Market Cache") {
+        GroupBox("Authorized Persistent Market Cache") {
             VStack(alignment: .leading, spacing: 14) {
                 if let statistics = model.cacheStatistics {
                     Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
@@ -253,7 +289,7 @@ struct SettingsView: View {
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(
-                        "Market Cache. Current usage \(byteString(statistics.currentBytes)). "
+                        "Authorized Persistent Market Cache. Current usage \(byteString(statistics.currentBytes)). "
                             + "Capacity \(byteString(statistics.maximumBytes)). "
                             + "Usage \(statistics.percentageBasisPoints / 100) percent. "
                             + "Entries \(statistics.entryCount). "
@@ -287,7 +323,7 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings.cache.reset")
                 }
 
-                Text("Defaults: 512 MiB, 90% high-water trigger, cleanup to 80%. Cleanup is restricted to recoverable Market Cache data.")
+                Text("Twelve Data V1 persistent writes are disabled. This isolated disk cache is only for data sources with separately confirmed storage rights, including the independent Frankfurter/ECB policy. Defaults: 512 MiB, 90% high-water trigger, cleanup to 80%.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
