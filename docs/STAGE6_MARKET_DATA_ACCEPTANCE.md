@@ -1,8 +1,10 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6K Follow-up Reply Sufficiency Review — `BLOCKED`  
+**Status:** Stage 6L Personal Local Mode Rebaseline Candidate — Awaiting Reviewer Gate  
 **Evidence visit:** 2026-08-12–2026-08-17  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
+
+**Date provenance:** Follow-up submission `2026-08-13`; Provider reply date `NOT PROVIDED`; Stage 6K review `2026-08-17`; Personal Local Mode decision `2026-08-17`; Terms refresh `2026-08-17`.
 
 ## 1. Acceptance Boundary
 
@@ -21,6 +23,18 @@ The implementation makes the following safety distinctions:
 - cache rights are separate from endpoint access;
 - open-source application code does not redistribute Provider data, and Provider data is never stored in the Repository.
 
+### 1.1 Personal Local Mode rebaseline — 2026-08-17
+
+The user's latest explicit decision limits Aureus to one user's Mac for personal/internal, non-commercial use. It is not hosted and does not display, share, resell, or redistribute Twelve Data data to third parties. Open-source program source remains separate from Provider data, credentials, and user financial data.
+
+| Data path | Stage 6L policy |
+|---|---|
+| Transient Session Use | Search, Quote, OHLCV, and entitled Corporate Actions may be processed in a future bounded in-memory work set after the actual endpoint × MIC succeeds. The proposed store is actor-owned, limited to 64 MiB, uses typed TTL/LRU and request reuse, is never serialized, and is cleared on App termination, Disconnect, Credential rotation, confirmed entitlement loss, termination, or explicit user clear. |
+| Persistent Twelve Data Storage | **Disabled by product policy.** No Production Twelve Data description, Quote, OHLCV, Split, Dividend, freshness, or raw response is written to GRDB, Permanent Store, Snapshot, Backup, Export, log, or file. Retention rights remain `BLOCKED`. |
+| User-authored Market Preferences | Minimal symbol/MIC identifiers and UI preferences may persist without Provider descriptions or values. They are not endpoint, Plan, freshness, or exchange-entitlement evidence. |
+
+The isolated GRDB Market Cache remains as verified infrastructure for separately authorized Provider policies; its presence does not grant Twelve Data disk-retention rights. Frankfurter/ECB policy remains independent. After relaunch, an offline Twelve Data miss is `Market Data Unavailable Offline`; Synthetic data never substitutes for Production.
+
 ## 2. Official Source Register
 
 Only Provider-owned pages, the Frankfurter official site/repository, and ECB official pages are used below. Search summaries, blogs, wrappers, and AI-generated material are not evidence.
@@ -36,10 +50,10 @@ Only Provider-owned pages, the Frankfurter official site/repository, and ECB off
 | TD-06 | [Historical prices](https://support.twelvedata.com/en/articles/5656039-how-to-get-historical-prices) | 2026-08-13 | Historical time series supports bounded output, date/range selection and incremental update guidance. The page does not state a licensed local retention duration. | VERIFIED retrieval guidance; retention duration NOT VERIFIED | History requests paginate and merge deterministically. Incremental-update guidance is not treated as permission for persistent storage. |
 | TD-07 | [Price adjustment](https://support.twelvedata.com/en/articles/5179064-are-the-prices-adjusted) | 2026-08-12 | Daily/weekly/monthly data is described as split-adjusted; intraday is unadjusted; splits and dividends support client-side adjustment. | VERIFIED | Domain records adjustment provenance and actions instead of treating every series as equivalent. |
 | TD-08 | [Available symbols](https://support.twelvedata.com/en/articles/5620513-how-to-find-all-available-symbols-at-twelve-data) | 2026-08-12 | Official reference/search mechanisms expose supported symbol metadata. | VERIFIED | Search results remain entitlement-aware and retain MIC/exchange/native quote currency. |
-| TD-09 | [End-of-day pricing market data](https://support.twelvedata.com/en/articles/12682324-end-of-day-eod-pricing-market-data) | 2026-08-12 | The current guide describes EOD data and flags `XHKG` and `XJPX` as requiring licensing/current-support confirmation. | CONFLICTING with a simple catalog-based Pro inference | HK and Japan cannot be marked verified from the Exchange Catalog. |
-| TD-10 | [Commercial and personal usage](https://support.twelvedata.com/en/articles/5332349-commercial-and-personal-usage) | 2026-08-13 | Individual tiers are for personal/internal use; redistribution and commercial display to third parties are not permitted on those tiers. | VERIFIED at general level | BYOK data remains local to the corresponding user and raw Provider export is disabled. |
-| TD-11 | [Twelve Data Terms](https://twelvedata.com/terms) | 2026-08-13 | Internal processing/storage is limited by Plan and Documentation; storing beyond Documentation timeframes and unauthorized redistribution are prohibited. Termination clauses require deletion, with both an immediate effect clause and a section stating deletion within 30 days. No ordinary per-data-type local-cache duration was found. | VERIFIED general duty; NOT VERIFIED ordinary duration | Persistent Twelve Data cache writes stay disabled. Explicit key deletion/Disconnect/confirmed termination uses immediate Provider-scoped purge. |
-| TD-12 | [Attribution guidelines](https://support.twelvedata.com/en/articles/12647398-attribution-guidelines-for-using-twelve-data) | 2026-08-13 | Public/external display generally requires attribution; internal/private use is generally exempt; market-specific obligations may still apply. | VERIFIED at general level | Settings shows a compact source label; Stage 7 must refresh surface- and market-specific obligations. |
+| TD-09 | [End-of-day pricing market data](https://support.twelvedata.com/en/articles/12682324-end-of-day-eod-pricing-market-data) | 2026-08-17 | Personal-plan EOD data is restricted to individual, non-commercial use. The current guide lists `XHKG` and `XJPX` among markets requiring licensing or current-support confirmation. | VERIFIED personal-use and licensing boundary | HK and Japan cannot be marked verified from local operation, preferences, or the Exchange Catalog. |
+| TD-10 | [Commercial and personal usage](https://support.twelvedata.com/en/articles/5332349-commercial-and-personal-usage) | 2026-08-17 | Individual tiers are strictly for personal/internal use; redistribution and commercial display to third parties are not permitted. Search/catalog visibility can exceed price-data entitlement. | VERIFIED at general level | Personal Local Mode fits the use category but grants no endpoint or market entitlement. |
+| TD-11 | [Twelve Data Terms](https://twelvedata.com/terms) | 2026-08-17 | Internal processing/storage remains Plan-, Documentation-, and third-party-bounded. §12.5 ends access immediately and creates a deletion obligation; §16.2 requires deletion within 30 days after termination or expiration. No ordinary per-data-type local-cache duration was found. | VERIFIED termination duty/deadline; NOT VERIFIED ordinary duration | Persistent Twelve Data writes stay disabled. Immediate purge is Aureus's stricter internal policy, not a claimed Provider deadline. |
+| TD-12 | [Attribution guidelines](https://support.twelvedata.com/en/articles/12647398-attribution-guidelines-for-using-twelve-data) | 2026-08-17 | Public/external display generally requires attribution; internal/private use is generally exempt; market-specific obligations may still apply. | VERIFIED at general level | Personal Local Mode remains private/internal; compact source labeling and market-specific review remain. |
 | TD-14 | [Splits and Dividends API reference](https://twelvedata.com/docs/advanced) | 2026-08-13 | `/splits` and `/dividends` each cost 20 credits per symbol and are available on Grow individual / Venture business and above. | VERIFIED as official catalog contract; live entitlement NOT VERIFIED | Basic no longer advertises Corporate Actions and rejects these 20-credit requests before transport. Each endpoint remains independently observed. |
 | TD-13 | [Twelve Data service status](https://twelvedata.isitup.cloud/) | 2026-08-12 | The official status surface reported the service operational during the visit. | VERIFIED point-in-time only | This is maintenance evidence, not an SLA or endpoint acceptance result. |
 | FF-01 | [Frankfurter v2 API](https://frankfurter.dev/) and [ECB Provider page](https://frankfurter.dev/providers/ecb/) | 2026-08-13 | Frankfurter v2 is keyless, supports provider filtering, and documents ECB as a reference-rate provider. | VERIFIED for documented contract | Adapter filters to ECB and derives CNY per USD from the two EUR reference legs. |
@@ -57,7 +71,7 @@ The Exchanges catalog lists `XHKG`, `XSHG`, `XSHE`, and `XJPX` at Pro-level acce
 
 ### 3.2 Twelve Data cache retention
 
-The public Terms establish that cache/storage rights are plan- and documentation-bounded but did not provide a directly verifiable ordinary retention duration for each implemented data type. Aureus does not invent a perpetual or typed retention right. Production Twelve Data cache authorization is therefore `unverified`, and validated network results are returned without replacing an older cache entry. Persistent Twelve Data writes become eligible only after Stage 6/Reviewer evidence confirms the applicable right and duration.
+The public Terms establish that cache/storage rights are plan- and documentation-bounded but did not provide a directly verifiable ordinary retention duration for each implemented data type. Aureus does not invent a perpetual or typed retention right. Production Twelve Data cache authorization is therefore `unverified`, and validated network results are returned without replacing an older cache entry. Persistent Twelve Data writes are disabled by V1 product policy; retention evidence remains a deferred record and cannot enable disk writes without a new explicit user decision and a later Reviewer-authorized policy design.
 
 The typed architectural TTLs are implemented and tested as freshness/cleanup policy. They never grant a legal right to persist data: a stricter Provider retention rule wins.
 
@@ -65,9 +79,9 @@ The endpoint-by-endpoint decision and a copy-ready support inquiry are recorded 
 
 Stage 6E re-read the public first-party Terms, personal-use guidance, historical-price guidance, and attribution guidance on 2026-08-13. They continue to establish general internal-use, plan, exchange, attribution, and termination boundaries, but do not provide a complete endpoint-by-endpoint maximum local retention duration for this BYOK desktop scenario. On 2026-08-13, Stage 6H submitted exactly one sanitized inquiry through the official Twelve Data Customer Support form under the `Other` category.
 
-Stage 6I reviewed only the user-supplied sanitized reply to that inquiry. It is classified as a Twelve Data Support response; no sender address, ticket identifier, private URL, signature, header, or complete private email was retained. The reply says local caching is permitted in some cases but does not state the applicable data types, plans, markets, or maximum durations. It states that `XHKG` and `XJPX` historical data require direct exchange licensing, confirms no attribution for internal/private use subject to market-specific rules, and supplies no open-source BYOK or `/api_usage` response contract. Its statement that documentation does not specify deletion requirements conflicts with the current public Terms requirement to delete all Data upon termination. Ordinary retention therefore remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, Plan/Entitlement remain `NOT VERIFIED`, and no credentialed endpoint or follow-up message was sent.
+Stage 6I reviewed only the user-supplied sanitized reply to that inquiry. It is classified as a Twelve Data Support response; no sender address, ticket identifier, private URL, signature, header, or complete private email was retained. The reply says local caching is permitted in some cases but does not state the applicable data types, plans, markets, or maximum durations. It states that `XHKG` and `XJPX` historical data require direct exchange licensing, confirms no attribution for internal/private use subject to market-specific rules, and supplies no open-source BYOK or `/api_usage` response contract. Later Terms review separates the immediate cessation/deletion obligation in §12.5 from the 30-day deletion deadline in §16.2. Ordinary retention therefore remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, Plan/Entitlement remain `NOT VERIFIED`, and no credentialed endpoint or follow-up message was sent.
 
-On 2026-08-13, Stage 6J submitted exactly one sanitized follow-up through the official Twelve Data Customer Support form under the `Other` category. The submission asked for explicit Yes/No and numerical answers covering eight groups: Search/reference, Quote/market status, OHLCV/EOD, Split/Dividend, lifecycle deletion, five-market licensing by endpoint, open-source BYOK/attribution, and the `/api_usage` JSON contract. Submission count was 1, attachments were 0, and the response is `PENDING`. No credentialed Provider endpoint was called. Retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, and Stage 7 remains `NO-GO`.
+On 2026-08-13, Stage 6J submitted exactly one sanitized follow-up through the official Twelve Data Customer Support form under the `Other` category. The submission asked for explicit Yes/No and numerical answers covering eight groups: Search/reference, Quote/market status, OHLCV/EOD, Split/Dividend, lifecycle deletion, five-market licensing by endpoint, open-source BYOK/attribution, and the `/api_usage` JSON contract. Submission count was 1, attachments were 0, and the response was `PENDING` at submission time; the later sanitized body was reviewed in Stage 6K on 2026-08-17. No credentialed Provider endpoint was called. Retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, and Stage 7 remains `NO-GO`.
 
 Stage 6K reviewed only the user-provided sanitized body of the follow-up reply. Based on the body identifying itself as a Twelve Data response, it is classified as a `CUSTOMER SUPPORT WRITTEN RESPONSE`, not a Licensing/Data Compliance authorization. The reply date was not provided. No sender name, salutation, signature, email address, account or ticket identifier, private URL, header, or complete private message was retained. The reply confirms that no specific maximum retention period is documented for Basic, Grow, Pro or Ultra; states a 30-day deletion deadline after subscription termination or expiration; and reiterates that `XHKG` and `XJPX` historical data requires a direct exchange license. It does not close the remaining per-data-type, refresh, lifecycle, market-endpoint, BYOK/attribution, or `/api_usage` gaps. No Provider request or new Support message was sent.
 
@@ -86,7 +100,7 @@ Stage 6K reviewed only the user-provided sanitized body of the follow-up reply. 
 | 9 | Plan downgrade deletion deadline | NOT ANSWERED | Downgrade is not addressed. |
 | 10 | Credential expiry deletion deadline | NOT ANSWERED | Subscription expiration is addressed, but credential expiry is a different lifecycle event and is not answered. |
 | 11 | Market-entitlement-loss deletion deadline | NOT ANSWERED | Loss of an exchange entitlement is not addressed. |
-| 12 | Account/subscription termination deletion deadline | CONFLICTS WITH OFFICIAL TERMS | The reply says within 30 days, while the reviewed public Terms also contain immediate cessation/deletion language. Aureus retains the stricter immediate Provider-scoped purge. |
+| 12 | Account/subscription termination deletion deadline | FULLY ANSWERED | Terms §12.5 ends access immediately and creates the deletion obligation; §16.2 supplies the deadline of deletion within 30 days after termination or expiration. Aureus voluntarily retains immediate Provider-scoped purge as a stricter internal policy. |
 | 13 | US endpoint conditions | NOT ANSWERED | No minimum Plan or Search/Quote/OHLCV/action conditions are supplied. |
 | 14 | `XHKG` endpoint and license | PARTIALLY ANSWERED | Direct exchange licensing is stated for historical data only; endpoint scope, minimum Plan and official license process are absent. |
 | 15 | `XSHG` endpoint and license | NOT ANSWERED | No endpoint, Plan or exchange-license condition is supplied. |
@@ -113,7 +127,7 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 | Historical OHLCV/EOD persistent caching | PARTIALLY ANSWERED | No retention duration is supplied; `XHKG` and `XJPX` historical access is said to require direct exchange licensing. |
 | Split/Dividend persistent caching | NOT ANSWERED | No action-specific cache right, Plan or duration is supplied. |
 | Maximum retention duration | NOT ANSWERED | The reply explicitly says the maximum timeframe is not specified. |
-| Refresh and lifecycle deletion duties | CONFLICTS WITH PUBLIC TERMS | Refresh is unanswered. The reply says deletion requirements are unspecified, while current public Terms require deletion of all Data upon termination. |
+| Refresh and lifecycle deletion duties | PARTIALLY ANSWERED | Refresh, Disconnect, downgrade, Credential expiry, and market-entitlement-loss duties remain unanswered. Termination/expiration is separately answered by Terms §12.5 and §16.2. |
 | US/`XHKG`/`XSHG`/`XSHE`/`XJPX` differences | PARTIALLY ANSWERED | Only `XHKG` and `XJPX` historical licensing is addressed; US, `XSHG`, `XSHE`, other endpoints and Plan details remain unanswered. |
 | Private attribution and open-source BYOK | PARTIALLY ANSWERED | Internal/private attribution exemption is confirmed subject to exchange rules; open-source BYOK rules are not provided. |
 | `/api_usage` public response contract | NOT ANSWERED | The reply says Documentation does not list field names, nesting or types. |
@@ -154,7 +168,7 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 | Current/delayed/EOD freshness | NOT VERIFIED | DTO/state mapping is tested, but actual key/market response freshness was not observed. |
 | Ordinary Twelve Data persistent-cache duration | BLOCKED | No unambiguous public per-data-type duration was directly confirmed. Production persistent Twelve cache writes remain disabled. |
 | Personal/internal-use boundary | VERIFIED | Official personal-use guide and Terms support the bounded per-user local model; actual user/plan obligations must still be honored. |
-| Disconnect/termination deletion duty | VERIFIED | Official Terms require deletion; conflicting deadline wording is resolved conservatively by immediate Provider-scoped purge on confirmed lifecycle events. |
+| Disconnect/termination deletion duty | VERIFIED for termination/expiration only | Terms §12.5 ends access immediately and creates deletion duty; §16.2 requires deletion within 30 days. Disconnect and other lifecycle cases remain Provider-unanswered. Aureus uses immediate purge as a stricter internal policy. |
 | Attribution boundary | VERIFIED | Official guidance distinguishes internal/private and external display. This verifies only the general boundary; Settings shows source, and Stage 7 must refresh any surface/market-specific wording. |
 | Frankfurter v2 / ECB contract | VERIFIED | Official keyless API, ECB source filter, ECB working-day/reference framework, provenance and reuse guidance were directly reviewed. |
 | Live Frankfurter response | VERIFIED | On 2026-08-13 one bounded, unauthenticated request to the official v2 API with `providers=ECB`, base EUR and quotes USD/CNY returned two positive-rate rows for reference date 2026-08-12. The USD→CNY cross was positive. Only sanitized metadata was retained; no raw payload was stored. |
@@ -171,3 +185,23 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 ## 7. Reviewer-facing Limitations
 
 The implementation candidate can be built and tested without a credential. Stage 6G verifies only a sanitized terminal validation of the securely rotated replacement credential. It does not claim Basic or paid entitlement, Search/Quote/OHLCV/actions acceptance, complete four-market access, exact market freshness, or ordinary persistent-cache rights. If no Pro-or-higher test condition exists, all four international-market endpoint rows must remain `NOT VERIFIED` rather than inferred from catalog visibility, terminal credential validation, or synthetic tests.
+
+## 8. Stage 6L gate rebaseline candidate
+
+This document proposes, but does not decide, two separate Reviewer gates:
+
+### Stage 6 Core Entry Candidate
+
+- existing Stage 6 implementation and full regression evidence remain accepted as historical evidence;
+- Keychain lifecycle remains verified;
+- Production Twelve Data persistent writes remain closed;
+- a separately authorized bounded Basic US Search and Historical OHLCV live acceptance must succeed;
+- rate, typed error, entitlement, freshness, and raw MIC states must be observable;
+- the 64 MiB session-only data path requires implementation and isolation tests before Stage 7 authorization;
+- unauthorized endpoints and markets remain explicitly unavailable.
+
+### Deferred Persistent Cache Gate
+
+Retention evidence remains `BLOCKED` and Production persistent writes remain `Disabled`. Under the 2026-08-17 product policy, this is no longer proposed as a Stage 7 implementation prerequisite. Any future disk cache for Twelve Data requires a new explicit user decision, applicable retention rights, separate architecture review, and implementation authorization.
+
+International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` until the Reviewer accepts this rebaseline and authorizes the bounded Basic US acceptance/session-store work.

@@ -16,6 +16,14 @@
 - Demo and test data must be synthetic or sanitized.
 - No AI or LLM capability is a long-term product boundary, not a deferred feature.
 
+### Personal Local Mode
+
+- Aureus is a single-user, local-only macOS application for personal/internal, non-commercial use. It is not a hosted service and does not provide commercial display, sharing, resale, or redistribution of Provider data.
+- Open source applies to Aureus program source, schemas, synthetic fixtures, and public documentation. It never includes Provider data, Provider credentials, or the user's financial data.
+- Personal Local Mode does not authorize any request beyond the current user's actual Plan, endpoint entitlement, rate limit, or exchange license. Catalog visibility and a user-selected symbol or MIC are not entitlement evidence.
+- Twelve Data Production data is session-only in V1: bounded in-memory processing is allowed after the applicable endpoint/MIC succeeds, while persistent Twelve Data writes remain disabled by product policy. The session work set is cleared at App termination and on explicit user clear, Disconnect, Credential rotation, confirmed entitlement loss, or termination. User-authored symbol/MIC identifiers and UI preferences may persist only when they contain no Provider description, quote, OHLCV, action, freshness, or raw-response content.
+- The existing isolated Market Cache infrastructure remains governed by its capacity, TTL, cleanup, and Permanent Store isolation rules. It does not authorize Twelve Data persistence; Provider-specific storage requires separately verified rights and an explicit later product decision.
+
 ## Sources of Truth
 
 Product and requirement priority, from highest to lowest:

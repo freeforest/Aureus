@@ -1,11 +1,14 @@
 # Stage 6 Twelve Data Retention Decision
 
-**Status:** `BLOCKED` — Production Twelve Data persistent cache writes remain disabled  
-**Decision date:** 2026-08-13  
-**Stage status:** Stage 6K Follow-up Reply Sufficiency Review — `BLOCKED`; Plan/Entitlement remain `NOT VERIFIED`.  
-**Scope:** Twelve Data BYOK, individual personal/internal use in the local-first Aureus macOS app
+**Status:** Retention rights `BLOCKED`; Production Twelve Data persistent writes `Disabled by product policy`  
+**Follow-up submission:** 2026-08-13  
+**Provider reply date:** `NOT PROVIDED`  
+**Stage 6K review:** 2026-08-17  
+**Personal Local Mode decision and Terms refresh:** 2026-08-17  
+**Stage status:** Stage 6L Personal Local Mode Rebaseline Candidate — Awaiting Reviewer Gate  
+**Scope:** Twelve Data BYOK, single-user local-only personal/internal non-commercial use
 
-This record answers only whether Aureus has sufficient current official evidence to persist Twelve Data market data on the user's Mac. It does not change the selected Provider, plan-aware entitlement model, four-market V1 scope, or Stage 6 implementation boundary.
+This record separates transient session processing from persistent storage. It does not change the selected Provider, plan-aware entitlement model, or four-market capability scope, and it does not prove any endpoint or exchange entitlement.
 
 ## 1. Decision
 
@@ -15,9 +18,11 @@ Stage 6G corrected the Stage 6F credential-boundary incident without changing re
 
 Stage 6I reviewed the user-supplied sanitized Support reply. It confirms only that local caching is permitted in some cases and that internal/private use generally does not require attribution. It supplies no per-data-type/plan maximum retention duration, no complete refresh or deletion policy, no open-source BYOK rule, and no `/api_usage` field contract. It also states that `XHKG` and `XJPX` historical access requires direct exchange licensing. Because none of the five cache data types satisfies the complete evidence test, this decision and the disabled-write policy are unchanged. No credentialed endpoint was called and no follow-up was sent.
 
-On 2026-08-13, Stage 6J submitted exactly one sanitized follow-up through the official Twelve Data Customer Support form under the `Other` category. Submission count was 1, attachments were 0, and the response is `PENDING`. The follow-up requests explicit per-data-type, per-Plan, per-market retention periods, deletion deadlines, market-license requirements, BYOK/attribution boundaries, and the official `/api_usage` schema. Sending the inquiry does not resolve the evidence gap: Retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, and Stage 7 remains `NO-GO`. No credentialed Provider endpoint was called.
+On 2026-08-13, Stage 6J submitted exactly one sanitized follow-up through the official Twelve Data Customer Support form under the `Other` category. Submission count was 1, attachments were 0, and the response was `PENDING` at submission time; the later sanitized body was reviewed in Stage 6K on 2026-08-17. The follow-up requested explicit per-data-type, per-Plan, per-market retention periods, deletion deadlines, market-license requirements, BYOK/attribution boundaries, and the official `/api_usage` schema. Sending the inquiry did not resolve the evidence gap: Retention remains `BLOCKED`, Production persistent Twelve Data writes remain disabled, and Stage 7 remains `NO-GO`. No credentialed Provider endpoint was called.
 
-Stage 6K reviewed only the user-provided sanitized follow-up body. It is classified as a `CUSTOMER SUPPORT WRITTEN RESPONSE`, not a Licensing/Data Compliance authorization. It confirms that no specific maximum retention period is documented for Basic, Grow, Pro or Ultra; states that all data must be deleted within 30 days after subscription termination or expiration; and reiterates that `XHKG` and `XJPX` historical access requires direct exchange licensing. It does not provide per-type persistent-cache permission, any usable maximum duration, refresh rules, Disconnect/downgrade/credential-expiry/market-entitlement-loss deadlines, complete five-market endpoint conditions, explicit open-source BYOK authorization, attribution terms, or an `/api_usage` contract. The 30-day termination statement also does not resolve the reviewed public Terms' immediate-deletion wording, so Aureus keeps the stricter immediate Provider-scoped purge. No Provider request or new Support message was sent.
+Stage 6K reviewed only the user-provided sanitized follow-up body. It is classified as a `CUSTOMER SUPPORT WRITTEN RESPONSE`, not a Licensing/Data Compliance authorization. It confirms that no specific maximum retention period is documented for Basic, Grow, Pro or Ultra; states that all data must be deleted within 30 days after subscription termination or expiration; and reiterates that `XHKG` and `XJPX` historical access requires direct exchange licensing. It does not provide per-type persistent-cache permission, any usable maximum duration, refresh rules, Disconnect/downgrade/credential-expiry/market-entitlement-loss deadlines, complete five-market endpoint conditions, explicit open-source BYOK authorization, attribution terms, or an `/api_usage` contract. The 2026-08-17 Terms refresh reads §12.5 as immediate cessation of access plus a deletion obligation and §16.2 as the operational 30-day deletion deadline; these provisions are no longer described as conflicting. Aureus keeps immediate Provider-scoped purge as a stricter internal policy. No Provider request or new Support message was sent.
+
+The user's 2026-08-17 decision establishes Personal Local Mode: Aureus runs only on one user's Mac for personal/internal, non-commercial use; it is not hosted and does not redistribute or commercially display Provider data. Open-source program source does not include Provider data, credentials, or user financial data. This decision permits a future bounded transient session path after endpoint × MIC success, but it grants no new Plan, endpoint, retention, or exchange right.
 
 Therefore:
 
@@ -27,13 +32,23 @@ Therefore:
 - Key deletion, explicit Disconnect, or confirmed termination purges Twelve Data recoverable cache rows only; it cannot reach the Permanent Wealth Store.
 - No right to indefinite retention is inferred from personal/internal use, incremental-update guidance, or open-source application code.
 
+## 1.1 Transient and persistent data policy
+
+| Data path | Product policy |
+|---|---|
+| Transient Session Use | Search, Quote, OHLCV, and entitled Corporate Actions may use an actor-owned 64 MiB in-memory store with typed TTL/LRU and request reuse. It does not serialize or survive App termination. Disconnect, Credential rotation, confirmed entitlement loss, termination, and explicit user clear remove it. |
+| Persistent Twelve Data Storage | `Disabled by product policy`. Five data types remain `BLOCKED FOR PERSISTENT WRITES`; they do not enter GRDB, Permanent Store, Snapshot, Backup, Export, logs, or files. |
+| User-authored Market Preferences | Minimal symbol/MIC identifiers and UI preferences may persist only without Provider descriptions, values, OHLCV, actions, freshness, or raw responses. They do not prove entitlement. |
+
+The existing isolated Market Cache database, migrations, and cleanup tests remain for separately authorized data policies. They do not authorize Twelve Data writes. Frankfurter/ECB is evaluated independently.
+
 ## 2. Evidence Matrix
 
-Access date for every source below: **2026-08-13**.
+Base source review date below: **2026-08-13**. The Terms row explicitly records its separate **2026-08-17** refresh.
 
 | Data type | Relevant individual plans | Personal/local BYOK use | Persistent local cache duration | Refresh/update duty | Disconnect/termination duty | Attribution | Decision |
 |---|---|---|---|---|---|---|---|
-| Symbol Search/reference metadata | Basic, Grow, Pro, or higher subject to the current catalog and entitlement | General subscription-bound retention statement; no Search-specific permission or Plan mapping | No specific maximum documented | Not specified | Only subscription termination/expiration is answered as 30 days; all other lifecycle events are missing, and Aureus keeps stricter immediate purge | Existing general private/internal guidance; this reply adds no attribution detail | `BLOCKED FOR PERSISTENT WRITES` |
+| Symbol Search/reference metadata | Basic, Grow, Pro, or higher subject to the current catalog and entitlement | General subscription-bound retention statement; no Search-specific permission or Plan mapping | No specific maximum documented | Not specified | Terms §12.5 creates termination deletion duty and §16.2 gives a 30-day deadline; other lifecycle events remain missing. Aureus uses stricter immediate purge. | Existing general private/internal guidance; this reply adds no attribution detail | `BLOCKED FOR PERSISTENT WRITES` |
 | Latest Quote/market status | Plan and market entitlement dependent | No Quote-specific permission or current/delayed/EOD distinction | No specific maximum documented | Not specified | Same incomplete lifecycle evidence and stricter purge | Same as above | `BLOCKED FOR PERSISTENT WRITES` |
 | Historical OHLCV / EOD | Basic US-focused entry path; international access is plan/entitlement dependent | `XHKG` and `XJPX` historical access requires direct exchange licensing; no full per-market permission | No specific maximum documented | Incremental guidance remains unconfirmed as a retention rule | Same incomplete lifecycle evidence and stricter purge | Same as above | `BLOCKED FOR PERSISTENT WRITES` |
 | Splits | Grow individual / Venture business and above; 20 credits per symbol in current official API Documentation | No Split-specific persistent-cache permission | No specific maximum documented | Not specified | Same incomplete lifecycle evidence and stricter purge | Same as above | `BLOCKED FOR PERSISTENT WRITES`; Basic request is rejected before transport |
@@ -43,7 +58,7 @@ Access date for every source below: **2026-08-13**.
 
 | Source | Current observation | Evidence status |
 |---|---|---|
-| [Twelve Data Terms of Use](https://twelvedata.com/terms) | Internal access/processing/storage is plan-bounded; caching beyond Documentation timeframes is prohibited; redistribution requires applicable rights. On termination access ceases and data must be deleted; a later retention section states deletion within 30 days. It does not supply the missing ordinary endpoint-specific retention durations. | `VERIFIED` general duties; `NOT VERIFIED` ordinary duration |
+| [Twelve Data Terms of Use](https://twelvedata.com/terms) | Refreshed 2026-08-17. Internal access/processing/storage is Plan- and Documentation-bounded; caching beyond Documentation timeframes is prohibited. §12.5 ends access immediately and creates deletion duty; §16.2 requires deletion within 30 days after termination/expiration. It does not supply ordinary endpoint-specific retention durations. | `VERIFIED` termination duty/deadline; `NOT VERIFIED` ordinary duration |
 | [Commercial and personal usage](https://support.twelvedata.com/en/articles/5332349-commercial-and-personal-usage) | Basic/Grow/Pro/Ultra individual plans are for personal or internal use and do not permit redistribution or commercial display to third parties. | `VERIFIED` general use boundary |
 | [Twelve Data API Documentation](https://twelvedata.com/docs) | Search/reference, Quote, Time Series/EOD, adjustment, Split, and Dividend contracts are documented. No reviewed endpoint section supplied a local persistent-cache duration. | `VERIFIED` API contract; `NOT VERIFIED` retention duration |
 | [Credits](https://support.twelvedata.com/en/articles/5615854-credits) | Endpoint weights apply; quota restores at the start of a new minute and Basic daily credits reset at UTC midnight. Client-side storage guidance does not state a retention duration. | `VERIFIED` quota boundary; `NOT VERIFIED` retention duration |
@@ -114,12 +129,16 @@ The follow-up reply again says the Documentation does not list the JSON field na
 >
 > Thank you.
 
-## 7. Stage 6K Decision
+## 7. Stage 6K Evidence Decision
 
 None of the five data types satisfies the complete evidence test. Each remains `BLOCKED FOR PERSISTENT WRITES` because the reply supplies no explicit type-specific permission, usable maximum retention duration, refresh rule, complete lifecycle-deletion policy, complete market scope, and attribution condition together.
 
-The 30-day termination/expiration statement is retained as written evidence, but it does not authorize ordinary persistent caching and does not override the stricter immediate purge already selected from conflicting public Terms language. The `XHKG` and `XJPX` statements confirm only historical-data licensing requirements; they do not establish endpoint access or an acquisition process. Production Twelve Data persistent writes remain disabled and Stage 7 remains `NO-GO`.
+The 30-day termination/expiration deadline is `FULLY ANSWERED`: Terms §12.5 ends access immediately and creates the deletion obligation, while §16.2 gives the deadline of deletion within 30 days. It does not authorize ordinary persistent caching. Aureus immediate purge is a voluntarily stricter internal policy, not a claimed Provider deadline. The `XHKG` and `XJPX` statements confirm only historical-data licensing requirements; they do not establish endpoint access or an acquisition process.
 
-## 8. Unblock Condition
+## 8. Stage 6L Gate Separation Candidate
 
-This item can move from `BLOCKED` only after an applicable official plan page, Documentation provision, user-visible official plan term, or written Twelve Data response clearly states the retention duration and deletion obligations for the intended BYOK personal-local scenario. Stage 6/Reviewer must then map the granted duration to each cache data type and retain the stricter of legal retention and architectural freshness TTL.
+The **Stage 6 Core Entry Candidate** may proceed toward Reviewer consideration only after the existing local implementation/regressions remain valid, persistent writes are confirmed closed, a separately authorized bounded Basic US Search/OHLCV live acceptance succeeds, and the 64 MiB session-only path has implementation/isolation evidence. Rate, error, entitlement, freshness, and raw MIC states must stay observable; unavailable endpoints and markets must remain explicit.
+
+The **Deferred Persistent Cache Gate** remains `BLOCKED`, but under the latest product policy it is no longer proposed as a Stage 7 implementation prerequisite. Persistent writes remain `Disabled`. Only a later explicit user decision, applicable rights, architecture review, and implementation prompt may revisit disk storage.
+
+`XHKG`, `XSHG`, `XSHE`, and `XJPX` live acceptance remains `NOT VERIFIED`. This does not remove capability-aware Stage 7 UI from scope, but it blocks live-support claims and authorizes no Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` pending Reviewer acceptance of this rebaseline and separate authorization for bounded Basic US acceptance/session-store work.

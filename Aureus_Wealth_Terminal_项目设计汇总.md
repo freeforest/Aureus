@@ -16,11 +16,28 @@
 - **核心属性**：
   - Local-first
   - Open-source
+  - Single-user
+  - Personal / Internal Use Only
+  - Non-commercial
   - Visualization-first
   - Personal Wealth Management
   - Market Intelligence
   - Portfolio Analytics
   - Long-term Personal Use
+
+---
+
+## 1.1 Personal Local Mode（2026-08-17）
+
+用户最新明确决定将 Aureus 固定为仅在用户本人 Mac 上运行的单用户、本地、个人/内部、非商业应用：不托管为网络服务，不向第三方展示、共享、转售或再分发 Twelve Data 数据。程序源码可以开源，但 Repository 与开发者不接收 Provider 数据、Credential 或用户财务数据。
+
+该模式不扩大任何 Provider 权利。实际 Plan、endpoint entitlement、rate limit 和 Exchange license 仍然逐项约束请求；Search/catalog 中可见的 symbol 或 MIC 不是价格数据授权证据。
+
+Twelve Data 的 V1 数据处理边界拆分为：
+
+- **Transient Session Use**：仅在当前 App 进程内保留有界内存工作集；App 退出后消失。
+- **Persistent Twelve Data Storage**：由产品策略明确禁用，不进入 SQLite、Permanent Store、Snapshot、Backup、Export、日志或文件。
+- **User-authored Market Preferences**：只允许保存用户主动选择的最小 symbol/MIC identifier 与 UI 偏好，不保存 Provider description、Quote、OHLCV、Split、Dividend、freshness 或 raw response。
 
 ---
 
@@ -891,7 +908,7 @@ Market Data Provider
 Data Adapter
         │
         ▼
-Local Cache / SQLite
+Transient Session Store / Authorized Local Cache
         │
         ▼
 Market Data Service
@@ -910,14 +927,14 @@ Market Data Service
 
 > **优先接入免费或具有可用免费额度的国际股票数据源。**
 
-当前讨论过的候选包括：
+Stage 1 曾讨论过的候选包括：
 
 - Yahoo Finance / yfinance；
 - Alpha Vantage；
 - Stooq；
 - 后续其他可替换 Provider。
 
-但是最终 Provider **尚未冻结**。
+V1 Primary Market Data Provider 已冻结为 **Twelve Data（用户 BYOK）**。上述列表保留为历史比较，不建立运行时多 Provider fallback。Twelve Data Production 数据在 Personal Local Mode 下只进入会话内存；这项选择不证明任何具体 endpoint、MIC 或 Exchange entitlement。
 
 因此建议一开始就建立：
 
@@ -929,7 +946,9 @@ Market Data Service
 
 ## 15.2 本地缓存与清理策略
 
-股票历史行情及其他公开市场数据应进行本地缓存。
+本节描述通用、可恢复市场缓存基础设施，以及具有明确持久化权利的数据源。**Twelve Data 在 V1 中是明确例外：Production 持久写入关闭，只允许会话内瞬时处理。** 既有独立 Market Cache 数据库、容量、TTL、LRU、自动/手动清理和 Permanent Store 隔离设计继续保留，但不能被解释为 Twelve Data 的磁盘保存授权。
+
+只有在相应数据源的持久化权利明确时，股票历史行情及其他可恢复市场数据才进入本地磁盘缓存；Twelve Data V1 不适用此路径。
 
 原因：
 
@@ -974,6 +993,12 @@ Market Data Service
 ```
 
 > **缓存有上限，但个人财富历史数据库不能因缓存清理而被删除。**
+
+## 15.3 Twelve Data 会话市场数据
+
+Stage 7 的 Twelve Data 行情候选路径使用 actor-owned 的 Transient Session Market Store：64 MiB hard limit、typed TTL、LRU 和相同请求复用；不跨 App launch、不序列化、不进入 SQLite、Backup、Export 或日志。Settings 后续提供 `Clear Session Market Data`。Disconnect、Credential rotation、confirmed entitlement loss 与 termination 都清空该会话数据，且清理能力不能访问 Permanent Store。
+
+当前进程仍有会话数据时，离线状态可以显示带 Provider 时间戳的 stale/offline memory value；App 重启后没有会话数据时必须显示 `Market Data Unavailable Offline`，不得用 Synthetic Provider 冒充 Production 成功。
 
 ---
 
@@ -1207,7 +1232,8 @@ Aureus 的分析能力保持以：
 - K 线；
 - Volume；
 - MA / EMA；
-- 本地历史行情缓存；
+- 对具有明确持久化权利的数据源使用本地历史行情缓存；
+- Twelve Data V1 使用会话内行情工作集，不进行 Production 持久写入；
 - 缓存容量上限；
 - 周期性缓存清理；
 - 手动清理缓存入口。

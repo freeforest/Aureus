@@ -12,6 +12,8 @@ After approval, a frozen decision changes only through an explicit architecture 
 
 The user authorized the final missing product decision on 2026-08-10: **A-008 selects Twelve Data with a user-owned BYOK and plan-aware entitlement model**. Basic Free is the usable US-focused entry path. Complete United States, Hong Kong, mainland-China, and Japan capability may depend on a user-selected Pro-or-higher entitlement and remains subject to Stage 6 verification of the actual key, exchange/data rights, freshness, cache, deletion, and attribution obligations. The Reviewer froze this Stage 1 architecture baseline with a PASS decision on 2026-08-11; the current Stage 2 prompt separately authorizes only the foundation contract below.
 
+**Explicit architecture change — 2026-08-17:** the user's later decision rebaselines Aureus to Personal Local Mode: single-user, local-only, personal/internal, and non-commercial. Twelve Data Production data is session-only in V1, while persistent Twelve Data writes are disabled by product policy. This explicit decision updates A-008, A-010, and the Stage 6 acceptance contract without deleting the already verified independent Market Cache infrastructure or weakening Plan/endpoint/exchange entitlement requirements.
+
 ## 2. Decision Register
 
 | ID | Chosen option / status | Main reason | Main tradeoff | Implementation ownership | Evidence |
@@ -23,9 +25,9 @@ The user authorized the final missing product decision on 2026-08-10: **A-008 se
 | A-005 | Fixed-point semantic types backed by checked `Int64`; `Decimal` intermediates | Exact storage and explicit scales; no authoritative `Double` | Scale conversions and overflow checks are application responsibilities | Stage 2 onward | [Precision evidence](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-006 | CNY base; USD original + CNY-per-USD rate + converted CNY; immutable snapshot provenance | Reproducible historical valuation | More stored fields and explicit stale-rate handling | Stage 2, 3, 5 | [FX evidence](V1_RESEARCH_EVIDENCE.md#6-fx-provider-comparison-matrix) |
 | A-007 | UTC instants + explicit Gregorian civil dates/IANA zones; exchange-session dates preserved | Avoids local-time and DST ambiguity | Callers must choose instant versus civil-date semantics | Stage 2 onward | [Platform evidence](V1_RESEARCH_EVIDENCE.md#3-deployment-target-evidence) |
-| A-008 | **SELECTED — Twelve Data, user-owned BYOK, plan-aware capability/entitlement model** | Basic Free gives a workable US-focused entry path; Twelve Data publishes a Pro-or-higher route for the required exchange set; the user explicitly authorized this tiered boundary | Basic does not cover the full four-market scope; Pro-or-higher access, EOD licensing, cache rights, and actual-key behavior still require Stage 6 acceptance | Stage 2 contracts/Keychain boundary only; Stage 6 adapter, real-key flow, entitlement, terms, and four-market acceptance | [Twelve Data refresh and decision trace](V1_RESEARCH_EVIDENCE.md#58-twelve-data-freeze-refresh--2026-08-11) |
+| A-008 | **SELECTED — Twelve Data, user-owned BYOK, Personal Local Mode, plan-aware capability/entitlement model** | Basic Free gives a workable US-focused entry path; single-user transient processing avoids asserting an unverified disk-retention right | Basic does not cover the full four-market scope; endpoint/MIC access and exchange licensing still require live acceptance; Twelve Data Production persistence is disabled | Stage 6 adapter/credential/capability boundary; later Stage 7 session-only market UI after Reviewer authorization | [Stage 1 Twelve Data refresh](V1_RESEARCH_EVIDENCE.md#58-twelve-data-freeze-refresh--2026-08-11) and [Stage 6L acceptance rebaseline](STAGE6_MARKET_DATA_ACCEPTANCE.md#8-stage-6l-gate-rebaseline-candidate) |
 | A-009 | Frankfurter v2 filtered to ECB reference rates | No key, historical CNY/USD derivation, clear ECB provenance | Reference rates are working-day valuation data, not executable quotes | Stage 2 boundary; later FX integration | [FX matrix](V1_RESEARCH_EVIDENCE.md#6-fx-provider-comparison-matrix) |
-| A-010 | Dedicated GRDB cache DB; 512 MiB default, typed TTLs, LRU, 80% cleanup watermark | Bounded offline-capable cache with a provable deletion boundary | Stale-data UX and cache metadata add work | Stage 2 storage; Stage 6 UX | [Cache trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
+| A-010 | Dedicated GRDB cache DB remains as isolated recoverable infrastructure; Twelve Data V1 uses a separate actor-owned 64 MiB transient session store with typed TTL/LRU and no serialization | Preserves the proven deletion boundary while avoiding unverified Twelve Data disk retention | Twelve Data market data is unavailable after relaunch until refetched; other authorized Provider policies remain independent | Stage 6 session-store candidate contract; Stage 7 UI after Reviewer authorization | [Cache trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-011 | Swift Charts for native statistics/heatmaps; bundled Lightweight Charts 5.2.x in isolated `WKWebView` for K-line | Native accessibility for wealth views and mature financial interactions for markets | Web bridge, attribution, and native accessible fallback for K-line | Stage 5, 7 | [Chart matrix](V1_RESEARCH_EVIDENCE.md#7-chart-technology-comparison-matrix) |
 | A-012 | Swift-only analytics | Meets V1 formulas without runtime/distribution complexity | Advanced quant ecosystems remain outside V1 | Stage 2 domain; Stage 9 | [Runtime comparison](V1_RESEARCH_EVIDENCE.md#8-swift-only-vs-python-comparison) |
 | A-013 | `URLSession` + structured concurrency; actor rate gate; bounded retry/backoff | Native, testable networking with one concurrency owner | Twelve Data endpoint weights, actual-key quotas, and entitlements still require Stage 6 observation | Stage 2 boundary; Stage 6 production integration | [Networking sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
@@ -330,7 +332,16 @@ Stage 2 establishes instant/date/session value types, Clock injection, and DST/d
 
 ## 10. Market Data Provider — A-008
 
-**Decision status: SELECTED — Twelve Data, user-owned BYOK, plan-aware capability model**
+**Decision status: SELECTED — Twelve Data, user-owned BYOK, plan-aware capability model; Personal Local Mode session-only Production data in V1**
+
+### Personal Local Mode override — 2026-08-17
+
+- Aureus is single-user, local-only, personal/internal, and non-commercial. It is not hosted and does not redistribute or commercially display Provider data.
+- Open-source distribution covers program source only. Provider data, credentials, authenticated responses, and user financial data never enter the Repository or developer-controlled storage.
+- Twelve Data Search, Quote, OHLCV, and authorized Corporate Actions may be processed only in a bounded in-memory session work set after the actual endpoint × MIC succeeds.
+- Production persistence of Twelve Data description, Quote, OHLCV, Split, Dividend, freshness, and raw response data is disabled by product policy. It does not enter GRDB, the Permanent Store, Snapshot, Backup, Export, logs, or files.
+- Minimal user-authored symbol/MIC identifiers and UI preferences may persist without Provider descriptions or values. They are preferences, not entitlement evidence.
+- Personal Local Mode does not relax Plan, endpoint, quota, exchange-license, attribution, or termination obligations.
 
 The user authorized Twelve Data on 2026-08-10 after the nine-candidate comparison. Every Aureus user owns and supplies a separate Twelve Data API key. Aureus does not buy a subscription, embed or share credentials, redistribute Provider data, or assume a paid entitlement.
 
@@ -377,7 +388,7 @@ A user-entered Plan name is display metadata only. Stage 6 must reconcile the ke
 | `XSHE` | Official Exchanges lists Pro and EOD. Actual symbol/history/action access must be verified with the user's entitlement. |
 | `XJPX` | Official Exchanges lists Pro as the minimum individual plan, while the current EOD guide flags Tokyo for Provider/licensing confirmation. Treat Pro-or-higher as an allowed entitlement route, not proof that EOD data is active. |
 | Search/reference | Use the formal discovery/reference surfaces. Catalog visibility is not price-data entitlement; inaccessible results carry plan/market state rather than empty success. |
-| Historical OHLCV | Twelve Data documents historical OHLCV and recommends fetching history once, caching it, then incrementally updating. Retention remains limited by current Terms/Documentation. |
+| Historical OHLCV | Twelve Data documents historical OHLCV and recommends fetching history once, caching it, then incrementally updating. Aureus V1 does not treat that recommendation as a disk-retention right: Production data remains session-only and retention remains limited by current Terms/Documentation. |
 | Adjustment/actions | Stage 6 must verify the current `adjust` modes (`all`, `splits`, `dividends`, `none`), defaults, daily-versus-intraday behavior, and split/dividend endpoints before mapping Provider data into authoritative Domain values. |
 | Freshness | Store and display whether the observation is real-time, delayed, or EOD. Exchange listing, plan level, and REST candle processing latency are separate facts. |
 
@@ -395,10 +406,10 @@ The Production App's Twelve Data key:
 
 Stage 2 may create only the Keychain protocol/boundary and synthetic tests; it must not read the user-authorized local manual record, accept a real key, or call Twelve Data. The local `/.secrets/twelve-data-api-key.local.txt` record is human-only and outside every Build, Test, Runtime, and Production credential path.
 
-### Provider-data deletion and cache isolation
+### Provider-data deletion, session lifecycle, and cache isolation
 
-- Every Twelve Data cache entry records Provider, entitlement context, fetch time, freshness, and deletion-policy metadata.
-- User-initiated Disconnect or key deletion immediately stops requests and deletes all Twelve Data recoverable market-cache rows/files.
+- No new Production Twelve Data response is written to the persistent Market Cache. Existing cache infrastructure and migration/isolation tests remain intact for recoverable data whose Provider policy is separately authorized.
+- User-initiated Disconnect or key deletion immediately stops requests, clears the Twelve Data session work set, and purges any legacy recoverable Twelve Data cache rows/files.
 - Confirmed subscription or entitlement termination stops new requests. The Terms observed on 2026-08-11 require deletion of all Provider Data upon termination; Stage 6 must refresh the current deadline and implement the stricter applicable rule.
 - A temporary network error or ordinary authentication failure is not silently classified as subscription termination. An unresolved state is shown explicitly with safe `Disconnect + Delete Cache` action.
 - Cache cleanup receives only `MarketCacheStore`; it has no permanent database URL, `WealthStore`, or permanent deletion capability.
@@ -411,19 +422,21 @@ Every Provider-backed screen must expose Twelve Data as the source, the configur
 
 Private/internal use does not generally require public-display attribution under the current guide, but Aureus will still show a compact source label. If the use, Plan, market, or terms requires attribution, the UI must use the then-current Twelve Data wording and exchange-specific notice. No data is redistributed to third parties.
 
-### Stage 6 acceptance contract
+### Stage 6 Core Entry Candidate contract
 
-Stage 6 must produce separate evidence for:
+Before a Reviewer may authorize Stage 7 implementation, the Core Entry Candidate must produce separate evidence for:
 
 1. user-owned key entry, Keychain save/update/delete, Disconnect, and redaction;
-2. Basic Free real requests, Search, OHLCV, adjustment/action semantics, 8/minute and 800/day rate behavior;
+2. Basic Free rate, error, entitlement, and adjustment/action mappings through deterministic local tests, including the conservative 8/minute and 800/day baseline;
 3. observed Plan/entitlement discovery and mismatch handling;
-4. Pro-or-higher `XHKG`, `XSHG`, `XSHE`, and `XJPX` access, freshness, history, and actions;
-5. cache writes, bounded retention, incremental refresh, expiry, Disconnect deletion, and confirmed-termination deletion;
+4. one separately authorized bounded Basic US Search and Historical OHLCV live acceptance, with rate/error/entitlement/freshness/raw-MIC states observable;
+5. a session-only market data path with actor ownership, a 64 MiB hard limit, typed TTL/LRU, request reuse, lifecycle clearing, and proof it cannot serialize or reach either database;
 6. attribution, unsupported/upgrade/auth/rate/stale/delayed/offline UI states;
 7. refreshed Pricing, Exchanges, Documentation, Terms, personal-use, EOD, and market-specific licensing evidence.
 
-If no Pro-or-higher test entitlement is available, four-market acceptance is `NOT VERIFIED`; it cannot be inferred from Basic, trial symbols, a catalog entry, or Mock data.
+The separate **Deferred Persistent Cache Gate** remains `BLOCKED`, and Production Twelve Data persistent writes remain disabled. It is not a Stage 7 implementation prerequisite unless the user later reauthorizes disk market-data caching after applicable rights are verified.
+
+If no Pro-or-higher test entitlement is available, `XHKG`, `XSHG`, `XSHE`, and `XJPX` remain `NOT VERIFIED`. This does not block capability-aware Stage 7 UI, but it blocks any live-support claim and cannot be inferred from Basic, trial symbols, catalog visibility, preferences, or Mock data.
 
 **Rationale**
 
@@ -453,7 +466,26 @@ Under the accepted Stage 1 baseline and an authorized Stage 2 prompt, Stage 2 ma
 
 The market cache is recoverable, bounded, and physically separate from permanent data.
 
+### Twelve Data V1 transient session store
+
+Twelve Data Production responses do not use this disk cache in V1. A later authorized implementation candidate must use a separate actor-owned in-memory store with:
+
+- a 64 MiB hard limit;
+- typed TTL and deterministic LRU eviction;
+- reuse of identical in-flight/completed session requests where allowed;
+- no cross-launch survival and no serialization;
+- no SQLite, Backup, Export, file, UserDefaults, or log output;
+- `Clear Session Market Data` in Settings;
+- clearing on App termination, explicit user clear, Disconnect, Credential rotation, confirmed entitlement loss, and termination;
+- no `WealthStore`, Permanent Store URL, persistent Market Cache write capability, or arbitrary delete URL.
+
+While the current process retains session data, offline UI may show a timestamped stale/offline memory value. After relaunch, an offline miss is `Market Data Unavailable Offline`, never an empty success and never a Synthetic Provider fallback. User-authored minimal symbol/MIC identifiers and UI preferences are outside this session data only when they contain no Provider description, value, action, freshness payload, or raw response.
+
+The GRDB Market Cache, cache migrations, capacity controls, and isolation tests remain. Twelve Data write authorization stays closed; Frankfurter/ECB and any future data source with an explicitly verified policy are evaluated independently.
+
 ### Capacity
+
+The following disk-cache capacity, TTL, and cleanup policy applies only to data whose Provider policy separately authorizes persistence. It is retained as verified infrastructure and does not apply to Twelve Data Production responses in V1.
 
 - Default maximum: **512 MiB**.
 - User-configurable range: **128 MiB to 4 GiB**.
@@ -486,7 +518,7 @@ TTL expiry means “eligible for refresh/removal,” not proof that a network re
 - Manual cleanup offers “remove expired” and “reset market cache.” Reset closes only the cache connection, removes/recreates only `market-cache.sqlite` and its SQLite sidecars, runs only the cache migrator, and never receives the permanent-store URL.
 - Settings displays current bytes, configured cap, percentage used, last cleanup result/time, oldest entry, provider breakdown, and stale/offline status.
 - After eviction, the app re-fetches on demand when online; offline misses show unavailable rather than fabricated values.
-- Twelve Data entries remain Provider-tagged. Disconnect or key deletion invokes a Provider-scoped cache purge immediately; confirmed entitlement termination invokes the current Terms-compliant deletion path. Neither path can resolve or receive the permanent-store location.
+- Legacy recoverable Twelve Data cache entries remain Provider-tagged. Disconnect or key deletion invokes a Provider-scoped purge for those legacy rows immediately; confirmed entitlement termination invokes the current Terms-compliant deletion path. New Twelve Data Production responses never enter this disk cache, and neither path can resolve or receive the permanent-store location.
 
 ### Safety proof obligation
 
@@ -798,7 +830,8 @@ flowchart LR
     WealthStore["WealthStore actor"]
     PermanentDB[("Permanent Wealth Store\nApplication Support\naureus.sqlite")]
     MarketService["Market Data Service\nTwelve Data · BYOK · plan-aware"]
-    CacheStore["MarketCacheStore actor"]
+    SessionStore["Transient Session Market Store\n64 MiB · TTL · LRU · no serialization"]
+    CacheStore["MarketCacheStore actor\nauthorized non-Twelve data only"]
     CacheDB[("Bounded Market Cache\nCaches\nmarket-cache.sqlite")]
     CacheCleanup["TTL · Size · LRU\nCache Cleanup"]
     ExternalMarket["Twelve Data REST API\nStage 6 real-key acceptance"]
@@ -812,7 +845,7 @@ flowchart LR
     Features --> FXService
     Domain --> WealthStore
     WealthStore --> PermanentDB
-    MarketService --> CacheStore
+    MarketService --> SessionStore
     CacheStore --> CacheDB
     CacheCleanup --> CacheStore
     MarketService -. "Stage 6 only" .-> ExternalMarket

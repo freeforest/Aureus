@@ -23,6 +23,12 @@ Aureus Wealth Terminal V1 is a macOS, Apple-Silicon-first, local-first Personal 
 
 V1 prioritizes CNY and USD. CNY is the unified valuation currency. A USD-denominated value retains the original USD amount, the applied FX rate, and the converted CNY value. Demo and test paths use synthetic or sanitized data only.
 
+### 2.1 Personal Local Mode — 2026-08-17 explicit rebaseline
+
+The user's latest explicit product decision freezes Aureus as a **single-user, local-only, personal/internal, non-commercial** macOS application. Aureus is not hosted as a network service and does not display, share, resell, or redistribute Twelve Data content to third parties. Open source means program source, schemas, public documentation, and synthetic fixtures; the Repository and developer do not receive Provider data, Provider credentials, or user financial data.
+
+This rebaseline does not expand Provider rights. The current user's actual Plan, endpoint entitlement, rate limit, and exchange license continue to govern every request. Catalog visibility and a user-authored symbol or MIC preference are not evidence of price-data entitlement.
+
 The eight required top-level modules are:
 
 | Module | V1 responsibility |
@@ -83,6 +89,18 @@ The user authorized **Twelve Data** as the V1 Primary Market Data Provider on 20
 Basic Free is a usable, US-focused entry path. It is not represented as complete United States, Hong Kong, mainland-China, and Japan coverage. The required four-market scope remains frozen, but access is plan- and entitlement-dependent: a user may choose Twelve Data Pro or higher, and Stage 6 must verify the actual key's exchange, endpoint, freshness, adjustment, action, quota, cache, deletion, and attribution entitlements. A listed exchange or user-entered plan name is not proof of access.
 
 An unavailable market must be shown as `Plan Required`, `Unsupported by Current Entitlement`, or an equivalently explicit state. It must not be silently hidden, reported as an empty success, or replaced by Mock data. This Provider selection is part of the frozen Stage 1 baseline; it does not prove credentialed API behavior or complete Stage 6 acceptance.
+
+#### 3.3.1 Twelve Data V1 data mode
+
+| Data class | V1 policy |
+|---|---|
+| Transient Session Use | Search, Quote, OHLCV, and entitled Corporate Actions may be processed only in a bounded in-memory work set during the current App process, after the actual endpoint × MIC succeeds. App termination clears the work set. |
+| Persistent Twelve Data Storage | **Disabled by product policy.** No Twelve Data Search, Quote, OHLCV, Split, Dividend, freshness, or raw response is written to the GRDB Market Cache, Permanent Store, Snapshot, Backup, Export, log, or file. Retention rights remain `BLOCKED`. |
+| User-authored Market Preferences | The user's minimal selected symbol/MIC identifier and UI preference may persist. Provider description, market values, historical bars, actions, freshness payloads, and raw responses may not. A preference is never entitlement evidence. |
+
+After relaunch, Twelve Data market data is honestly unavailable offline until a new authorized request succeeds. Permanent Wealth, Ledger, and Dashboard remain fully usable offline and are not modified by market-session data.
+
+The US/HK/mainland-China/Japan capability model remains in V1. Stage 7 may build capability-aware UI and explicit unavailable states, but it may claim live support only for an actually successful endpoint × MIC. Basic US Search and Historical OHLCV still require a separately authorized bounded live acceptance. `XHKG`, `XSHG`, `XSHE`, and `XJPX` remain `NOT VERIFIED`; missing Plan or exchange permission must stay visible and synthetic data must never masquerade as Production success.
 
 ### 3.4 Portfolio intelligence
 
@@ -167,8 +185,8 @@ This mapping assigns the frozen capabilities to the existing Stage 2 through Sta
 | Stage 3 | **Wealth + Asset Container.** |
 | Stage 4 | **Ledger + Cash Flow.** |
 | Stage 5 | **Wealth Snapshot + Dashboard + Core Visualization.** |
-| Stage 6 | **Market Data Infrastructure only:** Twelve Data production adapter; real BYOK lifecycle and Plan/Entitlement acceptance; `MarketDataProvider` production boundary; Symbol model and search backend; Historical Prices; FX; Market Cache; Size limit; TTL/LRU; automatic/manual cleanup; retry/error/rate-limit/offline behavior; disconnect/Provider-data deletion; Terms/attribution refresh; permanent wealth data safety. Market Overview, Watchlist UI, Heatmap, and single-stock professional chart UI are excluded from Stage 6. |
-| Stage 7 | **Markets Terminal:** Market Overview; Watchlist; Day/Week/Month/Quarter/Year interaction; Market Heatmap; Stock detail; Candlestick; Volume; Zoom/Pan/Crosshair/Tooltip; MA/EMA/RSI/MACD/Bollinger Bands. |
+| Stage 6 | **Market Data Infrastructure only:** Twelve Data production adapter; real BYOK lifecycle; Plan/Entitlement states; `MarketDataProvider` boundary; Search and Historical backends; FX; isolated Market Cache safety; retry/error/rate-limit/offline behavior; disconnect/deletion; Terms/attribution evidence. The Stage 6 Core Entry Candidate additionally requires session-only isolation and bounded Basic US Search/OHLCV live acceptance. Persistent Twelve Data writes remain disabled and are not a Stage 7 implementation prerequisite. |
+| Stage 7 | **Markets Terminal:** capability-aware Market Overview; Watchlist; Day/Week/Month/Quarter/Year interaction; Market Heatmap; Stock detail; Candlestick; Volume; Zoom/Pan/Crosshair/Tooltip; MA/EMA/RSI/MACD/Bollinger Bands. Production Twelve Data values use only the transient session path. International UI may be implemented with explicit unavailable states, but live support cannot be claimed without endpoint × MIC acceptance. |
 | Stage 8 | **Portfolio.** |
 | Stage 9 | **Analytics.** |
 | Stage 10 | **Goals + Wealth Intelligence.** |
