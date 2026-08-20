@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6M Session Store Implementation Candidate — Awaiting Reviewer Gate  
+**Status:** Stage 6MA Session Lifecycle Repair Candidate — Awaiting Reviewer Gate  
 **Evidence visit:** 2026-08-12–2026-08-17  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -27,7 +27,7 @@ The implementation makes the following safety distinctions:
 
 The user's latest explicit decision limits Aureus to one user's Mac for personal/internal, non-commercial use. It is not hosted and does not display, share, resell, or redistribute Twelve Data data to third parties. Open-source program source remains separate from Provider data, credentials, and user financial data.
 
-| Data path | Stage 6M implementation and policy |
+| Data path | Stage 6MA implementation and policy |
 |---|---|
 | Transient Session Use | Search, Quote, OHLCV, and entitled Corporate Actions route through an actor-owned 64 MiB in-memory store after the actual endpoint × MIC succeeds. It uses typed payloads/TTL, deterministic LRU, checked logical byte accounting, and request reuse; it is never serialized and is cleared on process termination, Disconnect, Credential rotation, confirmed entitlement loss, termination, or explicit user clear. |
 | Persistent Twelve Data Storage | **Disabled by product policy.** No Production Twelve Data description, Quote, OHLCV, Split, Dividend, freshness, or raw response is written to GRDB, Permanent Store, Snapshot, Backup, Export, log, or file. Retention rights remain `BLOCKED`. |
@@ -186,7 +186,7 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 
 The implementation candidate can be built and tested without a credential. Stage 6G verifies only a sanitized terminal validation of the securely rotated replacement credential. It does not claim Basic or paid entitlement, Search/Quote/OHLCV/actions acceptance, complete four-market access, exact market freshness, or ordinary persistent-cache rights. If no Pro-or-higher test condition exists, all four international-market endpoint rows must remain `NOT VERIFIED` rather than inferred from catalog visibility, terminal credential validation, or synthetic tests.
 
-## 8. Stage 6M session-store candidate
+## 8. Stage 6MA session-lifecycle repair candidate
 
 This document proposes, but does not decide, two separate Reviewer gates:
 
@@ -204,14 +204,18 @@ This document proposes, but does not decide, two separate Reviewer gates:
 
 Retention evidence remains `BLOCKED` and Production persistent writes remain `Disabled`. Under the 2026-08-17 product policy, this is no longer proposed as a Stage 7 implementation prerequisite. Any future disk cache for Twelve Data requires a new explicit user decision, applicable retention rights, separate architecture review, and implementation authorization.
 
-International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` until the Reviewer accepts the Stage 6M evidence and separately authorizes bounded Basic US acceptance.
+International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` until the Reviewer accepts the Stage 6MA evidence and separately authorizes bounded Basic US acceptance.
 
-### Stage 6M local implementation evidence
+### Stage 6MA local implementation evidence
 
 - One dependency-injected `TransientMarketSessionStore` actor is shared by `MarketDataService`, credential lifecycle coordination, and Settings within each App dependency graph; Production, Demo, and UI-test graphs receive distinct instances.
 - Search, Quote, Historical OHLCV, Split, and Dividend session lookups use typed values only. Fresh hits reuse memory, expired values may provide stale fallback only for offline/timeout failures, and credential/entitlement failures remain typed errors.
 - Twelve Data query methods neither read nor write `MarketCacheStore`. Historical incremental merge uses only the session baseline. Startup safely purges recoverable legacy Twelve Data disk rows without touching unrelated Provider rows or the Permanent Store.
 - Same-Credential save remains an identity-preserving no-op. Rotation and Disconnect wait for the transport barrier before session clear; Disconnect then purges Twelve Data disk rows before Keychain deletion. Generation tokens reject late writes from the old identity.
 - Settings exposes entry count, deterministic logical bytes, the 64 MiB maximum, session-only disclosure, and `Clear Session Market Data`. The disk section is labeled `Authorized Persistent Market Cache` and explicitly states Twelve Data persistent writes are disabled.
+- Exact TTL semantics are `now < expiresAt` fresh and `now >= expiresAt` stale. Confirmed invalid/expired, unsupported-entitlement, unsupported-market, and upgrade-required errors clear the entire Twelve Data session before the original typed error is returned; offline, timeout, rate-limit, cancellation, missing, invalid request, and general Provider failures are not misclassified.
+- Every fresh hit, stale fallback, stored result, and oversize uncached result is generation-checked before it reaches the caller. A Clear, Disconnect, or rotation that linearizes first makes the old response fail as typed cancellation; a late old-generation callback cannot repopulate or return data. Settings Clear uses this service lifecycle boundary.
+- Corporate Actions remain two typed entries. A complete fresh pair is reused; mixed or stale complete pairs may fall back only after offline/timeout; any missing half produces typed missing, and credential/entitlement errors never return stale actions.
+- Native Ledger Picker automation re-queries after popup transitions and uses current-element type-to-select. Native Open/Save automation re-queries the current Panel and controls after every Go To/Open/Save/Replace transition and keeps synthetic files under unique `/private/tmp/Aureus-Stage6MA-*` directories.
 
 These are synthetic/local implementation facts only. They do not elevate any Live Acceptance Matrix row.

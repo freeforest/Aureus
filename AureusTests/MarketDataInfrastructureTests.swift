@@ -333,7 +333,20 @@ private actor ConcurrencyHTTPTransport: HTTPTransport {
 }
 
 private actor SessionMarketProvider: MarketDataProvider {
-    enum Scenario: Sendable { case success, offline, invalidCredential }
+    enum Scenario: Sendable {
+        case success
+        case offline
+        case timeout
+        case invalidCredential
+        case unsupportedEntitlement
+        case unsupportedMarket
+        case upgradeRequired
+        case rateLimited
+        case missing
+        case invalidRequest
+        case cancelled
+        case providerError
+    }
 
     nonisolated let descriptor = ProviderDescriptor(
         identifier: "synthetic.session.market",
@@ -447,7 +460,17 @@ private actor SessionMarketProvider: MarketDataProvider {
         switch scenario {
         case .success: return
         case .offline: throw ProviderBoundaryError.offline
+        case .timeout: throw ProviderBoundaryError.timeout
         case .invalidCredential: throw ProviderBoundaryError.invalidOrExpired
+        case .unsupportedEntitlement: throw ProviderBoundaryError.unsupportedEntitlement
+        case .unsupportedMarket: throw ProviderBoundaryError.unsupportedMarket("XNAS")
+        case .upgradeRequired: throw ProviderBoundaryError.upgradeRequired("Synthetic Grow")
+        case .rateLimited:
+            throw ProviderBoundaryError.rateLimited(retryAfterMilliseconds: 1_000)
+        case .missing: throw ProviderBoundaryError.missing
+        case .invalidRequest: throw ProviderBoundaryError.invalidRequest
+        case .cancelled: throw ProviderBoundaryError.cancelled
+        case .providerError: throw ProviderBoundaryError.providerError(statusCode: 500)
         }
     }
 
@@ -460,6 +483,83 @@ private actor SessionMarketProvider: MarketDataProvider {
             displayName: "Synthetic Session Instrument"
         )
     }
+}
+
+private actor ControlledSessionMarketProvider: MarketDataProvider {
+    nonisolated let descriptor = ProviderDescriptor(
+        identifier: "synthetic.session.market",
+        displayName: "Controlled Synthetic Session Market",
+        kind: .synthetic
+    )
+
+    private let clock: any Clock
+    private var searchContinuation: CheckedContinuation<[MarketInstrument], Error>?
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var searchCalls = 0
+
+    init(clock: any Clock) {
+        self.clock = clock
+    }
+
+    func capabilities() -> MarketProviderCapabilities {
+        MarketProviderCapabilities(
+            provider: descriptor,
+            entitlement: .basic,
+            observedPlanName: "Synthetic",
+            markets: [],
+            supportsSearch: true,
+            supportsHistoricalPrices: true,
+            supportsCorporateActions: true,
+            endpointCapabilities: [],
+            observedAt: clock.now()
+        )
+    }
+
+    func search(query: String) async throws -> [MarketInstrument] {
+        searchCalls += 1
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+        return try await withCheckedThrowingContinuation { continuation in
+            searchContinuation = continuation
+        }
+    }
+
+    func latestQuote(for instrument: MarketInstrument) throws -> MarketQuote {
+        throw ProviderBoundaryError.missing
+    }
+
+    func historicalBars(_ request: MarketHistoryRequest) throws -> MarketHistoryPage {
+        throw ProviderBoundaryError.missing
+    }
+
+    func corporateActions(
+        for instrument: MarketInstrument,
+        from startDate: CivilDate?,
+        through endDate: CivilDate?
+    ) throws -> [MarketCorporateAction] {
+        throw ProviderBoundaryError.missing
+    }
+
+    func waitUntilSearchStarted() async {
+        guard searchCalls == 0 else { return }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func succeedSearch() {
+        searchContinuation?.resume(returning: [MarketInstrument(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000006902")!,
+            symbol: "SYN",
+            mic: "XNAS",
+            currency: .usd,
+            displayName: String(repeating: "Synthetic Controlled Result ", count: 32)
+        )])
+        searchContinuation = nil
+    }
+
+    func callCount() -> Int { searchCalls }
 }
 
 @Suite("Stage 6 market provider networking")
@@ -1841,9 +1941,28 @@ struct MarketDataInfrastructureTests {
             dataType: .quote,
             now: clock.now()
         ) != .missing)
-        let staleNow = UTCInstant(
-            millisecondsSince1970: clock.now().millisecondsSince1970 + 15 * 60 * 1_000 + 1
-        )
+        let expiryMilliseconds = clock.now().millisecondsSince1970 + 15 * 60 * 1_000
+        let justBeforeExpiry = UTCInstant(millisecondsSince1970: expiryMilliseconds - 1)
+        guard case .fresh = try await store.lookup(
+            providerIdentifier: provider,
+            logicalKey: "quote",
+            dataType: .quote,
+            now: justBeforeExpiry
+        ) else {
+            Issue.record("Expected now < expiresAt to remain fresh")
+            return
+        }
+        let exactExpiry = UTCInstant(millisecondsSince1970: expiryMilliseconds)
+        guard case .stale = try await store.lookup(
+            providerIdentifier: provider,
+            logicalKey: "quote",
+            dataType: .quote,
+            now: exactExpiry
+        ) else {
+            Issue.record("Expected now == expiresAt to be stale")
+            return
+        }
+        let staleNow = UTCInstant(millisecondsSince1970: expiryMilliseconds + 1)
         guard case .stale = try await store.lookup(
             providerIdentifier: provider,
             logicalKey: "quote",
@@ -1957,12 +2076,235 @@ struct MarketDataInfrastructureTests {
         await #expect(throws: ProviderBoundaryError.invalidOrExpired) {
             _ = try await service.latestQuote(for: instrument())
         }
+        #expect(await session.statistics().entryCount == 0)
 
         _ = await session.clearAll()
         await provider.setScenario(.offline)
         await #expect(throws: ProviderBoundaryError.missing) {
             _ = try await service.search(query: "missing-offline")
         }
+    }
+
+    @Test("Confirmed entitlement loss clears only the Twelve Data provider session and preserves the typed error")
+    func confirmedEntitlementLossClearsSession() async throws {
+        let cases: [(SessionMarketProvider.Scenario, ProviderBoundaryError)] = [
+            (.invalidCredential, .invalidOrExpired),
+            (.unsupportedEntitlement, .unsupportedEntitlement),
+            (.unsupportedMarket, .unsupportedMarket("XNAS")),
+            (.upgradeRequired, .upgradeRequired("Synthetic Grow"))
+        ]
+        for (index, item) in cases.enumerated() {
+            let root = try temporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let providerClock = MutableProviderClock(milliseconds: clock.now().millisecondsSince1970)
+            let provider = SessionMarketProvider(clock: providerClock)
+            let session = TransientMarketSessionStore()
+            let service = MarketDataService(
+                marketProvider: provider,
+                fxProvider: SyntheticFXRateProvider(clock: providerClock),
+                cache: try MarketCacheStore(databaseURL: root.appendingPathComponent("cache-\(index).sqlite")),
+                sessionStore: session,
+                clock: providerClock
+            )
+            _ = try await service.latestQuote(for: instrument())
+            #expect(await session.statistics().entryCount == 1)
+            providerClock.advance(milliseconds: 15 * 60 * 1_000)
+            await provider.setScenario(item.0)
+            do {
+                _ = try await service.latestQuote(for: instrument())
+                Issue.record("Expected confirmed entitlement loss \(item.1)")
+            } catch let error as ProviderBoundaryError {
+                #expect(error == item.1)
+            }
+            #expect(await session.statistics().entryCount == 0)
+        }
+    }
+
+    @Test("Recoverable and ordinary failures do not masquerade as confirmed entitlement loss")
+    func nonEntitlementFailuresPreserveSession() async throws {
+        let cases: [SessionMarketProvider.Scenario] = [
+            .offline, .timeout, .rateLimited, .missing,
+            .invalidRequest, .cancelled, .providerError
+        ]
+        for (index, scenario) in cases.enumerated() {
+            let root = try temporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let providerClock = MutableProviderClock(milliseconds: clock.now().millisecondsSince1970)
+            let provider = SessionMarketProvider(clock: providerClock)
+            let session = TransientMarketSessionStore()
+            let service = MarketDataService(
+                marketProvider: provider,
+                fxProvider: SyntheticFXRateProvider(clock: providerClock),
+                cache: try MarketCacheStore(databaseURL: root.appendingPathComponent("cache-\(index).sqlite")),
+                sessionStore: session,
+                clock: providerClock
+            )
+            _ = try await service.latestQuote(for: instrument())
+            providerClock.advance(milliseconds: 15 * 60 * 1_000)
+            await provider.setScenario(scenario)
+            do {
+                _ = try await service.latestQuote(for: instrument())
+            } catch {
+                // The assertion here is lifecycle-specific: ordinary errors may
+                // still be returned, but they must not erase reusable session data.
+            }
+            #expect(await session.statistics().entryCount == 1)
+        }
+    }
+
+    @Test("Session generation rejects a Provider success that completes after explicit Clear")
+    func clearLinearizesAgainstLateProviderSuccess() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let providerClock = MutableProviderClock(milliseconds: clock.now().millisecondsSince1970)
+        let provider = ControlledSessionMarketProvider(clock: providerClock)
+        let session = TransientMarketSessionStore(maximumBytes: 128)
+        let service = MarketDataService(
+            marketProvider: provider,
+            fxProvider: SyntheticFXRateProvider(clock: providerClock),
+            cache: try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite")),
+            sessionStore: session,
+            clock: providerClock
+        )
+
+        let request = Task { try await service.search(query: "SYN") }
+        await provider.waitUntilSearchStarted()
+        _ = try await service.clearSessionMarketData()
+        await provider.succeedSearch()
+        do {
+            _ = try await request.value
+            Issue.record("A late old-generation response must not reach the caller")
+        } catch let error as ProviderBoundaryError {
+            #expect(error == .cancelled)
+        }
+        #expect(await provider.callCount() == 1)
+        #expect(await session.statistics().entryCount == 0)
+    }
+
+    @Test("Fresh and stale lookups are invalidated by the same provider Clear generation")
+    func lookupGenerationLinearization() async throws {
+        let provider = "synthetic.session.market"
+        let store = TransientMarketSessionStore()
+        let generation = await store.generation(for: provider)
+        _ = try await store.store(
+            providerIdentifier: provider,
+            logicalKey: "fresh",
+            payload: .search([instrument()]),
+            fetchedAt: clock.now(),
+            generation: generation
+        )
+        _ = try await store.store(
+            providerIdentifier: provider,
+            logicalKey: "stale",
+            payload: .search([instrument()]),
+            fetchedAt: UTCInstant(
+                millisecondsSince1970: clock.now().millisecondsSince1970
+                    - TransientMarketSessionDataType.search.timeToLiveMilliseconds
+            ),
+            generation: generation
+        )
+        guard case .fresh = try await store.lookup(
+            providerIdentifier: provider,
+            logicalKey: "fresh",
+            dataType: .search,
+            now: clock.now()
+        ) else {
+            Issue.record("Expected a fresh lookup before Clear")
+            return
+        }
+        guard case .stale = try await store.lookup(
+            providerIdentifier: provider,
+            logicalKey: "stale",
+            dataType: .search,
+            now: clock.now()
+        ) else {
+            Issue.record("Expected an exact-boundary stale lookup before Clear")
+            return
+        }
+        _ = try await store.clear(providerIdentifier: provider)
+        #expect(await store.isCurrent(generation: generation, providerIdentifier: provider) == false)
+    }
+
+    @Test("Corporate Actions require a complete pair and use stale fallback only for recoverable failures")
+    func corporateActionsMixedSessionStates() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let providerClock = MutableProviderClock(milliseconds: clock.now().millisecondsSince1970)
+        let provider = SessionMarketProvider(clock: providerClock)
+        let session = TransientMarketSessionStore()
+        let service = MarketDataService(
+            marketProvider: provider,
+            fxProvider: SyntheticFXRateProvider(clock: providerClock),
+            cache: try MarketCacheStore(databaseURL: root.appendingPathComponent("cache.sqlite")),
+            sessionStore: session,
+            clock: providerClock
+        )
+        let instrument = instrument()
+        let key = "actions|\(instrument.symbol)|\(instrument.mic)||"
+        let complete = try await service.corporateActions(for: instrument, from: nil, through: nil)
+        #expect(complete.count == 2)
+        #expect(await provider.callCount(.splits) == 1)
+        _ = try await service.corporateActions(for: instrument, from: nil, through: nil)
+        #expect(await provider.callCount(.splits) == 1)
+
+        let splits = complete.filter { $0.kind == .split }
+        let dividends = complete.filter { $0.kind == .dividend }
+        let staleAt = UTCInstant(
+            millisecondsSince1970: providerClock.now().millisecondsSince1970
+                - TransientMarketSessionDataType.split.timeToLiveMilliseconds
+        )
+
+        for (splitFetchedAt, dividendFetchedAt) in [
+            (providerClock.now(), staleAt),
+            (staleAt, providerClock.now()),
+            (staleAt, staleAt)
+        ] {
+            _ = try await service.clearSessionMarketData()
+            let generation = await session.generation(for: provider.descriptor.identifier)
+            _ = try await session.store(
+                providerIdentifier: provider.descriptor.identifier,
+                logicalKey: key,
+                payload: .splits(splits),
+                fetchedAt: splitFetchedAt,
+                generation: generation
+            )
+            _ = try await session.store(
+                providerIdentifier: provider.descriptor.identifier,
+                logicalKey: key,
+                payload: .dividends(dividends),
+                fetchedAt: dividendFetchedAt,
+                generation: generation
+            )
+            await provider.setScenario(.offline)
+            let fallback = try await service.corporateActions(for: instrument, from: nil, through: nil)
+            #expect(fallback.count == 2)
+        }
+
+        _ = try await service.clearSessionMarketData()
+        let generation = await session.generation(for: provider.descriptor.identifier)
+        _ = try await session.store(
+            providerIdentifier: provider.descriptor.identifier,
+            logicalKey: key,
+            payload: .dividends(dividends),
+            fetchedAt: staleAt,
+            generation: generation
+        )
+        await provider.setScenario(.offline)
+        await #expect(throws: ProviderBoundaryError.missing) {
+            _ = try await service.corporateActions(for: instrument, from: nil, through: nil)
+        }
+        #expect(await session.statistics().entryCount == 1)
+
+        await provider.setScenario(.success)
+        _ = try await service.clearSessionMarketData()
+        _ = try await service.corporateActions(for: instrument, from: nil, through: nil)
+        providerClock.advance(milliseconds: TransientMarketSessionDataType.split.timeToLiveMilliseconds)
+        await provider.setScenario(.unsupportedEntitlement)
+        await #expect(throws: ProviderBoundaryError.unsupportedEntitlement) {
+            _ = try await service.corporateActions(for: instrument, from: nil, through: nil)
+        }
+        #expect(await session.statistics().entryCount == 0)
+
     }
 
     @Test("App dependency graphs isolate local and Demo sessions and purge only legacy Twelve Data rows")
@@ -2058,6 +2400,7 @@ struct MarketDataInfrastructureTests {
         )
         let model = SettingsFeatureModel(
             provider: dependencies.marketDataProvider,
+            marketDataService: dependencies.marketDataService,
             credentialCoordinator: dependencies.credentialCoordinator,
             cache: dependencies.marketCacheStore,
             sessionStore: dependencies.marketSessionStore,

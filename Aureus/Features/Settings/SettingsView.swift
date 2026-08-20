@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     init(
         provider: any MarketDataProvider,
+        marketDataService: MarketDataService,
         credentialCoordinator: ProviderCredentialCoordinator,
         cache: MarketCacheStore,
         sessionStore: TransientMarketSessionStore,
@@ -17,6 +18,7 @@ struct SettingsView: View {
     ) {
         _model = State(initialValue: SettingsFeatureModel(
             provider: provider,
+            marketDataService: marketDataService,
             credentialCoordinator: credentialCoordinator,
             cache: cache,
             sessionStore: sessionStore,
@@ -86,7 +88,7 @@ struct SettingsView: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Settings" : "Local Provider Settings")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 6M Session Store Implementation Candidate")
+            Text("Stage 6MA Session Lifecycle Repair Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("settings.mode")

@@ -124,7 +124,11 @@ actor TransientMarketSessionStore {
         entry.lastAccessedAt = now
         entry.accessOrdinal = try advanceAccessOrdinal()
         entries[key] = entry
-        return entry.value.expiresAt >= now ? .fresh(entry.value) : .stale(entry.value)
+        return entry.value.expiresAt > now ? .fresh(entry.value) : .stale(entry.value)
+    }
+
+    func isCurrent(generation: UUID, providerIdentifier: String) -> Bool {
+        generation == self.generation(for: providerIdentifier)
     }
 
     @discardableResult
@@ -370,25 +374,38 @@ actor MarketDataService {
         )
         if case let .fresh(value) = cached,
            case let .search(instruments) = value.payload {
+            try await requireCurrent(generation, providerIdentifier: providerIdentifier)
             return instruments
         }
         do {
             let instruments = try await marketProvider.search(query: query)
-            _ = try await sessionStore.store(
+            let result = try await sessionStore.store(
                 providerIdentifier: providerIdentifier,
                 logicalKey: key,
                 payload: .search(instruments),
                 fetchedAt: clock.now(),
                 generation: generation
             )
+            try await requireCurrentStoreResult(
+                result,
+                generation: generation,
+                providerIdentifier: providerIdentifier
+            )
             return instruments
-        } catch let error as ProviderBoundaryError
-            where error == .offline || error == .timeout {
-            if case let .stale(value) = cached,
-               case let .search(instruments) = value.payload {
-                return instruments
+        } catch let error as ProviderBoundaryError {
+            if Self.isConfirmedEntitlementLoss(error) {
+                await clearAfterConfirmedEntitlementLoss(providerIdentifier: providerIdentifier)
+                throw error
             }
-            throw ProviderBoundaryError.missing
+            if Self.allowsStaleFallback(error) {
+                if case let .stale(value) = cached,
+                   case let .search(instruments) = value.payload {
+                    try await requireCurrent(generation, providerIdentifier: providerIdentifier)
+                    return instruments
+                }
+                throw ProviderBoundaryError.missing
+            }
+            throw error
         }
     }
 
@@ -404,33 +421,46 @@ actor MarketDataService {
         )
         if case let .fresh(value) = cached,
            case let .quote(quote) = value.payload {
+            try await requireCurrent(generation, providerIdentifier: providerIdentifier)
             return quote
         }
         do {
             let quote = try await marketProvider.latestQuote(for: instrument)
-            _ = try await sessionStore.store(
+            let result = try await sessionStore.store(
                 providerIdentifier: providerIdentifier,
                 logicalKey: key,
                 payload: .quote(quote),
                 fetchedAt: clock.now(),
                 generation: generation
             )
+            try await requireCurrentStoreResult(
+                result,
+                generation: generation,
+                providerIdentifier: providerIdentifier
+            )
             return quote
-        } catch let error as ProviderBoundaryError
-            where error == .offline || error == .timeout {
-            if case let .stale(value) = cached,
-               case let .quote(cachedQuote) = value.payload {
-                return MarketQuote(
-                    instrument: cachedQuote.instrument,
-                    price: cachedQuote.price,
-                    observedAt: cachedQuote.observedAt,
-                    fetchedAt: cachedQuote.fetchedAt,
-                    providerIdentifier: cachedQuote.providerIdentifier,
-                    quality: .offline,
-                    freshness: .stale
-                )
+        } catch let error as ProviderBoundaryError {
+            if Self.isConfirmedEntitlementLoss(error) {
+                await clearAfterConfirmedEntitlementLoss(providerIdentifier: providerIdentifier)
+                throw error
             }
-            throw ProviderBoundaryError.missing
+            if Self.allowsStaleFallback(error) {
+                if case let .stale(value) = cached,
+                   case let .quote(cachedQuote) = value.payload {
+                    try await requireCurrent(generation, providerIdentifier: providerIdentifier)
+                    return MarketQuote(
+                        instrument: cachedQuote.instrument,
+                        price: cachedQuote.price,
+                        observedAt: cachedQuote.observedAt,
+                        fetchedAt: cachedQuote.fetchedAt,
+                        providerIdentifier: cachedQuote.providerIdentifier,
+                        quality: .offline,
+                        freshness: .stale
+                    )
+                }
+                throw ProviderBoundaryError.missing
+            }
+            throw error
         }
     }
 
@@ -446,6 +476,7 @@ actor MarketDataService {
         )
         if case let .fresh(value) = cached,
            case let .historical(page) = value.payload {
+            try await requireCurrent(generation, providerIdentifier: providerIdentifier)
             return page
         }
         do {
@@ -469,41 +500,53 @@ actor MarketDataService {
             }
             let fetched = try await marketProvider.historicalBars(incrementalRequest)
             let merged = merge(existing: existing, fetched: fetched)
-            _ = try await sessionStore.store(
+            let result = try await sessionStore.store(
                 providerIdentifier: providerIdentifier,
                 logicalKey: key,
                 payload: .historical(merged),
                 fetchedAt: clock.now(),
                 generation: generation
             )
+            try await requireCurrentStoreResult(
+                result,
+                generation: generation,
+                providerIdentifier: providerIdentifier
+            )
             return merged
-        } catch let error as ProviderBoundaryError
-            where error == .offline || error == .timeout {
-            if case let .stale(value) = cached,
-               case let .historical(page) = value.payload {
-                return MarketHistoryPage(
-                    instrument: page.instrument,
-                    bars: page.bars.map { bar in
-                        (try? MarketOHLCVBar(
-                            sessionDate: bar.sessionDate,
-                            openedAt: bar.openedAt,
-                            open: bar.open,
-                            high: bar.high,
-                            low: bar.low,
-                            close: bar.close,
-                            volume: bar.volume,
-                            adjustment: bar.adjustment,
-                            providerIdentifier: bar.providerIdentifier,
-                            fetchedAt: bar.fetchedAt,
-                            freshness: .stale
-                        )) ?? bar
-                    },
-                    nextEndDate: page.nextEndDate,
-                    sourceRevision: page.sourceRevision,
-                    providerIdentifier: page.providerIdentifier
-                )
+        } catch let error as ProviderBoundaryError {
+            if Self.isConfirmedEntitlementLoss(error) {
+                await clearAfterConfirmedEntitlementLoss(providerIdentifier: providerIdentifier)
+                throw error
             }
-            throw ProviderBoundaryError.missing
+            if Self.allowsStaleFallback(error) {
+                if case let .stale(value) = cached,
+                   case let .historical(page) = value.payload {
+                    try await requireCurrent(generation, providerIdentifier: providerIdentifier)
+                    return MarketHistoryPage(
+                        instrument: page.instrument,
+                        bars: page.bars.map { bar in
+                            (try? MarketOHLCVBar(
+                                sessionDate: bar.sessionDate,
+                                openedAt: bar.openedAt,
+                                open: bar.open,
+                                high: bar.high,
+                                low: bar.low,
+                                close: bar.close,
+                                volume: bar.volume,
+                                adjustment: bar.adjustment,
+                                providerIdentifier: bar.providerIdentifier,
+                                fetchedAt: bar.fetchedAt,
+                                freshness: .stale
+                            )) ?? bar
+                        },
+                        nextEndDate: page.nextEndDate,
+                        sourceRevision: page.sourceRevision,
+                        providerIdentifier: page.providerIdentifier
+                    )
+                }
+                throw ProviderBoundaryError.missing
+            }
+            throw error
         }
     }
 
@@ -531,6 +574,7 @@ actor MarketDataService {
            case let .splits(splits) = splitValue.payload,
            case let .fresh(dividendValue) = dividendLookup,
            case let .dividends(dividends) = dividendValue.payload {
+            try await requireCurrent(generation, providerIdentifier: providerIdentifier)
             return Self.sortedActions(splits + dividends)
         }
         do {
@@ -539,31 +583,51 @@ actor MarketDataService {
                 from: startDate,
                 through: endDate
             )
-            _ = try await sessionStore.store(
+            let splitResult = try await sessionStore.store(
                 providerIdentifier: providerIdentifier,
                 logicalKey: key,
                 payload: .splits(actions.filter { $0.kind == .split }),
                 fetchedAt: clock.now(),
                 generation: generation
             )
-            _ = try await sessionStore.store(
+            let dividendResult = try await sessionStore.store(
                 providerIdentifier: providerIdentifier,
                 logicalKey: key,
                 payload: .dividends(actions.filter { $0.kind == .dividend }),
                 fetchedAt: clock.now(),
                 generation: generation
             )
+            try await requireCurrentStoreResult(
+                splitResult,
+                generation: generation,
+                providerIdentifier: providerIdentifier
+            )
+            try await requireCurrentStoreResult(
+                dividendResult,
+                generation: generation,
+                providerIdentifier: providerIdentifier
+            )
             return Self.sortedActions(actions)
-        } catch let error as ProviderBoundaryError
-            where error == .offline || error == .timeout {
-            if case let .stale(splitValue) = splitLookup,
-               case let .splits(splits) = splitValue.payload,
-               case let .stale(dividendValue) = dividendLookup,
-               case let .dividends(dividends) = dividendValue.payload {
+        } catch let error as ProviderBoundaryError {
+            if Self.isConfirmedEntitlementLoss(error) {
+                await clearAfterConfirmedEntitlementLoss(providerIdentifier: providerIdentifier)
+                throw error
+            }
+            if Self.allowsStaleFallback(error) {
+                guard let splits = Self.splits(from: splitLookup),
+                      let dividends = Self.dividends(from: dividendLookup) else {
+                    throw ProviderBoundaryError.missing
+                }
+                try await requireCurrent(generation, providerIdentifier: providerIdentifier)
                 return Self.sortedActions(splits + dividends)
             }
-            throw ProviderBoundaryError.missing
+            throw error
         }
+    }
+
+    @discardableResult
+    func clearSessionMarketData() async throws -> TransientMarketSessionClearResult {
+        try await sessionStore.clear(providerIdentifier: marketProvider.descriptor.identifier)
     }
 
     func referenceRate(
@@ -650,6 +714,77 @@ actor MarketDataService {
     private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
         do { return try JSONDecoder().decode(type, from: data) }
         catch { throw ProviderBoundaryError.invalidPayload }
+    }
+
+    private func requireCurrent(
+        _ generation: UUID,
+        providerIdentifier: String
+    ) async throws {
+        guard await sessionStore.isCurrent(
+            generation: generation,
+            providerIdentifier: providerIdentifier
+        ) else {
+            throw ProviderBoundaryError.cancelled
+        }
+    }
+
+    private func requireCurrentStoreResult(
+        _ result: TransientMarketSessionStoreResult,
+        generation: UUID,
+        providerIdentifier: String
+    ) async throws {
+        guard result != .ignoredStaleGeneration else {
+            throw ProviderBoundaryError.cancelled
+        }
+        try await requireCurrent(generation, providerIdentifier: providerIdentifier)
+    }
+
+    private func clearAfterConfirmedEntitlementLoss(providerIdentifier: String) async {
+        do {
+            _ = try await sessionStore.clear(providerIdentifier: providerIdentifier)
+        } catch {
+            // Preserve the Provider's original typed error while ensuring no
+            // session value survives an internal accounting invariant failure.
+            _ = await sessionStore.clearAll()
+        }
+    }
+
+    private static func isConfirmedEntitlementLoss(_ error: ProviderBoundaryError) -> Bool {
+        switch error {
+        case .invalidOrExpired, .unsupportedEntitlement,
+             .unsupportedMarket, .upgradeRequired:
+            true
+        default:
+            false
+        }
+    }
+
+    private static func allowsStaleFallback(_ error: ProviderBoundaryError) -> Bool {
+        error == .offline || error == .timeout
+    }
+
+    private static func splits(
+        from lookup: TransientMarketSessionLookup
+    ) -> [MarketCorporateAction]? {
+        switch lookup {
+        case .fresh(let value), .stale(let value):
+            guard case let .splits(actions) = value.payload else { return nil }
+            return actions
+        case .missing:
+            return nil
+        }
+    }
+
+    private static func dividends(
+        from lookup: TransientMarketSessionLookup
+    ) -> [MarketCorporateAction]? {
+        switch lookup {
+        case .fresh(let value), .stale(let value):
+            guard case let .dividends(actions) = value.payload else { return nil }
+            return actions
+        case .missing:
+            return nil
+        }
     }
 
     private func historyKey(_ request: MarketHistoryRequest) -> String {

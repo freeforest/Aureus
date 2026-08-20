@@ -69,6 +69,7 @@ struct AppShellView: View {
             } else if model.selection == .settings, let dependencies = model.dependencies {
                 SettingsView(
                     provider: dependencies.marketDataProvider,
+                    marketDataService: dependencies.marketDataService,
                     credentialCoordinator: dependencies.credentialCoordinator,
                     cache: dependencies.marketCacheStore,
                     sessionStore: dependencies.marketSessionStore,

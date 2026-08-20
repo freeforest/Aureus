@@ -20,6 +20,7 @@ final class SettingsFeatureModel {
     var selectedMaximumMiB = 512
 
     @ObservationIgnored private let provider: any MarketDataProvider
+    @ObservationIgnored private let marketDataService: MarketDataService
     @ObservationIgnored private let credentialCoordinator: ProviderCredentialCoordinator
     @ObservationIgnored private let cache: MarketCacheStore
     @ObservationIgnored private let sessionStore: TransientMarketSessionStore
@@ -27,12 +28,14 @@ final class SettingsFeatureModel {
 
     init(
         provider: any MarketDataProvider,
+        marketDataService: MarketDataService,
         credentialCoordinator: ProviderCredentialCoordinator,
         cache: MarketCacheStore,
         sessionStore: TransientMarketSessionStore,
         clock: any Clock
     ) {
         self.provider = provider
+        self.marketDataService = marketDataService
         self.credentialCoordinator = credentialCoordinator
         self.cache = cache
         self.sessionStore = sessionStore
@@ -148,9 +151,13 @@ final class SettingsFeatureModel {
         isWorking = true
         errorMessage = nil
         defer { isWorking = false }
-        let result = await sessionStore.clearAll()
-        statusMessage = "Cleared \(result.removedEntries) Session Market Data entries (\(result.removedBytes) logical bytes)."
-        await refreshSessionStatistics()
+        do {
+            let result = try await marketDataService.clearSessionMarketData()
+            statusMessage = "Cleared \(result.removedEntries) Session Market Data entries (\(result.removedBytes) logical bytes)."
+            await refreshSessionStatistics()
+        } catch {
+            errorMessage = safeMessage(for: error)
+        }
     }
 
     func resetCache() async {
