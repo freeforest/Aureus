@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6MA Session Lifecycle Repair Candidate — Awaiting Reviewer Gate  
+**Status:** Stage 6N Bounded Live Acceptance Candidate — Awaiting Reviewer Gate  
 **Evidence visit:** 2026-08-12–2026-08-17  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -155,12 +155,12 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 | Replacement credential terminal validation | VERIFIED | After user-confirmed server-side revocation/rotation and direct Production SecureField save, one bounded Validate action reached sanitized `SUCCESS`; busy and terminal completion were observed. No credential value, URL, payload, request ID, or exact quota was retained. |
 | Actual Provider plan / entitlement | NOT VERIFIED | The same terminal validation displayed categorical Observed Plan `Unknown` and Entitlement `Unknown`; no Basic or paid-plan inference is made. |
 | Basic Free published quota | VERIFIED | Official Pricing/credit pages publish 8 credits/minute and 800/day; no actual-key usage observation was made. |
-| Basic Free Search | NOT VERIFIED | Adapter and synthetic transport tests pass; Stage 6F did not call Search. |
-| Basic Free historical OHLCV | NOT VERIFIED | Official contract and adapter tests exist; no credentialed endpoint was called. |
+| Basic Free Search | NOT VERIFIED | The one Stage 6N signed UI-run attempt did not expose its sanitized categorical preflight before the 20-second accessibility wait failed. No Search result was accepted as live evidence, and the run was not repeated. |
+| Basic Free historical OHLCV | NOT VERIFIED | Because no exact `AAPL/XNAS` Search result was observably established, no Historical result was accepted as live evidence. The one bounded run was not repeated. |
 | Adjustment modes | NOT VERIFIED | Official docs establish the contract; actual endpoint behavior for a user entitlement was not called. |
 | Split/Dividend actions | NOT VERIFIED | Official docs establish 20 credits per symbol and Grow individual / Venture business minimum access. Basic is not advertised as capable and no entitled endpoint was called. |
 | Usage/credit response headers | NOT VERIFIED | Terminal validation succeeded, but the sanitized UI did not establish header presence or an actual plan/quota category; no exact quota value was recorded. |
-| United States endpoint entitlement | NOT VERIFIED | Basic catalog path is published, but Stage 6F did not verify a US Search, Quote, or OHLCV endpoint. |
+| United States endpoint entitlement | NOT VERIFIED | Basic catalog path is published, but the Stage 6N attempt produced no observable Search or Historical terminal category and therefore proves no US endpoint entitlement. |
 | `XHKG` | NOT VERIFIED | No Pro-or-higher credential; EOD guide and catalog require entitlement/licensing reconciliation. |
 | `XSHG` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |
 | `XSHE` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |
@@ -186,7 +186,11 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 
 The implementation candidate can be built and tested without a credential. Stage 6G verifies only a sanitized terminal validation of the securely rotated replacement credential. It does not claim Basic or paid entitlement, Search/Quote/OHLCV/actions acceptance, complete four-market access, exact market freshness, or ordinary persistent-cache rights. If no Pro-or-higher test condition exists, all four international-market endpoint rows must remain `NOT VERIFIED` rather than inferred from catalog visibility, terminal credential validation, or synthetic tests.
 
-## 8. Stage 6MA session-lifecycle repair candidate
+## 8. Stage 6N bounded live acceptance candidate
+
+On 2026-08-21, one signed, Production-path UI run was started with a DEBUG-only bounded harness authorizing only `search("AAPL")` and, conditionally, one daily `.all` Historical request of at most five bars for an exact `AAPL/XNAS` result. The harness had a fixed ceiling of two logical operations and eight theoretical transport attempts/credits. The UI Runner failed before the `stage6n.credential` categorical element appeared: 1 test executed, 0 passed, 1 failed, 0 skipped, exit 65. No Search, exact-MIC, Historical, session-cleanup, or persistence-isolation category became observable, so none is promoted to live evidence. The run was not repeated. The temporary harness and UI test were then removed, and both modified Swift/Test files were restored to their exact pre-run SHA-256 values.
+
+This failed observation does not establish whether the Production Keychain read was waiting on an App/Keychain ACL state or whether the temporary view was absent from the accessibility tree. It also does not establish a transport-attempt count. The implementation audit shows that the temporary harness contained no operation outside the two authorized logical calls, but no endpoint result is accepted without categorical runtime evidence.
 
 This document proposes, but does not decide, two separate Reviewer gates:
 
@@ -204,7 +208,7 @@ This document proposes, but does not decide, two separate Reviewer gates:
 
 Retention evidence remains `BLOCKED` and Production persistent writes remain `Disabled`. Under the 2026-08-17 product policy, this is no longer proposed as a Stage 7 implementation prerequisite. Any future disk cache for Twelve Data requires a new explicit user decision, applicable retention rights, separate architecture review, and implementation authorization.
 
-International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` until the Reviewer accepts the Stage 6MA evidence and separately authorizes bounded Basic US acceptance.
+International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` pending Reviewer evaluation of the Stage 6N evidence and the still-unverified Basic US live acceptance.
 
 ### Stage 6MA local implementation evidence
 
