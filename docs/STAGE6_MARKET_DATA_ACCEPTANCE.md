@@ -1,7 +1,7 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6N Bounded Live Acceptance Candidate — Awaiting Reviewer Gate  
-**Evidence visit:** 2026-08-12–2026-08-17  
+**Status:** Stage 6NB Bounded Live Acceptance Candidate — Awaiting Reviewer Gate  
+**Evidence visit:** 2026-08-12–2026-08-24  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
 **Date provenance:** Follow-up submission `2026-08-13`; Provider reply date `NOT PROVIDED`; Stage 6K review `2026-08-17`; Personal Local Mode decision `2026-08-17`; Terms refresh `2026-08-17`.
@@ -34,6 +34,47 @@ The user's latest explicit decision limits Aureus to one user's Mac for personal
 | User-authored Market Preferences | Minimal symbol/MIC identifiers and UI preferences may persist without Provider descriptions or values. They are not endpoint, Plan, freshness, or exchange-entitlement evidence. |
 
 The isolated GRDB Market Cache remains as verified infrastructure for separately authorized Provider policies; its presence does not grant Twelve Data disk-retention rights. Frankfurter/ECB policy remains independent. After relaunch, an offline Twelve Data miss is `Market Data Unavailable Offline`; Synthetic data never substitutes for Production.
+
+### 1.2 Stage 6N failure and Stage 6NA zero-network diagnostic
+
+Reviewer Gate for Prompt 6N is `FAIL`. The only 6N UI run launched `com.aureus.wealthterminal`, established the XCTest Accessibility session, and then waited 20 seconds without observing `stage6n.credential`. Actual transport attempts were `NOT AVAILABLE`; absence of the AX element is not evidence that no request occurred, and the 6N live sequence was not rerun.
+
+Stage 6NA authorized no Provider operation and used all three allowed diagnostic runs:
+
+| Run | Scope | Sanitized result |
+|---:|---|---|
+| 1 | Synthetic AX control | App and AX session started, but the synchronous heartbeat was not visible before timeout. This reproduced the macOS restored-process/no-visible-WindowGroup boundary. |
+| 2 | Synthetic AX control after native New Window recovery | `stage6na.harness.ready`, dependency starting/ready, and `stage6na.synthetic.terminal` all became AX-visible. The test still ended failed because its last assertion examined only AX `value`, rather than the stable identifier plus label/value presentation. This is synthetic control evidence only. |
+| 3 | Production categorical preflight | The App launched, but the UI test constructed an unavailable system-application bundle while preparing SecurityAgent detection. XCTest raised `NSInternalInconsistencyException` before the Production heartbeat or Keychain terminal was observed. No fourth run was permitted. |
+
+Final diagnosis is therefore layered rather than optimistic:
+
+- launch argument/root mounting and synchronous AX heartbeat are proven by the corrected synthetic control;
+- the original missing-element symptom is consistent with a restored process that had no visible WindowGroup until the native New Window command;
+- Production dependency initialization and Production Keychain categorical state remain `NOT AVAILABLE` because run 3 failed in diagnostic test setup before observation;
+- SecurityAgent/user-interaction state was not observed and was not automated;
+- Provider requests: `0`; credits: `0`. The temporary diagnostic App path called no `MarketDataProvider`, `MarketDataService`, validation, FX, or endpoint method;
+- Basic US Search and Historical OHLCV remain `NOT VERIFIED`; Stage 6 Core remains `PARTIAL`; Stage 7 remains `NO-GO`;
+- Twelve Data persistent writes remain `Disabled`; Retention remains `BLOCKED`.
+
+### 1.3 Stage 6NAA Production Keychain categorical result — 2026-08-22
+
+Reviewer Gate for Prompt 6NA is `PARTIAL`. Stage 6NAA removed the invalid system-application probe and used unique Accessibility identifiers as the sole classification source. It performed exactly two zero-network UI executions:
+
+| Run | Scope | Sanitized result |
+|---:|---|---|
+| 1 | Synthetic smoke control | `1/1 PASS`. After exactly one native New Window recovery, the synchronous heartbeat, dependency-ready state, and synthetic terminal identifiers became AX-visible. This is synthetic control only, not Production credential evidence. |
+| 2 | Production categorical preflight | `1/1 PASS` as a diagnostic. The Production dependency state became ready; the existing Production Keychain categorical check then reached the App-side 10-second terminal `PRODUCTION_KEYCHAIN_TIMEOUT`. Exactly one credential terminal identifier existed. |
+
+No system application was constructed, no security dialog was automated, and no Credential content or metadata was read. Provider requests and credits were `0`; Search, Historical, Quote, Corporate Actions, validation, `/api_usage`, and Frankfurter live operations were not called. `PRODUCTION_KEYCHAIN_TIMEOUT` is not evidence of `CONFIGURED` or `MISSING`, and it does not verify a Plan, endpoint, market, freshness, or entitlement. Basic US Search/Historical remains `NOT VERIFIED`; Stage 6 Core remains `PARTIAL`; Stage 7 remains `NO-GO`; Twelve Data persistent writes remain `Disabled`; Retention remains `BLOCKED`. The temporary harness and tests were restored byte-for-byte after the two executions.
+
+### 1.4 Stage 6NB exact-App takeover and bounded live result — 2026-08-24
+
+Prompt 6NAA received Reviewer Gate `PASS`. Stage 6NB precompiled one signed acceptance App and UI Runner, recorded their non-secret identity evidence, paused all automation for user takeover in that exact App, and resumed only after the user replied `已完成`. The App binary SHA-256, bundle identifier, Production entitlement SHA-256, and temporary App/Test source SHA-256 values were unchanged after takeover.
+
+The zero-network categorical preflight executed exactly once and passed 1/1 with the sole sanitized terminal `CONFIGURED`; it did not call Validate, `/api_usage`, or a Provider endpoint. The bounded live test then executed exactly once. Its only Search logical operation ended as `SEARCH_PROVIDER_ERROR`, so no exact `AAPL/XNAS` Search success was established and the conditional Historical operation was not executed. No manual retry or second sequence occurred. The actual transport-attempt count was not exposed by the sanitized harness and is recorded as `NOT AVAILABLE`; the authorization ceiling remained two logical operations and eight theoretical attempts/credits.
+
+The live harness cleared Session Market Data before and after the operation, observed zero Twelve Data persistent rows before and after, and confirmed unchanged Frankfurter/ECB cache plus Permanent Store sentinels. It stored no Provider payload, price, OHLCV, date, authenticated URL, request identifier, quota balance, or Credential material. The temporary harness and UI test were restored byte-for-byte. Search and Historical remain `NOT VERIFIED`; Actual Plan, Quote, Corporate Actions, freshness, other US MICs, and all four international MICs remain `NOT VERIFIED`. Stage 6 Core remains `PARTIAL`, Stage 7 remains `NO-GO`, Twelve Data persistent writes remain `Disabled`, and Retention remains `BLOCKED` pending Reviewer evaluation.
 
 ## 2. Official Source Register
 
@@ -155,12 +196,12 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 | Replacement credential terminal validation | VERIFIED | After user-confirmed server-side revocation/rotation and direct Production SecureField save, one bounded Validate action reached sanitized `SUCCESS`; busy and terminal completion were observed. No credential value, URL, payload, request ID, or exact quota was retained. |
 | Actual Provider plan / entitlement | NOT VERIFIED | The same terminal validation displayed categorical Observed Plan `Unknown` and Entitlement `Unknown`; no Basic or paid-plan inference is made. |
 | Basic Free published quota | VERIFIED | Official Pricing/credit pages publish 8 credits/minute and 800/day; no actual-key usage observation was made. |
-| Basic Free Search | NOT VERIFIED | The one Stage 6N signed UI-run attempt did not expose its sanitized categorical preflight before the 20-second accessibility wait failed. No Search result was accepted as live evidence, and the run was not repeated. |
-| Basic Free historical OHLCV | NOT VERIFIED | Because no exact `AAPL/XNAS` Search result was observably established, no Historical result was accepted as live evidence. The one bounded run was not repeated. |
+| Basic Free Search | NOT VERIFIED | The one Stage 6NB Search logical operation reached sanitized `SEARCH_PROVIDER_ERROR`. No exact `AAPL/XNAS` success was established, and the sequence was not retried. |
+| Basic Free historical OHLCV | NOT VERIFIED | Stage 6NB did not execute Historical because Search did not establish an exact `AAPL/XNAS` result. |
 | Adjustment modes | NOT VERIFIED | Official docs establish the contract; actual endpoint behavior for a user entitlement was not called. |
 | Split/Dividend actions | NOT VERIFIED | Official docs establish 20 credits per symbol and Grow individual / Venture business minimum access. Basic is not advertised as capable and no entitled endpoint was called. |
 | Usage/credit response headers | NOT VERIFIED | Terminal validation succeeded, but the sanitized UI did not establish header presence or an actual plan/quota category; no exact quota value was recorded. |
-| United States endpoint entitlement | NOT VERIFIED | Basic catalog path is published, but the Stage 6N attempt produced no observable Search or Historical terminal category and therefore proves no US endpoint entitlement. |
+| United States endpoint entitlement | NOT VERIFIED | Basic catalog path is published, but Stage 6NB Search ended in a sanitized Provider error and Historical was not executed; no US endpoint entitlement is inferred. |
 | `XHKG` | NOT VERIFIED | No Pro-or-higher credential; EOD guide and catalog require entitlement/licensing reconciliation. |
 | `XSHG` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |
 | `XSHE` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |
@@ -208,7 +249,7 @@ This document proposes, but does not decide, two separate Reviewer gates:
 
 Retention evidence remains `BLOCKED` and Production persistent writes remain `Disabled`. Under the 2026-08-17 product policy, this is no longer proposed as a Stage 7 implementation prerequisite. Any future disk cache for Twelve Data requires a new explicit user decision, applicable retention rights, separate architecture review, and implementation authorization.
 
-International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` pending Reviewer evaluation of the Stage 6N evidence and the still-unverified Basic US live acceptance.
+International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` pending Reviewer evaluation of the Stage 6NB evidence and the still-unverified Basic US live acceptance.
 
 ### Stage 6MA local implementation evidence
 
