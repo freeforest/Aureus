@@ -591,6 +591,147 @@ struct MarketDataInfrastructureTests {
         #expect(client.descriptor.kind == .production)
     }
 
+    @Test("Search maps the documented row shape and ignores extra Provider fields")
+    func searchDocumentedRowShape() async throws {
+        let transport = ScriptedHTTPTransport([.response(
+            status: 200,
+            body: #"{"data":[{"symbol":"AAPL","instrument_name":"Apple Synthetic","exchange":"NASDAQ","mic_code":"XNAS","currency":"USD","country":"United States","extra":{"ignored":true}}],"status":"ok","ignored_root":1}"#
+        )])
+        let client = try await makeClient(transport: transport)
+
+        let result = try await client.search(query: "AAPL")
+
+        #expect(result.count == 1)
+        #expect(result[0].symbol == "AAPL")
+        #expect(result[0].mic == "XNAS")
+        #expect(result[0].currency == .usd)
+        #expect(result[0].displayName == "Apple Synthetic")
+    }
+
+    @Test("Unsupported currencies before or after an accepted row do not poison Search")
+    func searchIsolatesOutOfScopeCurrencies() async throws {
+        let accepted = #"{"symbol":"AAPL","instrument_name":"Apple Synthetic","mic_code":"XNAS","currency":"USD"}"#
+        let eur = #"{"symbol":"SYN-EUR","instrument_name":"Synthetic EUR","mic_code":"XPAR","currency":"EUR"}"#
+        let gbp = #"{"symbol":"SYN-GBP","instrument_name":"Synthetic GBP","mic_code":"XLON","currency":"GBP"}"#
+        let transports = [
+            ScriptedHTTPTransport([.response(status: 200, body: "{\"data\":[\(eur),\(accepted),\(gbp)]}")]),
+            ScriptedHTTPTransport([.response(status: 200, body: "{\"data\":[\(gbp),\(accepted),\(eur)]}")])
+        ]
+
+        for transport in transports {
+            let client = try await makeClient(transport: transport)
+            let result = try await client.search(query: "AAPL")
+            #expect(result.map(\.symbol) == ["AAPL"])
+            #expect(result.map(\.currency) == [.usd])
+        }
+        #expect(MarketCurrencyCode.allCases == [.cny, .usd, .hkd, .jpy])
+        #expect(CurrencyCode.allCases == [.cny, .usd])
+    }
+
+    @Test("Missing and invalid MIC rows do not poison an accepted Search row")
+    func searchIsolatesOutOfScopeMICs() async throws {
+        let body = #"{"data":[{"symbol":"NO-MIC","instrument_name":"Synthetic Missing MIC","currency":"USD"},{"symbol":"LONG-MIC","instrument_name":"Synthetic Long MIC","mic_code":"XNAS5","currency":"USD"},{"symbol":"NON-ASCII","instrument_name":"Synthetic Non ASCII MIC","mic_code":"XNÄS","currency":"USD"},{"symbol":"PUNCT","instrument_name":"Synthetic Punctuation MIC","mic_code":"XN@S","currency":"USD"},{"symbol":"AAPL","instrument_name":"Apple Synthetic","mic_code":"XNAS","currency":"USD"}]}"#
+        let transport = ScriptedHTTPTransport([.response(status: 200, body: body)])
+        let client = try await makeClient(transport: transport)
+
+        let result = try await client.search(query: "AAPL")
+
+        #expect(result.map(\.symbol) == ["AAPL"])
+        #expect(result.map(\.mic) == ["XNAS"])
+    }
+
+    @Test("Search normalizes identity fields and uses symbol for an empty display name")
+    func searchNormalizationAndNameFallback() async throws {
+        let transport = ScriptedHTTPTransport([.response(
+            status: 200,
+            body: #"{"data":[{"symbol":"  aapl \n","instrument_name":"  \n","mic_code":" xnas ","currency":" usd "}]}"#
+        )])
+        let client = try await makeClient(transport: transport)
+
+        let instrument = try #require(try await client.search(query: "AAPL").first)
+
+        #expect(instrument.symbol == "AAPL")
+        #expect(instrument.mic == "XNAS")
+        #expect(instrument.currency == .usd)
+        #expect(instrument.displayName == "AAPL")
+    }
+
+    @Test("Search preserves Provider relevance order and keeps the first duplicate")
+    func searchStableOrderAndDeduplication() async throws {
+        let body = #"{"data":[{"symbol":"MSFT","instrument_name":"Microsoft Synthetic First","mic_code":"XNAS","currency":"USD"},{"symbol":"AAPL","instrument_name":"Apple Synthetic First","mic_code":"XNAS","currency":"USD"},{"symbol":" aapl ","instrument_name":"Apple Synthetic Duplicate","mic_code":" xnas ","currency":"USD"},{"symbol":"MSFT","instrument_name":"Microsoft Synthetic Duplicate","mic_code":"XNAS","currency":"USD"}]}"#
+        let transport = ScriptedHTTPTransport([.response(status: 200, body: body)])
+        let client = try await makeClient(transport: transport)
+
+        let result = try await client.search(query: "synthetic")
+
+        #expect(result.map(\.symbol) == ["MSFT", "AAPL"])
+        #expect(result.map(\.displayName) == [
+            "Microsoft Synthetic First", "Apple Synthetic First"
+        ])
+    }
+
+    @Test("Empty and entirely out-of-scope Search batches are valid empty success")
+    func searchEmptyAndOutOfScopeSuccess() async throws {
+        let transport = ScriptedHTTPTransport([
+            .response(status: 200, body: #"{"data":[]}"#),
+            .response(
+                status: 200,
+                body: #"{"data":[{"symbol":"SYN-EUR","mic_code":"XPAR","currency":"EUR"},{"symbol":"SYN-NO-MIC","currency":"USD"}]}"#
+            )
+        ])
+        let client = try await makeClient(transport: transport)
+
+        #expect(try await client.search(query: "empty").isEmpty)
+        #expect(try await client.search(query: "out-of-scope").isEmpty)
+
+        let capabilities = await client.capabilities()
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .symbolSearch
+        }?.liveObservation == .succeeded)
+        #expect(capabilities.markets.allSatisfy { $0.liveObservation == .notVerified })
+    }
+
+    @Test("A nonempty entirely malformed Search batch remains invalid payload")
+    func searchAllMalformedFails() async throws {
+        let transport = ScriptedHTTPTransport([.response(
+            status: 200,
+            body: #"{"data":[{}, {"symbol":"   ","mic_code":"XNAS","currency":"USD"}, 42]}"#
+        )])
+        let client = try await makeClient(transport: transport)
+
+        await #expect(throws: ProviderBoundaryError.invalidPayload) {
+            _ = try await client.search(query: "malformed")
+        }
+        #expect(await transport.requests().count == 1)
+        let capabilities = await client.capabilities()
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .symbolSearch
+        }?.liveObservation == .notVerified)
+    }
+
+    @Test("A malformed row cannot poison an accepted Search row")
+    func searchMalformedRowIsolation() async throws {
+        let transport = ScriptedHTTPTransport([.response(
+            status: 200,
+            body: #"{"data":[{"instrument_name":"Synthetic Missing Symbol","mic_code":"XNAS","currency":"USD"},{"symbol":"AAPL","instrument_name":"Apple Synthetic","mic_code":"XNAS","currency":"USD"}]}"#
+        )])
+        let client = try await makeClient(transport: transport)
+
+        #expect(try await client.search(query: "AAPL").map(\.symbol) == ["AAPL"])
+    }
+
+    @Test("Search envelope requires a data array while allowing an empty array")
+    func searchEnvelopeValidation() async throws {
+        for body in [#"{}"#, #"{"data":{}}"#, #"{"data":"not-an-array"}"#] {
+            let transport = ScriptedHTTPTransport([.response(status: 200, body: body)])
+            let client = try await makeClient(transport: transport)
+            await #expect(throws: ProviderBoundaryError.invalidPayload) {
+                _ = try await client.search(query: "envelope")
+            }
+            #expect(await transport.requests().count == 1)
+        }
+    }
+
     @Test("Provider quote currencies preserve USD, HKD, CNY, and JPY")
     func nativeQuoteCurrencies() async throws {
         let bodies = [

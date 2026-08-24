@@ -757,25 +757,61 @@ actor TwelveDataClient: MarketDataProvider {
             endpoint: .symbolSearch
         )
         let dto = try decodeProviderPayload(TwelveSearchResponseDTO.self, from: response.data)
-        let instruments = try validatedProviderMapping {
-            try dto.data.map { item in
-                guard let mic = item.micCode?.uppercased(), mic.count == 4 else {
-                    throw ProviderBoundaryError.invalidPayload
-                }
-                let currency = try MarketCurrencyCode(validating: item.currency)
-                return MarketInstrument(
-                    id: StableMarketIdentifier.uuid(
-                        "twelve-data|\(item.symbol.uppercased())|\(mic)"
-                    ),
-                    symbol: item.symbol.uppercased(),
-                    mic: mic,
-                    currency: currency,
-                    displayName: item.instrumentName
-                )
-            }
-        }
+        let instruments = try Self.mapSearchRows(dto.data)
         recordObservation(endpoint: .symbolSearch, marketMIC: nil, state: .succeeded)
         return instruments
+    }
+
+    private static func mapSearchRows(
+        _ rows: [TwelveSearchItemDTO]
+    ) throws -> [MarketInstrument] {
+        guard !rows.isEmpty else { return [] }
+
+        var accepted: [MarketInstrument] = []
+        var seen: Set<String> = []
+        var hasOutOfScopeRow = false
+
+        for row in rows {
+            let symbol = row.symbol?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased() ?? ""
+            guard !symbol.isEmpty else { continue }
+
+            let mic = row.micCode?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased() ?? ""
+            let currencyText = row.currency?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased() ?? ""
+            guard isValidMIC(mic),
+                  let currency = try? MarketCurrencyCode(validating: currencyText) else {
+                hasOutOfScopeRow = true
+                continue
+            }
+
+            let deduplicationKey = "\(symbol)|\(mic)"
+            guard seen.insert(deduplicationKey).inserted else { continue }
+            let trimmedName = row.instrumentName?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            accepted.append(MarketInstrument(
+                id: StableMarketIdentifier.uuid("twelve-data|\(symbol)|\(mic)"),
+                symbol: symbol,
+                mic: mic,
+                currency: currency,
+                displayName: trimmedName.isEmpty ? symbol : trimmedName
+            ))
+        }
+
+        if !accepted.isEmpty || hasOutOfScopeRow { return accepted }
+        throw ProviderBoundaryError.invalidPayload
+    }
+
+    private static func isValidMIC(_ value: String) -> Bool {
+        let bytes = Array(value.utf8)
+        guard bytes.count == 4 else { return false }
+        return bytes.allSatisfy { byte in
+            (65...90).contains(byte) || (48...57).contains(byte)
+        }
     }
 
     func latestQuote(for instrument: MarketInstrument) async throws -> MarketQuote {
@@ -1475,11 +1511,11 @@ private struct TwelveSearchResponseDTO: Decodable {
 }
 
 private struct TwelveSearchItemDTO: Decodable {
-    let symbol: String
-    let instrumentName: String
+    let symbol: String?
+    let instrumentName: String?
     let exchange: String?
     let micCode: String?
-    let currency: String
+    let currency: String?
 
     enum CodingKeys: String, CodingKey {
         case symbol
@@ -1487,6 +1523,22 @@ private struct TwelveSearchItemDTO: Decodable {
         case exchange
         case micCode = "mic_code"
         case currency
+    }
+
+    init(from decoder: Decoder) throws {
+        guard let container = try? decoder.container(keyedBy: CodingKeys.self) else {
+            symbol = nil
+            instrumentName = nil
+            exchange = nil
+            micCode = nil
+            currency = nil
+            return
+        }
+        symbol = try? container.decodeIfPresent(String.self, forKey: .symbol)
+        instrumentName = try? container.decodeIfPresent(String.self, forKey: .instrumentName)
+        exchange = try? container.decodeIfPresent(String.self, forKey: .exchange)
+        micCode = try? container.decodeIfPresent(String.self, forKey: .micCode)
+        currency = try? container.decodeIfPresent(String.self, forKey: .currency)
     }
 }
 

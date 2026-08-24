@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6NBA Search Classification Candidate — Awaiting Reviewer Gate  
+**Status:** Stage 6NBB Search Adapter Repair and Bounded US Acceptance Candidate — Awaiting Reviewer Gate  
 **Evidence visit:** 2026-08-12–2026-08-24  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
@@ -85,6 +85,25 @@ The system built one exact `Sign to Run Locally` App and UI Runner, launched tha
 The zero-network categorical preflight ran exactly once and passed 1/1 with sanitized terminal `CONFIGURED`, transport attempts `0`, and local attempted credit units `0`. The sole authorized live operation was then exactly one `MarketDataService.search(query: "AAPL")`. Its harness ran 1/1 and reached sanitized typed terminal `SEARCH_INVALID_PAYLOAD` after exactly `1` transport attempt and `1` local attempted credit unit. Provider-account billed credits are `NOT AVAILABLE`. No free-form error, raw response, URL, header, request identifier, quota value, instrument description, or Credential material was read or retained. No retry sequence was manually restarted, and Historical, Quote, actions, validation, `/api_usage`, international MICs, and Frankfurter live endpoints were not called.
 
 The harness formally cleared Session Market Data before and after Search and ended at zero entries/bytes with no late repopulation. Twelve Data persistent rows were zero before and after; Frankfurter/ECB cache, unrelated Market Cache, Permanent Store hash/schema, Wealth, Ledger, and Snapshot sentinels were unchanged. All temporary App/Test code, mapper, counter, and identifiers were removed and the touched Swift/Test files returned to their exact pre-execution SHA-256 values. `SEARCH_INVALID_PAYLOAD` does not prove Basic entitlement, exact `AAPL/XNAS`, Historical, Plan, freshness, or any other endpoint/MIC, so those rows remain `NOT VERIFIED`. Stage 6 Core remains `PARTIAL`, Stage 7 remains `NO-GO`, Twelve Data persistent writes remain `Disabled`, and Retention remains `BLOCKED`.
+
+### 1.6 Stage 6NBB Search row isolation and bounded observation — 2026-08-24
+
+Prompt 6NBA received Reviewer Gate `PASS`. The prior `SEARCH_INVALID_PAYLOAD` established only that the response reached decoding or Domain mapping; no raw response was inspected. Source review identified a batch-wide failure boundary in which any unmappable discovery row could reject otherwise supported rows. Stage 6NBB replaces that boundary with strict-envelope, row-isolated mapping:
+
+- the root must contain a correctly typed `data` array; a missing or wrongly typed array remains `invalidPayload`, while `data: []` is an honest empty success;
+- symbol, MIC, currency, and display name are trimmed; symbol/MIC/currency are normalized uppercase; raw MIC must remain exactly four ASCII alphanumeric characters;
+- only existing `USD`, `HKD`, `CNY`, and `JPY` market currencies are accepted; a valid-symbol row with an absent/invalid MIC or unsupported currency is skipped as out of V1 scope rather than treated as entitlement denial;
+- an absent/empty symbol is malformed; accepted rows still win when mixed with malformed/out-of-scope rows, all-out-of-scope is an empty success, and a nonempty all-malformed batch remains `invalidPayload`;
+- Provider relevance order is preserved and normalized symbol+MIC duplicates keep their first occurrence; a missing display name falls back only to the normalized symbol;
+- Search success records only Search endpoint observation. It does not infer a Plan, Quote/Historical/action entitlement, a particular MIC entitlement, or freshness.
+
+Nine hand-written synthetic row/envelope tests were added without using a real payload fixture. Before live acceptance, the complete Market Data Infrastructure collection passed 54/54 and the complete Unit/Integration suite passed. After the temporary harness was removed back to the permanent repair checkpoint, Stage 6 focused tests passed 83/83 and the final full Unit/Integration result contained 181 test definitions, 214 expanded executions, zero failures, and zero skips. The final Settings UI passed 1/1; Native CSV passed 1/1; Ledger Dynamic first encountered a native Picker/AX selection transition failure and then passed its single bounded focused retry 1/1 without a code change; the final complete UI suite passed 10/10 on its only full run.
+
+For the external observation, the system built and opened one exact arm64 `Sign to Run Locally` App, created its visible window, navigated through normal Production UI to Settings, and stopped automation for user takeover. After the user replied `已完成`, executable, bundle, signing, entitlement, permanent-candidate, and temporary-harness identity evidence remained unchanged. The zero-network categorical preflight ran exactly once as `CONFIGURED` with zero transport attempts.
+
+The only Provider operation was one `MarketDataService.search(query: "AAPL")`. It reached a successful typed Search terminal after exactly one local transport attempt and one local attempted credit unit, but the supported Domain result did not contain an exact normalized `AAPL/XNAS` instrument. Provider-account billed credits remain `NOT AVAILABLE`. This establishes only that the Search endpoint responded successfully for the current credential at the observed instant; it does not establish Basic entitlement or exact `AAPL/XNAS`. Conditional Historical was `NOT EXECUTED`, and no Validate, `/api_usage`, Quote, Split, Dividend, other symbol/MIC, international-market, or Frankfurter live operation was called.
+
+The service formally cleared Session Market Data before and after the operation and ended with zero entries and logical bytes, with no late repopulation. Twelve Data persistent rows remained zero; Frankfurter/ECB cache, unrelated Market Cache, Permanent Store hash/schema, Wealth, Ledger, and Snapshot sentinels were unchanged. The transparent counter, classifier, harness, temporary test, launch argument, and Accessibility identifiers were removed, while the permanent Search adapter repair and synthetic tests remained. Stage 6 Core remains `PARTIAL`, Stage 7 remains `NO-GO`, Twelve Data persistent writes remain `Disabled`, and Retention remains `BLOCKED` pending Reviewer evaluation.
 
 ## 2. Official Source Register
 
@@ -206,12 +225,12 @@ On explicit key deletion or Disconnect, Aureus stops the Provider client and imm
 | Replacement credential terminal validation | VERIFIED | After user-confirmed server-side revocation/rotation and direct Production SecureField save, one bounded Validate action reached sanitized `SUCCESS`; busy and terminal completion were observed. No credential value, URL, payload, request ID, or exact quota was retained. |
 | Actual Provider plan / entitlement | NOT VERIFIED | The same terminal validation displayed categorical Observed Plan `Unknown` and Entitlement `Unknown`; no Basic or paid-plan inference is made. |
 | Basic Free published quota | VERIFIED | Official Pricing/credit pages publish 8 credits/minute and 800/day; no actual-key usage observation was made. |
-| Basic Free Search | NOT VERIFIED | Stage 6NBA re-observed the only authorized Search as typed `SEARCH_INVALID_PAYLOAD` after exactly one local transport attempt. No exact `AAPL/XNAS` success was established, no raw response was inspected, and the sequence was not retried. |
-| Basic Free historical OHLCV | NOT VERIFIED | Stage 6NBA did not authorize or execute Historical because Search did not establish an exact `AAPL/XNAS` result. |
+| Basic Free Search | NOT VERIFIED | Stage 6NBB observed one successful Search endpoint response after one local transport attempt, but no exact supported `AAPL/XNAS` Domain result. The actual Plan remains unknown, so this is not promoted to Basic entitlement. No raw response was inspected and the sequence was not retried. |
+| Basic Free historical OHLCV | NOT VERIFIED | Stage 6NBB did not execute Historical because Search did not establish an exact `AAPL/XNAS` result. |
 | Adjustment modes | NOT VERIFIED | Official docs establish the contract; actual endpoint behavior for a user entitlement was not called. |
 | Split/Dividend actions | NOT VERIFIED | Official docs establish 20 credits per symbol and Grow individual / Venture business minimum access. Basic is not advertised as capable and no entitled endpoint was called. |
 | Usage/credit response headers | NOT VERIFIED | Terminal validation succeeded, but the sanitized UI did not establish header presence or an actual plan/quota category; no exact quota value was recorded. |
-| United States endpoint entitlement | NOT VERIFIED | Basic catalog path is published, but Stage 6NBA Search ended as typed `SEARCH_INVALID_PAYLOAD` and Historical was not executed; no US endpoint entitlement is inferred. |
+| United States endpoint entitlement | NOT VERIFIED | Stage 6NBB Search responded successfully at the observed instant, but it did not yield exact `AAPL/XNAS`, the actual Plan remains unknown, and Historical was not executed; no broader US endpoint or MIC entitlement is inferred. |
 | `XHKG` | NOT VERIFIED | No Pro-or-higher credential; EOD guide and catalog require entitlement/licensing reconciliation. |
 | `XSHG` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |
 | `XSHE` | NOT VERIFIED | Catalog lists Pro EOD; no Pro-or-higher credentialed endpoint acceptance. |
@@ -259,7 +278,7 @@ This document proposes, but does not decide, two separate Reviewer gates:
 
 Retention evidence remains `BLOCKED` and Production persistent writes remain `Disabled`. Under the 2026-08-17 product policy, this is no longer proposed as a Stage 7 implementation prerequisite. Any future disk cache for Twelve Data requires a new explicit user decision, applicable retention rights, separate architecture review, and implementation authorization.
 
-International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` pending Reviewer evaluation of the Stage 6NBA evidence and the still-unverified Basic US live acceptance.
+International live acceptance for `XHKG`, `XSHG`, `XSHE`, and `XJPX` remains `NOT VERIFIED`. This does not remove the capability-aware UI scope, but it prohibits live-support claims and does not authorize a Plan, Trial, or exchange-license purchase. Stage 7 remains `NO-GO` pending Reviewer evaluation of the Stage 6NBB evidence and the still-unverified exact `AAPL/XNAS` plus Historical acceptance.
 
 ### Stage 6MA local implementation evidence
 
