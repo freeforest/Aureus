@@ -608,6 +608,138 @@ struct MarketDataInfrastructureTests {
         #expect(result[0].displayName == "Apple Synthetic")
     }
 
+    @Test("XNGS Search and Historical preserve the raw MIC while capability evidence aggregates to US")
+    func xngsSearchHistoricalRawMICAndUSAggregation() async throws {
+        let xngsHistory = #"{"meta":{"currency":"USD","exchange_timezone":"America/New_York","mic_code":"XNGS"},"values":[{"datetime":"2026-01-14","open":"10","high":"12","low":"9","close":"11","volume":"1"}]}"#
+        let mismatchedHistory = #"{"meta":{"currency":"USD","exchange_timezone":"America/New_York","mic_code":"XNAS"},"values":[{"datetime":"2026-01-14","open":"10","high":"12","low":"9","close":"11","volume":"1"}]}"#
+        let transport = ScriptedHTTPTransport([
+            .response(
+                status: 200,
+                body: #"{"data":[{"symbol":"AAPL","instrument_name":"Apple Synthetic XNGS","mic_code":"XNGS","currency":"USD"}]}"#
+            ),
+            .response(
+                status: 200,
+                body: #"{"data":[{"symbol":"AAPL","instrument_name":"Apple Synthetic XNAS","mic_code":"XNAS","currency":"USD"}]}"#
+            ),
+            .response(status: 200, body: xngsHistory),
+            .response(status: 200, body: mismatchedHistory)
+        ])
+        let client = try await makeClient(transport: transport, minuteLimit: 100)
+
+        let xngs = try #require(try await client.search(query: "AAPL").first)
+        let xnas = try #require(try await client.search(query: "AAPL identity control").first)
+        #expect(xngs.symbol == "AAPL")
+        #expect(xngs.mic == "XNGS")
+        #expect(xngs.currency == .usd)
+        #expect(xngs.id != xnas.id)
+
+        var capabilities = await client.capabilities()
+        #expect(capabilities.entitlement == .unknown)
+        #expect(capabilities.observedPlanName == nil)
+        #expect(capabilities.markets.first { $0.mic == "US" }?.liveObservation == .notVerified)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .symbolSearch
+        }?.liveObservation == .succeeded)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .historicalOHLCV
+        }?.liveObservation == .notVerified)
+
+        let request = try MarketHistoryRequest(
+            instrument: xngs,
+            interval: .oneDay,
+            adjustment: .all,
+            outputSize: 5
+        )
+        let page = try await client.historicalBars(request)
+        #expect(page.instrument.mic == "XNGS")
+        #expect(page.bars.allSatisfy { $0.adjustment == .all && $0.freshness == .unknown })
+        let requests = await transport.requests()
+        #expect(requests.count == 3)
+        #expect(requests[2].url.contains("mic_code=XNGS"))
+        #expect(!requests[2].url.contains("mic_code=XNAS"))
+
+        capabilities = await client.capabilities()
+        let us = capabilities.markets.first { $0.mic == "US" }
+        #expect(us?.liveObservation == .succeeded)
+        #expect(us?.liveObservedMICs == ["XNGS"])
+        #expect(capabilities.markets.contains { $0.mic == "XNGS" } == false)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .historicalOHLCV
+        }?.liveObservation == .succeeded)
+        for untouched in [
+            MarketProviderEndpoint.latestQuote,
+            .splits,
+            .dividends
+        ] {
+            #expect(capabilities.endpointCapabilities.first {
+                $0.endpoint == untouched
+            }?.liveObservation == .notVerified)
+        }
+        #expect(capabilities.entitlement == .unknown)
+        #expect(capabilities.observedPlanName == nil)
+
+        await #expect(throws: ProviderBoundaryError.invalidPayload) {
+            _ = try await client.historicalBars(request)
+        }
+        #expect(await transport.requests().count == 4)
+    }
+
+    @Test("Every recognized raw US MIC aggregates to US without rewriting provenance")
+    func recognizedUSMICSetAggregation() async throws {
+        let recognized = [
+            "XNAS", "XNYS", "XASE", "ARCX", "BATS", "XNCM", "XNGS", "XNMS"
+        ]
+        let transport = ScriptedHTTPTransport(recognized.map { _ in
+            .response(status: 200, body: #"{"close":"12.5","timestamp":1768435200}"#)
+        })
+        let client = try await makeClient(transport: transport, minuteLimit: 100)
+
+        for (index, mic) in recognized.enumerated() {
+            let instrument = MarketInstrument(
+                id: UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", 6_100 + index))!,
+                symbol: "SYN\(index)",
+                mic: mic,
+                currency: .usd,
+                displayName: "Synthetic US MIC \(mic)"
+            )
+            let quote = try await client.latestQuote(for: instrument)
+            #expect(quote.instrument.mic == mic)
+        }
+
+        let capabilities = await client.capabilities()
+        let us = capabilities.markets.first { $0.mic == "US" }
+        #expect(us?.liveObservation == .succeeded)
+        #expect(us?.liveObservedMICs == recognized.sorted())
+        #expect(capabilities.markets.filter { recognized.contains($0.mic) }.isEmpty)
+        #expect(capabilities.entitlement == .unknown)
+        #expect(capabilities.observedPlanName == nil)
+    }
+
+    @Test("An unknown four-character MIC is preserved but never guessed to be US")
+    func unknownMICDoesNotAggregateToUS() async throws {
+        let transport = ScriptedHTTPTransport([
+            .response(status: 200, body: #"{"close":"12.5","timestamp":1768435200}"#)
+        ])
+        let client = try await makeClient(transport: transport)
+        let unknown = MarketInstrument(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000006199")!,
+            symbol: "SYN-UNKNOWN",
+            mic: "XZZZ",
+            currency: .usd,
+            displayName: "Synthetic Unknown MIC"
+        )
+
+        let quote = try await client.latestQuote(for: unknown)
+        let capabilities = await client.capabilities()
+
+        #expect(quote.instrument.mic == "XZZZ")
+        #expect(capabilities.markets.first { $0.mic == "US" }?.liveObservation == .notVerified)
+        #expect(capabilities.markets.contains { $0.mic == "XZZZ" } == false)
+        #expect(capabilities.endpointCapabilities.first {
+            $0.endpoint == .latestQuote
+        }?.liveObservation == .succeeded)
+    }
+
     @Test("Unsupported currencies before or after an accepted row do not poison Search")
     func searchIsolatesOutOfScopeCurrencies() async throws {
         let accepted = #"{"symbol":"AAPL","instrument_name":"Apple Synthetic","mic_code":"XNAS","currency":"USD"}"#
@@ -1184,7 +1316,7 @@ struct MarketDataInfrastructureTests {
         await #expect(throws: ProviderBoundaryError.cancelled) { _ = try await request.value }
         for _ in 0..<100 {
             if await client.transportTaskCount() == 0 { break }
-            await Task.yield()
+            try await Task.sleep(for: .milliseconds(1))
         }
         #expect(await client.transportTaskCount() == 0)
     }
