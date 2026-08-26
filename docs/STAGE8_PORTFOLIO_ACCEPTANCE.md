@@ -1,6 +1,6 @@
 # Stage 8 Portfolio Acceptance
 
-**Status:** Stage 8 Portfolio Implementation Candidate — Awaiting Reviewer Gate  
+**Status:** Stage 8A PARTIAL — Awaiting Reviewer Gate  
 **Implementation date:** 2026-08-26  
 **Authority:** This document records Stage 8 implementation and synthetic verification evidence. It does not decide the Stage 8 Gate or authorize Stage 9.
 
@@ -73,11 +73,11 @@ Preferences persist only normalized symbol, raw MIC, and UI range. Provider desc
 | AI/LLM/Python/Broker sync | Not implemented |
 | Stage 9 metrics | Not implemented |
 
-## 8. Verification evidence
+## 8. Initial Stage 8 verification evidence (historical)
 
 The Stage 8 focused suite covers FIFO lots, fees, Opening Lots, Manual Split, oversell and historical mutation rollback, stable same-day order, checked arithmetic, CNY/USD FX provenance, fresh and v1–v5 migration, CRUD/reopen/delete isolation, same-date snapshot replacement, identifier-only preferences, exact-overlap Benchmark normalization, and a deterministic 10,000-activity replay.
 
-Current execution evidence:
+Prompt 8 execution evidence, retained as historical input to the Stage 8A repair:
 
 | Verification | Result |
 |---|---|
@@ -93,10 +93,55 @@ Current execution evidence:
 
 The Portfolio UI run did verify that the Portfolio page, CNY NAV summary, synthetic holding, native NAV chart and table, P&L heatmap, and explicit Benchmark control were independently queryable before the disclosure assertion. The attempted minimal native Accessibility-label repair compiled but did not close that assertion, so the failure is retained rather than bypassed or retried again.
 
-The deterministic 10,000-activity FIFO replay completed in 1.484 seconds in the final full Unit run. Separate measured runs for the requested 100-holding summary, 5,000-snapshot chart preparation, repeated Portfolio switching, and idle CPU/memory observation were not completed and remain `NOT RUN`.
+In Prompt 8, the deterministic 10,000-activity FIFO replay completed in 1.484 seconds in the final full Unit run. At that historical checkpoint, separate measured runs for the requested 100-holding summary, 5,000-snapshot chart preparation, repeated Portfolio switching, and idle CPU/memory observation were `NOT RUN`; Section 11 records the later Stage 8A measurements.
 
 Synthetic tests, builds, or UI visibility are implementation evidence only and do not expand live Provider capability.
 
 ## 9. Gate boundary
 
-This is **Stage 8 Portfolio Implementation Candidate — Awaiting Reviewer Gate**. The current implementation evidence is `PARTIAL` because the Portfolio disclosure Accessibility assertion and several requested performance measurements remain open. This document does not declare Stage 8 `PASS`, enter Stage 9, claim V1/Release readiness, enable persistent Twelve Data writes, or change retention from `BLOCKED`.
+This is **Stage 8A PARTIAL — Awaiting Reviewer Gate**. Stage 8A closes the disclosure split, holding-summary scan, and required performance-evidence implementation work, but bounded Portfolio and existing focused UI failures remain. This document does not declare Stage 8 `PASS`, enter Stage 9, claim V1/Release readiness, enable persistent Twelve Data writes, or change retention from `BLOCKED`.
+
+## 10. Stage 8A disclosure and holding-summary repair
+
+The fixed Provider policy and dynamic Benchmark state are now independent native semantics:
+
+- `portfolio.disclosure` always states: `Portfolio records are local and use Manual Wealth Marks. No Provider request is made automatically.`
+- `portfolio.benchmark.disclosure` alone changes for not-loaded, loaded, offline, timeout, missing, denied, or cleared Benchmark session state.
+- Portfolio selection, Benchmark success/failure/clear, and session clearing do not overwrite the fixed policy.
+- Neither node forwards raw Provider errors or establishes Plan, freshness, or entitlement evidence.
+
+One holding-summary operation now reads ordered links once, activities once, and the relevant Wealth records in one queue read. It performs FIFO replay once, establishes the activity-to-security map once, groups remaining lots and realized results once, and limits each holding to its own groups. Link order, raw MIC, quantity, original/CNY basis, realized/unrealized P&L, mark/FX provenance, reconciliation, NAV, and final weight semantics remain unchanged. No new Store, cache, singleton, telemetry, or Provider request was introduced.
+
+## 11. Stage 8A performance evidence
+
+All workloads used deterministic synthetic data and an optimized unsigned Release test product. The signed Release host was also attempted and retained: 17 tests executed, of which six failed solely because the signed host could not create its isolated `/private/tmp/AureusTests` files. The stable unsigned host then completed the business suite.
+
+| Workload | Method | Observed result |
+|---|---|---|
+| 10,000-activity FIFO replay | 1 warm-up, 5 measured full replays | 15.889–17.885 ms elapsed; p50 3.212–3.270 ms; p95 3.283–4.265 ms |
+| Append Buy after 10,000 | 1 complete replay | 3.407–3.608 ms; quantity/basis assertions passed |
+| Append Sell after 10,000 | 1 complete replay | 3.216–3.700 ms; quantity/basis/P&L assertions passed |
+| 100 holdings summary/allocation/heatmap | 1 warm-up, 7 complete iterations | 201.624–204.457 ms elapsed; p50 28.545–29.209 ms; p95 29.441–29.622 ms |
+| 5,000 NAV snapshots | 1 complete sort/chart/table/exact-overlap preparation | 173.031–210.005 ms; all 5,000 retained |
+| 10 Portfolios / 100 switches | 100 selection/reload operations | 203.184–310.550 ms; final selection and isolation assertions passed |
+| Synthetic Demo Portfolio idle | `top`, 6 one-second samples after semantic navigation | 0.0% CPU and 74 MiB for every sample |
+
+Single-iteration workloads report p95 as `NOT AVAILABLE`. The small ranges above reflect two parallel XCTest worker copies emitted by the same final focused run; both are retained. The original `< 10 seconds` replay guard passed. No post-hoc hard limit was invented.
+
+## 12. Stage 8A current verification
+
+| Verification | Result |
+|---|---|
+| Stage 8A focused Unit/Integration | `PASS` — 17/17 definitions |
+| Stage 6/7 focused regression | `PASS` — 107 definitions / 116 executions |
+| Full `AureusTests` | `PASS` — 227 definitions / 260 executions |
+| Final Debug arm64 clean build | `PASS` |
+| Final build-for-testing | `PASS` |
+| Portfolio focused UI, first business execution | `FAIL` — 0/1; create verification could not find the new Portfolio by static text |
+| Portfolio focused UI, final bounded execution | `FAIL` — 0/1; `portfolio.summary.name` existed but its AX label did not contain the created name |
+| Existing focused UI, initial run | `PARTIAL` — 3/5; Ledger Dynamic and Markets failed |
+| Existing focused UI, bounded retry | `FAIL` — 0/2; Ledger Picker selection and Markets synthetic Search result failed |
+| Full `AureusUITests` | `NOT RUN` — gated on Portfolio focused UI final PASS |
+| Real Provider requests | `NOT RUN` |
+
+Both Portfolio UI executions reached the Portfolio page, CNY NAV, synthetic holding, NAV chart/table, heatmap, Benchmark control, and both disclosure nodes before failing. Because the required CRUD/reorder/delete/Production-isolation tail did not execute to completion and the two-business-run budget is exhausted, Stage 8A remains `PARTIAL`. Synthetic evidence does not expand live Provider capability. Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 9 remains `NO-GO`.

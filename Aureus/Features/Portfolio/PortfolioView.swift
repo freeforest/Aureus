@@ -140,8 +140,9 @@ struct PortfolioView: View {
                     holdingsSection
                     visualizationSection
                     benchmarkSection
-                    Text(model.disclosure).font(.caption).foregroundStyle(.secondary)
-                        .accessibilityLabel(model.disclosure)
+                    Text(model.providerPolicyDisclosure).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(model.providerPolicyDisclosure)
                         .accessibilityIdentifier("portfolio.disclosure")
                 }
                 .padding(18)
@@ -344,6 +345,12 @@ struct PortfolioView: View {
                 }
                 Text("Benchmark state: \(String(describing: model.state))")
                     .accessibilityIdentifier("portfolio.benchmark.state")
+                Text(model.benchmarkDisclosure)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(model.benchmarkDisclosure)
+                    .accessibilityIdentifier("portfolio.benchmark.disclosure")
                 if !model.benchmarkComparison.isEmpty {
                     Text("Indexed comparison — base 100").font(.headline)
                     Chart(model.benchmarkComparison, id: \.date) { point in

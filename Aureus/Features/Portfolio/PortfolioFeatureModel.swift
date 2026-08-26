@@ -51,6 +51,9 @@ enum PortfolioTerminalState: Equatable, Sendable {
 @MainActor
 @Observable
 final class PortfolioFeatureModel {
+    static let stableProviderPolicyDisclosure = "Portfolio records are local and use Manual Wealth Marks. No Provider request is made automatically."
+    static let benchmarkNotLoadedDisclosure = "Benchmark session data not loaded."
+
     let mode: AppDataMode
     private(set) var state: PortfolioTerminalState = .idle
     private(set) var portfolios: [PortfolioRecord] = []
@@ -63,7 +66,7 @@ final class PortfolioFeatureModel {
     private(set) var benchmarkPreference: PortfolioBenchmarkPreference?
     private(set) var benchmarkComparison: [PortfolioIndexedPoint] = []
     private(set) var errorMessage: String?
-    private(set) var disclosure = "Portfolio records are local and use Manual Wealth Marks. No Provider request is made automatically."
+    private(set) var benchmarkDisclosure = PortfolioFeatureModel.benchmarkNotLoadedDisclosure
     var pendingPortfolioDeletion: PortfolioRecord?
 
     private let store: WealthStore
@@ -93,6 +96,8 @@ final class PortfolioFeatureModel {
     var selectedPortfolio: PortfolioRecord? {
         portfolios.first { $0.id == selectedPortfolioID }
     }
+
+    var providerPolicyDisclosure: String { Self.stableProviderPolicyDisclosure }
 
     var totalNAV: Money {
         (try? holdings.map(\.marketValueCNY).reduce(Money(minorUnits: 0, currency: .cny)) { try $0.adding($1) })
@@ -124,6 +129,7 @@ final class PortfolioFeatureModel {
         generation = UUID()
         selectedPortfolioID = id
         benchmarkComparison = []
+        benchmarkDisclosure = Self.benchmarkNotLoadedDisclosure
         await reload(selecting: id)
     }
 
@@ -238,12 +244,14 @@ final class PortfolioFeatureModel {
             try await preferences.save(value, for: portfolioID)
             benchmarkPreference = value
             benchmarkComparison = []
+            benchmarkDisclosure = Self.benchmarkNotLoadedDisclosure
         } catch { errorMessage = "Benchmark preference requires a symbol and four-character raw MIC." }
     }
 
     func loadSessionBenchmark() {
         guard let preference = benchmarkPreference else {
             state = .benchmarkMissing
+            benchmarkDisclosure = Self.benchmarkNotLoadedDisclosure
             return
         }
         benchmarkTask?.cancel()
@@ -274,21 +282,38 @@ final class PortfolioFeatureModel {
                     snapshots: self.snapshots, benchmark: window.filter(page.bars)
                 )
                 self.state = .benchmarkReady
-                self.disclosure = "Indexed comparison — base 100. Session-only; exact overlapping civil dates only."
+                self.benchmarkDisclosure = "Indexed comparison — base 100. Session-only; exact overlapping civil dates only."
             } catch let error as ProviderBoundaryError {
                 guard self.generation == operationGeneration else { return }
-                switch error {
-                case .missingCredential, .missing: self.state = .benchmarkMissing
-                case .offline: self.state = .benchmarkOffline
-                case .timeout: self.state = .benchmarkTimeout
-                case .invalidOrExpired, .unsupportedEntitlement, .unsupportedMarket, .upgradeRequired: self.state = .benchmarkDenied
-                default: self.state = .error
-                }
+                self.applyBenchmarkFailure(error)
             } catch {
                 guard self.generation == operationGeneration else { return }
                 self.state = .benchmarkMissing
+                self.benchmarkDisclosure = Self.benchmarkNotLoadedDisclosure
                 self.errorMessage = "Benchmark comparison needs at least two exact overlapping dates."
             }
+        }
+    }
+
+    /// Applies only the finite, sanitized presentation state for an already typed
+    /// Provider boundary error. It never forwards raw Provider text.
+    func applyBenchmarkFailure(_ error: ProviderBoundaryError) {
+        switch error {
+        case .missingCredential, .missing:
+            state = .benchmarkMissing
+            benchmarkDisclosure = Self.benchmarkNotLoadedDisclosure
+        case .offline:
+            state = .benchmarkOffline
+            benchmarkDisclosure = "Benchmark unavailable offline."
+        case .timeout:
+            state = .benchmarkTimeout
+            benchmarkDisclosure = "Benchmark request timed out. Session data was not loaded."
+        case .invalidOrExpired, .unsupportedEntitlement, .unsupportedMarket, .upgradeRequired:
+            state = .benchmarkDenied
+            benchmarkDisclosure = "Benchmark requires current entitlement."
+        default:
+            state = .error
+            benchmarkDisclosure = "Benchmark session data is unavailable."
         }
     }
 
@@ -296,6 +321,7 @@ final class PortfolioFeatureModel {
         benchmarkTask?.cancel()
         generation = UUID()
         benchmarkComparison = []
+        benchmarkDisclosure = Self.benchmarkNotLoadedDisclosure
         _ = try? await marketDataService.clearSessionMarketData()
         state = portfolios.isEmpty ? .empty : .ready
     }

@@ -227,6 +227,386 @@ struct PortfolioTerminalTests {
         #expect(elapsed < .seconds(10))
     }
 
+    @Test("Provider policy remains stable while Benchmark disclosure changes independently")
+    @MainActor
+    func disclosureSemantics() async throws {
+        let successful = try await makeFeatureModel(scenario: .success, withBenchmarkSnapshots: true)
+        defer { try? FileManager.default.removeItem(at: successful.root) }
+        await successful.model.start()
+        let policy = successful.model.providerPolicyDisclosure
+        #expect(policy.contains("No Provider request"))
+        #expect(successful.model.benchmarkDisclosure == PortfolioFeatureModel.benchmarkNotLoadedDisclosure)
+        await successful.model.saveBenchmark(symbol: "SYN-CNY", rawMIC: "XSYN", range: .maximum)
+        successful.model.loadSessionBenchmark()
+        try await waitForBenchmarkTerminal(successful.model)
+        #expect(successful.model.state == .benchmarkReady)
+        #expect(successful.model.benchmarkDisclosure.contains("Indexed comparison"))
+        #expect(successful.model.providerPolicyDisclosure == policy)
+        await successful.model.clearSessionBenchmark()
+        #expect(successful.model.benchmarkDisclosure == PortfolioFeatureModel.benchmarkNotLoadedDisclosure)
+        #expect(successful.model.providerPolicyDisclosure == policy)
+
+        for scenario in [SyntheticProviderScenario.unsupported, .offline] {
+            let candidate = try await makeFeatureModel(scenario: scenario, withBenchmarkSnapshots: false)
+            defer { try? FileManager.default.removeItem(at: candidate.root) }
+            await candidate.model.start()
+            await candidate.model.saveBenchmark(symbol: "SYN-CNY", rawMIC: "XSYN", range: .maximum)
+            candidate.model.loadSessionBenchmark()
+            try await waitForBenchmarkTerminal(candidate.model)
+            #expect(candidate.model.providerPolicyDisclosure == policy)
+            if scenario == .unsupported {
+                #expect(candidate.model.state == .benchmarkDenied)
+                #expect(candidate.model.benchmarkDisclosure == "Benchmark requires current entitlement.")
+            } else {
+                // With no stale session baseline, MarketDataService deliberately
+                // contracts a recoverable offline failure to typed missing.
+                #expect(candidate.model.state == .benchmarkMissing)
+                #expect(candidate.model.benchmarkDisclosure == PortfolioFeatureModel.benchmarkNotLoadedDisclosure)
+                candidate.model.applyBenchmarkFailure(.offline)
+                #expect(candidate.model.state == .benchmarkOffline)
+                #expect(candidate.model.benchmarkDisclosure == "Benchmark unavailable offline.")
+            }
+            #expect(candidate.model.providerPolicyDisclosure == policy)
+        }
+    }
+
+    @Test("One grouped summary pass preserves 100 holding semantics and deterministic order")
+    func groupedHoldingSummaries() async throws {
+        let fixture = try await makeHundredHoldingFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        let warmup = try await fixture.store.portfolioHoldingSummaries(portfolioID: fixture.portfolioID)
+        #expect(warmup.count == 100)
+        #expect(warmup.map(\.link.sortOrder) == Array(0..<100))
+        #expect(warmup.filter { $0.reconciliation == .matched }.count == 50)
+        #expect(warmup.filter { $0.reconciliation == .quantityMismatch }.count == 50)
+        #expect(warmup.contains { $0.link.currency == .cny })
+        #expect(warmup.contains { $0.link.currency == .usd })
+        #expect(warmup.allSatisfy { $0.realizedCNYPnL.minorUnits != 0 })
+
+        var samples: [Double] = []
+        for _ in 0..<7 {
+            let started = ContinuousClock.now
+            let values = try await fixture.store.portfolioHoldingSummaries(portfolioID: fixture.portfolioID)
+            samples.append(milliseconds(started.duration(to: .now)))
+            #expect(values == warmup)
+            #expect(try checkedNAV(values).minorUnits > 0)
+            #expect(try allocationInputs(values).assetKindTotal == checkedNAV(values))
+            #expect(try allocationInputs(values).currencyTotal == checkedNAV(values))
+            #expect(heatmapInputs(values).count == 100)
+        }
+        let reopened = try WealthStore(databaseURL: fixture.databaseURL)
+        #expect(try await reopened.portfolioHoldingSummaries(portfolioID: fixture.portfolioID) == warmup)
+        printPerformance("100-holdings-summary-allocation-heatmap", samples: samples, warmups: 1)
+    }
+
+    @Test("Stage 8A full-size synthetic performance workloads")
+    func stage8APerformanceWorkloads() throws {
+        let context = try Context()
+        let history = try (0..<10_000).map { index in
+            try context.trade(.buy, quantity: "1", price: "1", fee: "0", milliseconds: Int64(index))
+        }
+        _ = try PortfolioFIFOEngine.replay(history)
+        var replaySamples: [Double] = []
+        for _ in 0..<5 {
+            let started = ContinuousClock.now
+            let result = try PortfolioFIFOEngine.replay(history)
+            replaySamples.append(milliseconds(started.duration(to: .now)))
+            #expect(result.lots.count == 10_000)
+        }
+        printPerformance("10000-replay", samples: replaySamples, warmups: 1)
+        #expect(replaySamples.allSatisfy { $0 < 10_000 })
+
+        let appendedBuy = try context.trade(.buy, quantity: "2", price: "2", fee: "1", milliseconds: 10_001)
+        let buyStart = ContinuousClock.now
+        let buyResult = try PortfolioFIFOEngine.replay(history + [appendedBuy])
+        let buyElapsed = milliseconds(buyStart.duration(to: .now))
+        #expect(buyResult.lots.count == 10_001)
+        #expect(try buyResult.quantity(for: context.linkID).decimal == Decimal(10_002))
+        printPerformance("10000-plus-buy-full-replay", samples: [buyElapsed], warmups: 0)
+
+        let appendedSell = try context.trade(.sell, quantity: "1", price: "3", fee: "1", milliseconds: 10_001)
+        let sellStart = ContinuousClock.now
+        let sellResult = try PortfolioFIFOEngine.replay(history + [appendedSell])
+        let sellElapsed = milliseconds(sellStart.duration(to: .now))
+        #expect(sellResult.realized.count == 1)
+        #expect(try sellResult.quantity(for: context.linkID).decimal == Decimal(9_999))
+        #expect(sellResult.realized[0].originalPnL.minorUnits == 100)
+        printPerformance("10000-plus-sell-full-replay", samples: [sellElapsed], warmups: 0)
+
+        let snapshots = try makeFiveThousandSnapshots(portfolioID: context.portfolioID)
+        let benchmark = try makeBenchmarkBars(for: snapshots.map(\.civilDate))
+        let snapshotStart = ContinuousClock.now
+        let sorted = snapshots.sorted { $0.civilDate < $1.civilDate }
+        let chartValues = sorted.map { NSDecimalNumber(decimal: $0.totalCNY.decimal).doubleValue }
+        let accessibleRows = sorted.map { "\($0.civilDate.description)|CNY \($0.totalCNY.minorUnits)|Complete" }
+        let comparison = try PortfolioBenchmarkComparison.indexed100(snapshots: sorted, benchmark: benchmark)
+        let snapshotElapsed = milliseconds(snapshotStart.duration(to: .now))
+        #expect(sorted.count == 5_000)
+        #expect(chartValues.count == 5_000 && chartValues.allSatisfy(\.isFinite))
+        #expect(accessibleRows.count == 5_000)
+        #expect(comparison.count == 5_000)
+        printPerformance("5000-snapshot-chart-table-overlap", samples: [snapshotElapsed], warmups: 0)
+    }
+
+    @Test("One hundred Portfolio selections remain isolated and make no Provider request")
+    @MainActor
+    func repeatedPortfolioSwitching() async throws {
+        let fixture = try await makeSwitchingFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        await fixture.model.start()
+        let started = ContinuousClock.now
+        for index in 0..<100 {
+            await fixture.model.select(fixture.portfolioIDs[index % fixture.portfolioIDs.count])
+        }
+        let elapsed = milliseconds(started.duration(to: .now))
+        #expect(fixture.model.selectedPortfolioID == fixture.portfolioIDs[9])
+        #expect(fixture.model.holdings.count == 1)
+        #expect(fixture.model.snapshots.count == 1)
+        #expect(fixture.model.providerPolicyDisclosure == PortfolioFeatureModel.stableProviderPolicyDisclosure)
+        let requests = await fixture.provider.requestCounts()
+        #expect(requests.search == 0 && requests.history == 0)
+        printPerformance("10-portfolios-100-selection-reloads", samples: [elapsed], warmups: 0)
+    }
+
+    @MainActor
+    private func makeFeatureModel(
+        scenario: SyntheticProviderScenario,
+        withBenchmarkSnapshots: Bool
+    ) async throws -> (model: PortfolioFeatureModel, root: URL) {
+        let root = try temporaryDirectory()
+        let databaseURL = root.appendingPathComponent("permanent.sqlite")
+        let store = try WealthStore(databaseURL: databaseURL)
+        let portfolio = try PortfolioRecord(name: "Synthetic Disclosure", createdAt: instant, updatedAt: instant, sortOrder: 0)
+        try await store.createPortfolio(portfolio)
+        let wealth = try makeSecurityWealth(index: 0, currency: .cny, wealthQuantity: 10)
+        try await store.createWealthContainer(wealth)
+        let link = try PortfolioSecurityLink(
+            portfolioID: portfolio.id, wealthContainerID: wealth.id, symbol: "S000", rawMIC: "XSYN",
+            currency: .cny, assetKind: .stock, sortOrder: 0
+        )
+        try await store.linkPortfolioSecurity(link)
+        let context = try Context(portfolioID: portfolio.id, linkID: link.id, currency: .cny)
+        try await store.createPortfolioActivity(context.opening(quantity: "10", cost: "100"))
+        if withBenchmarkSnapshots {
+            let holding = try await store.portfolioHoldingSummaries(portfolioID: portfolio.id)[0]
+            for value in ["2025-11-27", "2025-11-28"] {
+                let item = PortfolioNAVSnapshotItem(
+                    id: UUID(), securityLinkID: link.id, quantity: holding.portfolioQuantity,
+                    manualMark: holding.manualMark, originalMarketValue: holding.marketValue,
+                    fx: holding.wealthFX, convertedCNYValue: holding.marketValueCNY,
+                    remainingCNYBasis: holding.remainingCNYBasis, reconciliation: holding.reconciliation
+                )
+                try await store.replacePortfolioNAVSnapshot(PortfolioNAVSnapshot(
+                    id: UUID(), portfolioID: portfolio.id, civilDate: try CivilDate(canonical: value),
+                    createdAt: instant, totalCNY: holding.marketValueCNY, isComplete: true, items: [item]
+                ))
+            }
+        }
+        let fixed = FixedClock(instant: try utcInstant("2025-11-28"))
+        let session = TransientMarketSessionStore()
+        let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("market.sqlite"))
+        let service = MarketDataService(
+            marketProvider: SyntheticMarketDataProvider(scenario: scenario, clock: fixed),
+            fxProvider: SyntheticFXRateProvider(clock: fixed), cache: cache, sessionStore: session, clock: fixed
+        )
+        return (PortfolioFeatureModel(
+            store: store, marketDataService: service, marketSessionStore: session,
+            preferences: PortfolioPreferencesStore(suiteName: nil, memoryOnly: true),
+            clock: fixed, mode: .syntheticDemo
+        ), root)
+    }
+
+    @MainActor
+    private func waitForBenchmarkTerminal(_ model: PortfolioFeatureModel) async throws {
+        for _ in 0..<100 where model.state == .loadingBenchmark {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(model.state != .loadingBenchmark)
+    }
+
+    private func makeHundredHoldingFixture() async throws -> (
+        root: URL, databaseURL: URL, store: WealthStore, portfolioID: UUID
+    ) {
+        let root = try temporaryDirectory()
+        let databaseURL = root.appendingPathComponent("permanent.sqlite")
+        let store = try WealthStore(databaseURL: databaseURL)
+        let portfolio = try PortfolioRecord(name: "Synthetic 100 Holdings", createdAt: instant, updatedAt: instant, sortOrder: 0)
+        try await store.createPortfolio(portfolio)
+        for index in 0..<100 {
+            let currency: CurrencyCode = index.isMultiple(of: 2) ? .cny : .usd
+            let wealthQuantity = index.isMultiple(of: 2) ? Decimal(8) : Decimal(7)
+            let wealth = try makeSecurityWealth(index: index, currency: currency, wealthQuantity: wealthQuantity)
+            try await store.createWealthContainer(wealth)
+            let link = try PortfolioSecurityLink(
+                portfolioID: portfolio.id, wealthContainerID: wealth.id,
+                symbol: String(format: "S%03d", index), rawMIC: "XSYN", currency: currency,
+                assetKind: wealth.container.kind, sortOrder: index
+            )
+            try await store.linkPortfolioSecurity(link)
+            let context = try Context(portfolioID: portfolio.id, linkID: link.id, currency: currency)
+            try await store.createPortfolioActivity(context.opening(quantity: "10", cost: "100"))
+            try await store.createPortfolioActivity(context.trade(.sell, quantity: "1", price: "15", fee: "1", milliseconds: 1))
+            try await store.createPortfolioActivity(context.trade(.sell, quantity: "1", price: "16", fee: "1", milliseconds: 2))
+        }
+        return (root, databaseURL, store, portfolio.id)
+    }
+
+    private func makeSecurityWealth(index: Int, currency: CurrencyCode, wealthQuantity: Decimal) throws -> WealthContainer {
+        let quantity = try AssetQuantity(decimal: wealthQuantity)
+        let price = try MarketPrice(decimal: 20, quoteCurrency: currency)
+        let details = WealthRecordDetails.security(
+            ticker: String(format: "S%03d", index), mic: "XSYN", quantity: quantity, manualPrice: price
+        )
+        let original = try details.currentValue()
+        let manualFX: ManualFXInput? = currency == .usd
+            ? try ManualFXInput(
+                rate: FXRate(decimal: Decimal(string: "7.125")!, sourceCurrency: .usd, targetCurrency: .cny),
+                source: "manual.synthetic.stage8a", referenceDate: date, recordedAt: instant, isStale: false
+            )
+            : nil
+        let valuation = try WealthValuation.valuation(
+            original: original, manualFX: manualFX, identityDate: date, recordedAt: instant
+        )
+        let id = UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", index + 1))!
+        let kinds: [AssetContainerKind] = [.stock, .etf, .fund]
+        return try WealthContainer(
+            container: AssetContainer(
+                id: id, accountID: nil, name: "Synthetic Security \(index)", kind: kinds[index % kinds.count],
+                institution: "Synthetic Broker", primaryCurrency: currency,
+                notes: "Synthetic Stage 8A performance fixture", createdDate: date, updatedDate: date
+            ),
+            details: details,
+            valuation: valuation
+        )
+    }
+
+    private func checkedNAV(_ holdings: [PortfolioHoldingSummary]) throws -> Money {
+        try holdings.map(\.marketValueCNY).reduce(Money(minorUnits: 0, currency: .cny)) { try $0.adding($1) }
+    }
+
+    private func allocationInputs(_ holdings: [PortfolioHoldingSummary]) throws -> (
+        assetKindTotal: Money, currencyTotal: Money
+    ) {
+        var assetTotal = Money(minorUnits: 0, currency: .cny)
+        for kind in [AssetContainerKind.stock, .etf, .fund] {
+            let subtotal = try holdings.filter { $0.link.assetKind == kind }.map(\.marketValueCNY)
+                .reduce(Money(minorUnits: 0, currency: .cny)) { try $0.adding($1) }
+            assetTotal = try assetTotal.adding(subtotal)
+        }
+        var currencyTotal = Money(minorUnits: 0, currency: .cny)
+        for currency in CurrencyCode.allCases {
+            let subtotal = try holdings.filter { $0.link.currency == currency }.map(\.marketValueCNY)
+                .reduce(Money(minorUnits: 0, currency: .cny)) { try $0.adding($1) }
+            currencyTotal = try currencyTotal.adding(subtotal)
+        }
+        return (assetTotal, currencyTotal)
+    }
+
+    private func heatmapInputs(_ holdings: [PortfolioHoldingSummary]) -> [String] {
+        holdings.map { "\($0.link.stableIdentity)|\($0.unrealizedCNYPnL.minorUnits.signum())" }
+    }
+
+    private func makeFiveThousandSnapshots(portfolioID: UUID) throws -> [PortfolioNAVSnapshot] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = calendar.date(from: DateComponents(year: 2010, month: 1, day: 1))!
+        return try (0..<5_000).map { index in
+            let day = calendar.date(byAdding: .day, value: index, to: start)!
+            let parts = calendar.dateComponents([.year, .month, .day], from: day)
+            return PortfolioNAVSnapshot(
+                id: UUID(), portfolioID: portfolioID,
+                civilDate: try CivilDate(year: parts.year!, month: parts.month!, day: parts.day!),
+                createdAt: instant, totalCNY: Money(minorUnits: Int64(10_000 + index), currency: .cny),
+                isComplete: true, items: []
+            )
+        }
+    }
+
+    private func makeBenchmarkBars(for dates: [CivilDate]) throws -> [MarketOHLCVBar] {
+        try dates.enumerated().map { index, day in
+            let price = try MarketQuotePrice(decimal: Decimal(100 + index), quoteCurrency: .cny)
+            return try MarketOHLCVBar(
+                sessionDate: day, openedAt: nil, open: price, high: price, low: price, close: price,
+                volume: nil, adjustment: .all, providerIdentifier: "synthetic.stage8a",
+                fetchedAt: instant, freshness: .unknown
+            )
+        }
+    }
+
+    @MainActor
+    private func makeSwitchingFixture() async throws -> (
+        root: URL, model: PortfolioFeatureModel, provider: Stage8ANoRequestMarketProvider, portfolioIDs: [UUID]
+    ) {
+        let root = try temporaryDirectory()
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent.sqlite"))
+        var ids: [UUID] = []
+        for index in 0..<10 {
+            let portfolio = try PortfolioRecord(name: "Synthetic Switch \(index)", createdAt: instant, updatedAt: instant, sortOrder: index)
+            try await store.createPortfolio(portfolio)
+            ids.append(portfolio.id)
+            let wealth = try makeSecurityWealth(index: index, currency: .cny, wealthQuantity: 1)
+            try await store.createWealthContainer(wealth)
+            let link = try PortfolioSecurityLink(
+                portfolioID: portfolio.id, wealthContainerID: wealth.id,
+                symbol: String(format: "S%03d", index), rawMIC: "XSYN", currency: .cny,
+                assetKind: wealth.container.kind, sortOrder: 0
+            )
+            try await store.linkPortfolioSecurity(link)
+            let context = try Context(portfolioID: portfolio.id, linkID: link.id, currency: .cny)
+            try await store.createPortfolioActivity(context.opening(quantity: "1", cost: "10"))
+            let holding = try await store.portfolioHoldingSummaries(portfolioID: portfolio.id)[0]
+            let item = PortfolioNAVSnapshotItem(
+                id: UUID(), securityLinkID: link.id, quantity: holding.portfolioQuantity,
+                manualMark: holding.manualMark, originalMarketValue: holding.marketValue,
+                fx: holding.wealthFX, convertedCNYValue: holding.marketValueCNY,
+                remainingCNYBasis: holding.remainingCNYBasis, reconciliation: holding.reconciliation
+            )
+            try await store.replacePortfolioNAVSnapshot(PortfolioNAVSnapshot(
+                id: UUID(), portfolioID: portfolio.id, civilDate: date, createdAt: instant,
+                totalCNY: holding.marketValueCNY, isComplete: true, items: [item]
+            ))
+        }
+        let provider = Stage8ANoRequestMarketProvider(now: instant)
+        let clock = FixedClock(instant: instant)
+        let session = TransientMarketSessionStore()
+        let service = MarketDataService(
+            marketProvider: provider, fxProvider: SyntheticFXRateProvider(clock: clock),
+            cache: try MarketCacheStore(databaseURL: root.appendingPathComponent("market.sqlite")),
+            sessionStore: session, clock: clock
+        )
+        return (root, PortfolioFeatureModel(
+            store: store, marketDataService: service, marketSessionStore: session,
+            preferences: PortfolioPreferencesStore(suiteName: nil, memoryOnly: true),
+            clock: clock, mode: .syntheticDemo
+        ), provider, ids)
+    }
+
+    private func utcInstant(_ canonical: String) throws -> UTCInstant {
+        let civil = try CivilDate(canonical: canonical)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return UTCInstant(date: calendar.date(from: DateComponents(year: civil.year, month: civil.month, day: civil.day))!)
+    }
+
+    private func milliseconds(_ duration: Duration) -> Double {
+        let parts = duration.components
+        return Double(parts.seconds) * 1_000 + Double(parts.attoseconds) / 1_000_000_000_000_000
+    }
+
+    private func printPerformance(_ name: String, samples: [Double], warmups: Int) {
+        let sorted = samples.sorted()
+        let elapsed = samples.reduce(0, +)
+        let p50 = sorted[sorted.count / 2]
+        let p95: String
+        if sorted.count >= 5 {
+            p95 = String(format: "%.3f", sorted[min(sorted.count - 1, Int((Double(sorted.count) * 0.95).rounded(.up)) - 1)])
+        } else {
+            p95 = "NOT AVAILABLE"
+        }
+        print(String(format: "STAGE8A_PERF %@ warmup=%d iterations=%d elapsed_ms=%.3f p50_ms=%.3f p95_ms=%@", name, warmups, samples.count, elapsed, p50, p95))
+    }
+
     private struct Context {
         let portfolioID: UUID
         let linkID: UUID
@@ -257,5 +637,52 @@ struct PortfolioTerminalTests {
                 civilDate: try CivilDate(canonical: "2026-01-15"), recordedAt: UTCInstant(millisecondsSince1970: 1_768_435_200_000 + milliseconds), exchangeTimeZoneIdentifier: "UTC",
                 payload: kind == .buy ? .buy(quantity: q, unitPrice: p, fee: f, fx: fx) : .sell(quantity: q, unitPrice: p, fee: f, fx: fx))
         }
+    }
+}
+
+private actor Stage8ANoRequestMarketProvider: MarketDataProvider {
+    nonisolated let descriptor = ProviderDescriptor(
+        identifier: "synthetic.stage8a.no-request",
+        displayName: "Synthetic Stage 8A No-request Provider",
+        kind: .synthetic
+    )
+    private let now: UTCInstant
+    private var searchRequests = 0
+    private var historyRequests = 0
+
+    init(now: UTCInstant) { self.now = now }
+
+    func capabilities() -> MarketProviderCapabilities {
+        MarketProviderCapabilities(
+            provider: descriptor, entitlement: .unknown, observedPlanName: nil,
+            markets: [], supportsSearch: false, supportsHistoricalPrices: false,
+            supportsCorporateActions: false, endpointCapabilities: [], observedAt: now
+        )
+    }
+
+    func search(query: String) async throws -> [MarketInstrument] {
+        searchRequests += 1
+        throw ProviderBoundaryError.missing
+    }
+
+    func latestQuote(for instrument: MarketInstrument) async throws -> MarketQuote {
+        throw ProviderBoundaryError.missing
+    }
+
+    func historicalBars(_ request: MarketHistoryRequest) async throws -> MarketHistoryPage {
+        historyRequests += 1
+        throw ProviderBoundaryError.missing
+    }
+
+    func corporateActions(
+        for instrument: MarketInstrument,
+        from startDate: CivilDate?,
+        through endDate: CivilDate?
+    ) async throws -> [MarketCorporateAction] {
+        throw ProviderBoundaryError.missing
+    }
+
+    func requestCounts() -> (search: Int, history: Int) {
+        (searchRequests, historyRequests)
     }
 }

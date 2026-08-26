@@ -173,19 +173,32 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.nav.table"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.pnl.heatmap"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.benchmark.load"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["portfolio.disclosure"].label.contains("No Provider request"))
+        let providerPolicy = app.descendants(matching: .any)["portfolio.disclosure"]
+        XCTAssertTrue(providerPolicy.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "portfolio.disclosure").count, 1)
+        XCTAssertTrue(providerPolicy.label.contains("No Provider request"))
+        let benchmarkDisclosure = app.descendants(matching: .any)["portfolio.benchmark.disclosure"]
+        XCTAssertTrue(benchmarkDisclosure.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "portfolio.benchmark.disclosure").count, 1)
+        XCTAssertTrue(benchmarkDisclosure.label.contains("Benchmark session data not loaded"))
 
         let name = app.descendants(matching: .any)["portfolio.create.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.click()
         name.typeText("Synthetic Second Portfolio")
         app.descendants(matching: .any)["portfolio.create"].click()
-        XCTAssertTrue(app.staticTexts["Synthetic Second Portfolio"].waitForExistence(timeout: 5))
-        app.descendants(matching: .any)["portfolio.move.up"].click()
+        let selectedName = app.descendants(matching: .any)["portfolio.summary.name"]
+        XCTAssertTrue(selectedName.waitForExistence(timeout: 5))
+        XCTAssertTrue(selectedName.label.contains("Synthetic Second Portfolio"))
+        let moveUp = app.descendants(matching: .any)["portfolio.move.up"]
+        XCTAssertTrue(moveUp.isEnabled)
+        moveUp.click()
+        XCTAssertFalse(app.descendants(matching: .any)["portfolio.move.up"].isEnabled)
         app.descendants(matching: .any)["portfolio.delete"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.delete.confirm"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["portfolio.delete.confirm"].click()
-        XCTAssertFalse(app.staticTexts["Synthetic Second Portfolio"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.summary.name"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["portfolio.summary.name"].label.contains("Synthetic Second Portfolio"))
 
         app.terminate()
         let production = XCUIApplication()

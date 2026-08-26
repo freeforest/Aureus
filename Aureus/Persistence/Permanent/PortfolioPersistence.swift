@@ -173,29 +173,80 @@ extension WealthStore {
     }
 
     func portfolioHoldingSummaries(portfolioID: UUID) throws -> [PortfolioHoldingSummary] {
-        let links = try fetchPortfolioSecurityLinks(portfolioID: portfolioID)
-        let replay = try portfolioReplay(portfolioID: portfolioID)
+        let inputs = try queue.read { db -> (
+            links: [PortfolioSecurityLink],
+            activities: [PortfolioActivity],
+            wealthByID: [UUID: WealthContainer]
+        ) in
+            let links = try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM portfolio_security_links WHERE portfolio_id = ? ORDER BY sort_order, id",
+                arguments: [portfolioID.uuidString]
+            ).map(Self.securityLinkDomain)
+            let activities = try Self.activities(portfolioID, in: db)
+            guard !links.isEmpty else { return (links, activities, [:]) }
+
+            let containerIDs = links.map { $0.wealthContainerID.uuidString }
+            let placeholders = Array(repeating: "?", count: containerIDs.count).joined(separator: ",")
+            let arguments = StatementArguments(containerIDs)
+            let containerRows = try AssetContainerPersistenceRow.fetchAll(
+                db,
+                sql: "SELECT * FROM asset_containers WHERE id IN (\(placeholders))",
+                arguments: arguments
+            )
+            let recordRows = try WealthRecordPersistenceRow.fetchAll(
+                db,
+                sql: "SELECT * FROM wealth_records WHERE container_id IN (\(placeholders))",
+                arguments: arguments
+            )
+            let recordsByContainer = Dictionary(uniqueKeysWithValues: recordRows.map { ($0.containerID, $0) })
+            let wealth = try containerRows.map { row -> WealthContainer in
+                guard let record = recordsByContainer[row.id] else {
+                    throw PortfolioPersistenceError.corruptRecord
+                }
+                return try record.domain(container: row.domain())
+            }
+            return (links, activities, Dictionary(uniqueKeysWithValues: wealth.map { ($0.id, $0) }))
+        }
+        let replay = try PortfolioFIFOEngine.replay(inputs.activities)
+        let activityLinkByID = Dictionary(uniqueKeysWithValues: inputs.activities.map { ($0.id, $0.securityLinkID) })
+        var lotsByLink: [UUID: [PortfolioLot]] = [:]
+        for lot in replay.lots { lotsByLink[lot.securityLinkID, default: []].append(lot) }
+        var realizedByLink: [UUID: [PortfolioRealizedResult]] = [:]
+        for result in replay.realized {
+            guard let linkID = activityLinkByID[result.activityID] else {
+                throw PortfolioPersistenceError.corruptRecord
+            }
+            realizedByLink[linkID, default: []].append(result)
+        }
+
         var drafts: [(PortfolioSecurityLink, AssetQuantity, AssetQuantity, Money, Money, Money, Money, MarketPrice, Money, Money, PortfolioFXProvenance, CivilDate)] = []
         var nav = Money(minorUnits: 0, currency: .cny)
-        for link in links {
-            guard let wealth = try fetchWealthContainer(id: link.wealthContainerID),
+        for link in inputs.links {
+            guard let wealth = inputs.wealthByID[link.wealthContainerID],
                   case let .security(ticker, mic, wealthQuantity, manualMark) = wealth.details,
                   ticker.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == link.symbol,
                   mic?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == link.rawMIC,
                   manualMark.quoteCurrency == link.currency else {
                 throw PortfolioPersistenceError.corruptRecord
             }
-            let quantity = try replay.quantity(for: link.id)
-            let originalBasis = try replay.lots.filter { $0.securityLinkID == link.id }
+            let linkLots = lotsByLink[link.id] ?? []
+            let quantityCoefficient = try linkLots.map(\.remainingQuantity.coefficient).reduce(Int64(0)) { partial, value in
+                let result = partial.addingReportingOverflow(value)
+                guard !result.overflow else { throw PortfolioDomainError.arithmeticOverflow }
+                return result.partialValue
+            }
+            let quantity = AssetQuantity(coefficient: quantityCoefficient)
+            let originalBasis = try linkLots
                 .map(\.remainingOriginalBasis)
                 .reduce(Money(minorUnits: 0, currency: link.currency)) { try $0.adding($1) }
-            let cnyBasis = try replay.lots.filter { $0.securityLinkID == link.id }
+            let cnyBasis = try linkLots
                 .map(\.remainingCNYBasis)
                 .reduce(Money(minorUnits: 0, currency: .cny)) { try $0.adding($1) }
-            let activities = try fetchPortfolioActivities(portfolioID: portfolioID)
-            let realizedOriginal = try replay.realized.filter { Self.activityBelongs($0.activityID, to: link.id, activities: activities) }
+            let linkRealized = realizedByLink[link.id] ?? []
+            let realizedOriginal = try linkRealized
                 .map(\.originalPnL).reduce(Money(minorUnits: 0, currency: link.currency)) { try $0.adding($1) }
-            let realizedCNY = try replay.realized.filter { Self.activityBelongs($0.activityID, to: link.id, activities: activities) }
+            let realizedCNY = try linkRealized
                 .map(\.cnyPnL).reduce(Money(minorUnits: 0, currency: .cny)) { try $0.adding($1) }
             let marketValue = try PortfolioCheckedMath.moneyProduct(quantity: quantity, price: manualMark)
             let wealthFX = try PortfolioFXProvenance(
@@ -409,10 +460,6 @@ extension WealthStore {
 
     private nonisolated static func validatePortfolioReplay(_ portfolioID: UUID, in db: Database) throws {
         _ = try PortfolioFIFOEngine.replay(activities(portfolioID, in: db))
-    }
-
-    private nonisolated static func activityBelongs(_ activityID: UUID, to linkID: UUID, activities: [PortfolioActivity]) -> Bool {
-        activities.first { $0.id == activityID }?.securityLinkID == linkID
     }
 
     private nonisolated static func snapshotItemDomain(_ row: Row) throws -> PortfolioNAVSnapshotItem {
