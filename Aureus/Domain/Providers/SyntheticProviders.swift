@@ -116,24 +116,32 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
 
     func historicalBars(_ request: MarketHistoryRequest) async throws -> MarketHistoryPage {
         try validateScenario()
-        let date = try CivilDate(year: 2026, month: 1, day: 15)
         let currency = request.instrument.currency
-        let bar = try MarketOHLCVBar(
-            sessionDate: date,
-            openedAt: nil,
-            open: MarketQuotePrice(coefficient: 10_000_000_000, quoteCurrency: currency),
-            high: MarketQuotePrice(coefficient: 11_000_000_000, quoteCurrency: currency),
-            low: MarketQuotePrice(coefficient: 9_000_000_000, quoteCurrency: currency),
-            close: MarketQuotePrice(coefficient: 10_500_000_000, quoteCurrency: currency),
-            volume: AssetQuantity(coefficient: 123_000_000_000),
-            adjustment: request.adjustment,
-            providerIdentifier: descriptor.identifier,
-            fetchedAt: clock.now(),
-            freshness: scenario == .stale ? .stale : .endOfDay
-        )
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = calendar.date(from: DateComponents(year: 2025, month: 8, day: 1))!
+        let allBars = try (0..<120).map { index in
+            let date = calendar.date(byAdding: .day, value: index, to: start)!
+            let parts = calendar.dateComponents([.year, .month, .day], from: date)
+            let close = Int64(10_000_000_000 + index * 21_000_000 + (index % 7) * 8_000_000)
+            return try MarketOHLCVBar(
+                sessionDate: CivilDate(year: parts.year!, month: parts.month!, day: parts.day!),
+                openedAt: nil,
+                open: MarketQuotePrice(coefficient: close - 12_000_000, quoteCurrency: currency),
+                high: MarketQuotePrice(coefficient: close + 31_000_000, quoteCurrency: currency),
+                low: MarketQuotePrice(coefficient: close - 37_000_000, quoteCurrency: currency),
+                close: MarketQuotePrice(coefficient: close, quoteCurrency: currency),
+                volume: AssetQuantity(coefficient: Int64(100_000_000_000 + index * 1_000_000_000)),
+                adjustment: request.adjustment,
+                providerIdentifier: descriptor.identifier,
+                fetchedAt: clock.now(),
+                freshness: scenario == .stale ? .stale : .endOfDay
+            )
+        }
+        let bars = Array(allBars.suffix(min(request.outputSize, allBars.count)))
         return MarketHistoryPage(
             instrument: request.instrument,
-            bars: [bar],
+            bars: bars,
             nextEndDate: nil,
             sourceRevision: "synthetic-v1",
             providerIdentifier: descriptor.identifier

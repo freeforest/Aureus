@@ -66,6 +66,15 @@ struct AppShellView: View {
                     clock: dependencies.clock,
                     mode: mode
                 )
+            } else if model.selection == .markets, let dependencies = model.dependencies {
+                MarketsView(
+                    marketDataService: dependencies.marketDataService,
+                    marketProvider: dependencies.marketDataProvider,
+                    sessionStore: dependencies.marketSessionStore,
+                    preferences: dependencies.marketPreferencesStore,
+                    clock: dependencies.clock,
+                    mode: mode
+                )
             } else if model.selection == .settings, let dependencies = model.dependencies {
                 SettingsView(
                     provider: dependencies.marketDataProvider,
@@ -96,7 +105,7 @@ private struct ModeBanner: View {
             Text(mode == .syntheticDemo ? "Synthetic Demo Mode" : "Local Data Mode")
                 .font(.subheadline.weight(.medium))
             Spacer()
-            Text("Stage 6 Market Infrastructure Candidate")
+            Text("Stage 7 Markets Terminal Implementation Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

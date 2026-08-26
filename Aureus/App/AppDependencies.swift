@@ -7,6 +7,7 @@ struct AppDependencies: Sendable {
     let marketDataProvider: any MarketDataProvider
     let fxRateProvider: any FXRateProvider
     let marketDataService: MarketDataService
+    let marketPreferencesStore: MarketPreferencesStore
     let credentialStore: any CredentialStore
     let credentialCoordinator: ProviderCredentialCoordinator
     let credentialStoragePolicy: ProductionCredentialStorage
@@ -23,6 +24,10 @@ struct AppDependencies: Sendable {
         let wealthStore = try WealthStore(databaseURL: paths.permanentDatabaseURL)
         let marketCacheStore = try MarketCacheStore(databaseURL: paths.marketCacheDatabaseURL)
         let marketSessionStore = TransientMarketSessionStore()
+        let marketPreferencesStore = MarketPreferencesStore(
+            suiteName: nil,
+            memoryOnly: configuration.usesTemporaryStores
+        )
         let fixedClock = FixedClock(
             instant: UTCInstant(millisecondsSince1970: 1_768_435_200_000)
         )
@@ -104,6 +109,7 @@ struct AppDependencies: Sendable {
             marketDataProvider: marketDataProvider,
             fxRateProvider: fxRateProvider,
             marketDataService: marketDataService,
+            marketPreferencesStore: marketPreferencesStore,
             credentialStore: credentialStore,
             credentialCoordinator: credentialCoordinator,
             credentialStoragePolicy: ProductionCredentialPolicy.storage,

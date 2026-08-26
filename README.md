@@ -19,7 +19,7 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
-Stages 1 through 5 are frozen after Reviewer Gate PASS. The current state is **Stage 6NBC Bounded US Raw-MIC Acceptance Candidate — Awaiting Reviewer Gate**. Prompt 6N received Reviewer Gate `FAIL`, Prompt 6NA received `PARTIAL`, Prompt 6NAA received `PASS`, Prompt 6NB received `PARTIAL`, Prompt 6NBA received `PASS`, and the permanent Prompt 6NBB Search Adapter repair received `PASS` while its bounded acceptance remained `PARTIAL`. Wealth, Ledger, and Dashboard continue to use the Permanent Store. Stage 6 adds a Twelve Data `URLSession`/`Codable` adapter, native Keychain-only BYOK lifecycle, Frankfurter/ECB reference FX, a physically independent bounded Market Cache, typed TTL/LRU cleanup, offline/stale states, and minimal Provider/cache controls in Settings. Stage 6D local correctness and native UI regression repairs remain intact. Markets remains an honest Stage 7 Placeholder and Stage 7 remains `NO-GO`.
+Stages 1 through 6 have passed their applicable Reviewer implementation gates. The current state is **Stage 7 Markets Terminal Implementation Candidate — Awaiting Reviewer Gate**. Markets is now a capability-aware macOS terminal with explicit search, identifier-only watchlist preferences, a session watchlist heatmap, daily stock detail, deterministic Decimal indicators, an isolated offline chart renderer, and a native accessible data surface. Wealth, Ledger, and Dashboard continue to use the Permanent Store. Stage 7 does not change Provider entitlement, credential, migration, or persistence policy.
 
 Twelve Data remains the selected Primary Market Data Provider under **Personal Local Mode**: Aureus runs only on one user's Mac for personal/internal, non-commercial use; it is not a hosted service and does not redistribute or commercially display Provider data. Open source applies to program source, not Provider data, credentials, or user financial data. Basic Free remains the usable US-focused entry path, while every endpoint and MIC remains governed by the actual Plan and exchange entitlement.
 
@@ -27,13 +27,17 @@ Twelve Data Production data is session-only in V1. Search, Quote, OHLCV, and ent
 
 Prompt 6NBA received Reviewer Gate `PASS` after classifying the previous one-attempt Search failure as `SEARCH_INVALID_PAYLOAD`. Stage 6NBB permanently repairs `/symbol_search` at the row boundary: it keeps strict envelope validation, isolates malformed and out-of-scope rows, preserves Provider relevance order and normalized raw MIC, performs stable first-result de-duplication, and does not expand the V1 market-currency set. Its one live Search responded successfully after exactly one transport attempt, but the old harness accepted only `AAPL/XNAS` and did not report the actual raw MIC; that evidence cannot be retrospectively promoted to an exact US identity or Historical entitlement. Stage 6NBC corrects the criterion to exact symbol `AAPL`, currency `USD`, and raw MIC in `XNAS`, `XNYS`, `XASE`, `ARCX`, `BATS`, `XNCM`, `XNGS`, or `XNMS`, while preserving the selected raw MIC and aggregating capability only as `US`. First-party Twelve Data pages identify AAPL with `XNGS` as catalog/documentation evidence. The single bounded Production re-observation then selected `AAPL/USD/XNGS` in Provider relevance order and returned a nonempty typed `1day`/`.all`/output-size-5 Historical page after exactly two local transport attempts total, with raw MIC `XNGS` retained and observed only under the aggregate `US` capability. This verifies the Search identity and that precise Historical operation only for the current credential at the observed instant; it does not prove that the Actual Plan is Basic or extend to Quote, Corporate Actions, freshness, other MICs, or `XHKG`/`XSHG`/`XSHE`/`XJPX`, which remain `NOT VERIFIED`.
 
-The 2026-08-17 Terms refresh records §12.5 as immediate cessation of access with a deletion obligation and §16.2 as the operational deadline to delete within 30 days after termination or expiration. Aureus keeps immediate Provider-scoped purge as a stricter internal policy, not as a claimed Provider deadline. `/api_usage` remains `NOT VERIFIED`. No Provider request or Support message was performed in Stage 6MA.
+The 2026-08-17 Terms refresh records §12.5 as immediate cessation of access with a deletion obligation and §16.2 as the operational deadline to delete within 30 days after termination or expiration. Aureus keeps immediate Provider-scoped purge as a stricter internal policy, not as a claimed Provider deadline. `/api_usage` remains `NOT VERIFIED`. No real Provider request was performed for Stage 7 implementation or automated verification.
+
+Stage 7 preserves the accepted live evidence boundary: only the previously observed `AAPL/USD/XNGS` Search identity and precise `1day`/`.all` Historical operation are recorded as verified at that observation instant. Actual Plan, Quote, Corporate Actions, actual freshness, other symbols/MICs, and all international markets remain `NOT VERIFIED`. Twelve Data persistent writes remain **Disabled** and retention rights remain **BLOCKED**. Synthetic Demo UI and tests are conspicuously identified and never count as live acceptance.
 
 - [V1 Scope — Frozen](docs/V1_SCOPE.md)
 - [V1 Architecture & Technology — Frozen](docs/V1_ARCHITECTURE.md)
 - [V1 Research Evidence](docs/V1_RESEARCH_EVIDENCE.md)
 - [Stage 6 Market Data Acceptance Evidence](docs/STAGE6_MARKET_DATA_ACCEPTANCE.md)
 - [Stage 6 Twelve Data Retention Decision](docs/STAGE6_TWELVE_DATA_RETENTION_DECISION.md)
+- [Stage 7 Markets Terminal Acceptance](docs/STAGE7_MARKETS_TERMINAL_ACCEPTANCE.md)
+- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 
 ## Build and Test
 
@@ -46,15 +50,15 @@ xcodebuild -resolvePackageDependencies -project Aureus.xcodeproj -scheme Aureus
 Build the arm64 Debug app and all test products in isolated DerivedData:
 
 ```sh
-xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage6NBB-DerivedData CODE_SIGNING_ALLOWED=NO build
-xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage6NBB-DerivedData CODE_SIGNING_ALLOWED=NO build-for-testing
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage7-DerivedData clean build
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage7-DerivedData build-for-testing
 ```
 
 Run the complete Unit/Integration suite, then the UI suite. The UI test runner uses only local ad-hoc signing and does not require a Development Team:
 
 ```sh
-xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage6NBB-DerivedData -only-testing:AureusTests CODE_SIGNING_ALLOWED=NO
-xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage6NBB-UI-DerivedData -only-testing:AureusUITests
+xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage7-Unit -only-testing:AureusTests CODE_SIGNING_ALLOWED=NO
+xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage7-UI -only-testing:AureusUITests
 ```
 
 The canonical product design source for later stages is [Aureus_Wealth_Terminal_项目设计汇总.md](Aureus_Wealth_Terminal_项目设计汇总.md).

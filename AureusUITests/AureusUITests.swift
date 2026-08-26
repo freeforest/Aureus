@@ -28,6 +28,7 @@ final class AureusUITests: XCTestCase {
                 if destination == "dashboard" { expectedIdentifier = "mode.local" }
                 else if destination == "wealth" { expectedIdentifier = "wealth.page" }
                 else if destination == "ledger" { expectedIdentifier = "ledger.empty" }
+                else if destination == "markets" { expectedIdentifier = "markets.terminal" }
                 else if destination == "settings" { expectedIdentifier = "settings.content" }
                 else { expectedIdentifier = "destination.\(destination)" }
                 XCTAssertTrue(
@@ -70,6 +71,76 @@ final class AureusUITests: XCTestCase {
             app.textFields.matching(NSPredicate(format: "value == %@", "synthetic-demo")).firstMatch.waitForExistence(timeout: 5)
         )
         app.buttons["Done"].click()
+    }
+
+    @MainActor
+    func testStage7MarketsSyntheticSearchWatchlistChartAccessibilityAndClear() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+
+        app.descendants(matching: .any)["sidebar.markets"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["markets.terminal"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.mode.synthetic"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.capability.us"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.capability.hong-kong"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.capability.mainland-china"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.capability.japan"].waitForExistence(timeout: 5))
+
+        let search = app.descendants(matching: .any)["markets.search.field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.click()
+        search.typeText("SYN")
+        app.descendants(matching: .any)["markets.search.submit"].click()
+        let result = app.descendants(matching: .any)["markets.search.result.SYN-CNY.XSYN"]
+        XCTAssertTrue(result.waitForExistence(timeout: 8))
+        result.click()
+
+        XCTAssertTrue(app.descendants(matching: .any)["markets.stock.detail"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.detail.freshness"].exists)
+        app.descendants(matching: .any)["markets.watchlist.add"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["markets.watchlist.select.SYN-CNY.XSYN"].waitForExistence(timeout: 5))
+
+        let range = app.descendants(matching: .any)["markets.range.selector"]
+        XCTAssertTrue(range.exists)
+        XCTAssertTrue(app.descendants(matching: .any)["markets.indicator.rsi14"].exists)
+        app.descendants(matching: .any)["markets.indicator.rsi14"].click()
+        app.descendants(matching: .any)["markets.history.refresh"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["markets.chart.webview"].waitForExistence(timeout: 10))
+        let chartStatus = app.descendants(matching: .any)["markets.chart.status"]
+        XCTAssertTrue(chartStatus.waitForExistence(timeout: 10))
+        XCTAssertEqual(chartStatus.label, "Chart ready")
+        app.descendants(matching: .any)["markets.indicator.rsi14"].click()
+        app.descendants(matching: .any)["markets.indicator.rsi14"].click()
+        XCTAssertEqual(app.descendants(matching: .any)["markets.chart.status"].label, "Chart ready")
+        let heatmapTile = app.descendants(matching: .any)["markets.heatmap.SYN-CNY.XSYN"]
+        if !heatmapTile.waitForExistence(timeout: 2) {
+            let masterScroll = app.descendants(matching: .any)["markets.master.scroll"]
+            XCTAssertTrue(masterScroll.waitForExistence(timeout: 3))
+            masterScroll.swipeUp()
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["markets.heatmap.SYN-CNY.XSYN"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.accessibility.summary"].exists)
+
+        let accessibleData = app.descendants(matching: .any)["markets.presentation.accessible"]
+        XCTAssertTrue(accessibleData.waitForExistence(timeout: 5))
+        accessibleData.click()
+        XCTAssertTrue(app.descendants(matching: .any)["markets.accessible.table"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.chart.attribution"].exists)
+
+        app.descendants(matching: .any)["markets.session.clear"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["markets.detail.empty"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["markets.search.result.SYN-CNY.XSYN"].exists)
+
+        app.terminate()
+        let production = XCUIApplication()
+        production.launchArguments = uiTestingArguments()
+        launchApp(production)
+        production.descendants(matching: .any)["sidebar.markets"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["markets.mode.production"].waitForExistence(timeout: 5))
+        XCTAssertFalse(production.descendants(matching: .any)["markets.mode.synthetic"].exists)
+        XCTAssertTrue(production.descendants(matching: .any)["markets.detail.empty"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["markets.search.result.SYN-CNY.XSYN"].exists)
     }
 
     @MainActor
@@ -530,15 +601,10 @@ final class AureusUITests: XCTestCase {
         ))
 
         app.descendants(matching: .any)["sidebar.markets"].click()
-        let marketsPlaceholder = app.descendants(matching: .any)["destination.markets"].firstMatch
-        XCTAssertTrue(marketsPlaceholder.waitForExistence(timeout: 5))
-        let marketsDescription = app.staticTexts.matching(NSPredicate(
-            format: "identifier == %@ AND (value CONTAINS[c] %@ OR label CONTAINS[c] %@)",
-            "destination.markets",
-            "Stage 7 has not been implemented",
-            "Stage 7 has not been implemented"
-        )).firstMatch
-        XCTAssertTrue(marketsDescription.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.terminal"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.mode.production"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["markets.mode.synthetic"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["markets.detail.empty"].exists)
     }
 
     @MainActor

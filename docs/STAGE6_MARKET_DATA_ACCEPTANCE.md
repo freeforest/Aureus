@@ -1,6 +1,6 @@
 # Stage 6 Market Data Acceptance Evidence
 
-**Status:** Stage 6NBC Bounded US Raw-MIC Acceptance Candidate — Awaiting Reviewer Gate  
+**Status:** Stage 6 Core Entry Gate and Implementation Gate — Reviewer PASS; Stage 7 entry authorized  
 **Evidence visit:** 2026-08-12–2026-08-24  
 **Authority:** This document records Stage 6 implementation and acceptance evidence. It does not replace the frozen V1 Scope or Architecture, prove a paid entitlement, or decide the Stage Gate.
 
