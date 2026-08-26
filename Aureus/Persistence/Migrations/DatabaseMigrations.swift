@@ -10,6 +10,7 @@ enum DatabaseMigrations {
     static let permanentV3 = "permanent_v3_ledger"
     static let permanentV4 = "permanent_v4_ledger_semantic_fingerprint"
     static let permanentV5 = "permanent_v5_dashboard_snapshots"
+    static let permanentV6 = "permanent_v6_portfolio"
     static let cacheV1 = "cache_v1_foundation"
     static let cacheV2 = "cache_v2_market_data"
 
@@ -628,6 +629,131 @@ enum DatabaseMigrations {
                 ON snapshot_items(snapshot_id, is_liability, container_kind)
                 """)
             try db.execute(sql: "UPDATE schema_metadata SET version = 5 WHERE store_kind = 'permanent'")
+        }
+        migrator.registerMigration(permanentV6) { db in
+            try db.execute(sql: """
+                CREATE TABLE portfolio_definitions (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+                    base_currency_code TEXT NOT NULL CHECK (base_currency_code = 'CNY'),
+                    created_at_ms INTEGER NOT NULL,
+                    updated_at_ms INTEGER NOT NULL,
+                    sort_order INTEGER NOT NULL,
+                    UNIQUE(sort_order, id)
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TABLE portfolio_security_links (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    portfolio_id TEXT NOT NULL REFERENCES portfolio_definitions(id) ON DELETE CASCADE,
+                    wealth_container_id TEXT NOT NULL REFERENCES asset_containers(id) ON DELETE RESTRICT,
+                    symbol TEXT NOT NULL CHECK (length(trim(symbol)) > 0),
+                    raw_mic TEXT NOT NULL CHECK (
+                        length(raw_mic) = 4 AND raw_mic NOT GLOB '*[^A-Z0-9]*'
+                    ),
+                    currency_code TEXT NOT NULL CHECK (currency_code IN ('CNY', 'USD')),
+                    asset_kind TEXT NOT NULL CHECK (asset_kind IN ('stock', 'etf', 'fund')),
+                    sort_order INTEGER NOT NULL,
+                    UNIQUE(portfolio_id, wealth_container_id),
+                    UNIQUE(portfolio_id, symbol, raw_mic)
+                )
+                """)
+            try db.execute(sql: "CREATE INDEX portfolio_security_links_portfolio_index ON portfolio_security_links(portfolio_id, sort_order, id)")
+            try db.execute(sql: """
+                CREATE TABLE portfolio_activities (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    portfolio_id TEXT NOT NULL REFERENCES portfolio_definitions(id) ON DELETE CASCADE,
+                    security_link_id TEXT NOT NULL REFERENCES portfolio_security_links(id) ON DELETE CASCADE,
+                    kind TEXT NOT NULL CHECK (kind IN ('openingLot', 'buy', 'sell', 'manualSplit')),
+                    civil_date TEXT NOT NULL CHECK (length(civil_date) = 10),
+                    recorded_at_ms INTEGER NOT NULL,
+                    exchange_time_zone_id TEXT NOT NULL CHECK (length(trim(exchange_time_zone_id)) > 0),
+                    ledger_entry_id TEXT REFERENCES ledger_transactions(id) ON DELETE SET NULL,
+                    quantity_coefficient INTEGER,
+                    unit_price_coefficient INTEGER,
+                    fee_minor INTEGER,
+                    total_original_minor INTEGER,
+                    currency_code TEXT CHECK (currency_code IS NULL OR currency_code IN ('CNY', 'USD')),
+                    converted_cny_minor INTEGER,
+                    fx_coefficient INTEGER,
+                    fx_source TEXT,
+                    fx_reference_date TEXT,
+                    fx_recorded_at_ms INTEGER,
+                    fx_is_manual INTEGER CHECK (fx_is_manual IS NULL OR fx_is_manual IN (0, 1)),
+                    fx_is_stale INTEGER CHECK (fx_is_stale IS NULL OR fx_is_stale IN (0, 1)),
+                    split_from_coefficient INTEGER,
+                    split_to_coefficient INTEGER,
+                    sanitized_note TEXT CHECK (sanitized_note IS NULL OR length(sanitized_note) <= 500),
+                    CHECK (
+                        (kind = 'manualSplit'
+                            AND quantity_coefficient IS NULL
+                            AND unit_price_coefficient IS NULL
+                            AND fee_minor IS NULL
+                            AND total_original_minor IS NULL
+                            AND currency_code IS NULL
+                            AND converted_cny_minor IS NULL
+                            AND fx_coefficient IS NULL
+                            AND fx_source IS NULL
+                            AND fx_reference_date IS NULL
+                            AND fx_recorded_at_ms IS NULL
+                            AND fx_is_manual IS NULL
+                            AND fx_is_stale IS NULL
+                            AND split_from_coefficient > 0
+                            AND split_to_coefficient > 0)
+                        OR
+                        (kind IN ('openingLot', 'buy', 'sell')
+                            AND quantity_coefficient > 0
+                            AND total_original_minor >= 0
+                            AND converted_cny_minor >= 0
+                            AND currency_code IS NOT NULL
+                            AND fx_coefficient > 0
+                            AND length(trim(fx_source)) > 0
+                            AND length(fx_reference_date) = 10
+                            AND fx_recorded_at_ms IS NOT NULL
+                            AND fx_is_manual IS NOT NULL
+                            AND fx_is_stale IS NOT NULL
+                            AND split_from_coefficient IS NULL
+                            AND split_to_coefficient IS NULL
+                            AND ((kind = 'openingLot' AND unit_price_coefficient IS NULL AND fee_minor IS NULL)
+                                OR (kind IN ('buy', 'sell') AND unit_price_coefficient >= 0 AND fee_minor >= 0)))
+                    )
+                )
+                """)
+            try db.execute(sql: "CREATE INDEX portfolio_activities_replay_index ON portfolio_activities(portfolio_id, security_link_id, civil_date, recorded_at_ms, id)")
+            try db.execute(sql: """
+                CREATE TABLE portfolio_nav_snapshots (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    portfolio_id TEXT NOT NULL REFERENCES portfolio_definitions(id) ON DELETE CASCADE,
+                    civil_date TEXT NOT NULL CHECK (length(civil_date) = 10),
+                    created_at_ms INTEGER NOT NULL,
+                    total_cny_minor INTEGER NOT NULL CHECK (total_cny_minor >= 0),
+                    is_complete INTEGER NOT NULL CHECK (is_complete = 1),
+                    UNIQUE(portfolio_id, civil_date)
+                )
+                """)
+            try db.execute(sql: "CREATE INDEX portfolio_nav_history_index ON portfolio_nav_snapshots(portfolio_id, civil_date, created_at_ms)")
+            try db.execute(sql: """
+                CREATE TABLE portfolio_nav_snapshot_items (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    snapshot_id TEXT NOT NULL REFERENCES portfolio_nav_snapshots(id) ON DELETE CASCADE,
+                    security_link_id TEXT NOT NULL,
+                    quantity_coefficient INTEGER NOT NULL CHECK (quantity_coefficient >= 0),
+                    manual_mark_coefficient INTEGER NOT NULL CHECK (manual_mark_coefficient >= 0),
+                    original_market_value_minor INTEGER NOT NULL CHECK (original_market_value_minor >= 0),
+                    original_currency_code TEXT NOT NULL CHECK (original_currency_code IN ('CNY', 'USD')),
+                    fx_coefficient INTEGER NOT NULL CHECK (fx_coefficient > 0),
+                    fx_source TEXT NOT NULL CHECK (length(trim(fx_source)) > 0),
+                    fx_reference_date TEXT NOT NULL CHECK (length(fx_reference_date) = 10),
+                    fx_recorded_at_ms INTEGER NOT NULL,
+                    fx_is_manual INTEGER NOT NULL CHECK (fx_is_manual IN (0, 1)),
+                    fx_is_stale INTEGER NOT NULL CHECK (fx_is_stale IN (0, 1)),
+                    converted_cny_minor INTEGER NOT NULL CHECK (converted_cny_minor >= 0),
+                    remaining_cny_basis_minor INTEGER NOT NULL CHECK (remaining_cny_basis_minor >= 0),
+                    reconciliation TEXT NOT NULL CHECK (reconciliation IN ('matched', 'quantityMismatch')),
+                    UNIQUE(snapshot_id, security_link_id)
+                )
+                """)
+            try db.execute(sql: "UPDATE schema_metadata SET version = 6 WHERE store_kind = 'permanent'")
         }
         return migrator
     }

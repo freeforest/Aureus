@@ -219,6 +219,11 @@ actor WealthStore {
                 db,
                 sql: "SELECT COUNT(*) FROM ledger_postings WHERE container_id = ?",
                 arguments: arguments
+            ) ?? 0,
+            linkedPortfolioSecurityCount: try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM portfolio_security_links WHERE wealth_container_id = ?",
+                arguments: arguments
             ) ?? 0
         )
     }

@@ -29,6 +29,7 @@ final class AureusUITests: XCTestCase {
                 else if destination == "wealth" { expectedIdentifier = "wealth.page" }
                 else if destination == "ledger" { expectedIdentifier = "ledger.empty" }
                 else if destination == "markets" { expectedIdentifier = "markets.terminal" }
+                else if destination == "portfolio" { expectedIdentifier = "portfolio.page" }
                 else if destination == "settings" { expectedIdentifier = "settings.content" }
                 else { expectedIdentifier = "destination.\(destination)" }
                 XCTAssertTrue(
@@ -156,6 +157,43 @@ final class AureusUITests: XCTestCase {
         XCTAssertFalse(production.descendants(matching: .any)["markets.mode.synthetic"].exists)
         XCTAssertTrue(production.descendants(matching: .any)["markets.detail.empty"].exists)
         XCTAssertFalse(production.descendants(matching: .any)["markets.search.result.SYN-CNY.XSYN"].exists)
+    }
+
+    @MainActor
+    func testStage8PortfolioSyntheticCRUDHoldingsSnapshotAndIsolation() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+
+        app.descendants(matching: .any)["sidebar.portfolio"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.summary.nav"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.holding.SYNX|XSYN"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.nav.chart"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.nav.table"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.pnl.heatmap"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.benchmark.load"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.disclosure"].label.contains("No Provider request"))
+
+        let name = app.descendants(matching: .any)["portfolio.create.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.click()
+        name.typeText("Synthetic Second Portfolio")
+        app.descendants(matching: .any)["portfolio.create"].click()
+        XCTAssertTrue(app.staticTexts["Synthetic Second Portfolio"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["portfolio.move.up"].click()
+        app.descendants(matching: .any)["portfolio.delete"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.delete.confirm"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["portfolio.delete.confirm"].click()
+        XCTAssertFalse(app.staticTexts["Synthetic Second Portfolio"].waitForExistence(timeout: 2))
+
+        app.terminate()
+        let production = XCUIApplication()
+        production.launchArguments = uiTestingArguments()
+        launchApp(production)
+        production.descendants(matching: .any)["sidebar.portfolio"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["portfolio.empty"].waitForExistence(timeout: 5))
+        XCTAssertFalse(production.descendants(matching: .any)["portfolio.holding.SYNX|XSYN"].exists)
     }
 
     @MainActor

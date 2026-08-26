@@ -19,7 +19,9 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
-Stages 1 through 6 have passed their applicable Reviewer implementation gates. Prompt 7 received Reviewer `PARTIAL`; the current state is **Stage 7AA Native Chart Accessibility Gate Closure Candidate — Awaiting Reviewer Gate**. Markets is a capability-aware macOS terminal with explicit search, identifier-only watchlist preferences, a multi-instrument session heatmap, daily stock detail, deterministic checked-Decimal presentation and indicators, an isolated offline chart renderer, and a native visible-range accessible surface. Historical Stage 6NBC acceptance is displayed separately from the current zero-network Provider capability snapshot, so credential rotation or Disconnect cannot leave the old observation presented as current proof. Wealth, Ledger, and Dashboard continue to use the Permanent Store. Stage 7AA does not change Provider entitlement, credential, migration, or persistence policy.
+Stages 1 through 7 have passed their applicable Reviewer implementation gates. The current state is **Stage 8 Portfolio Implementation Candidate — Awaiting Reviewer Gate**. Portfolio is now a local-first terminal with Portfolio CRUD, Wealth security links, Opening Lot/Buy/Sell/Manual Split activities, deterministic FIFO lots, checked-Decimal CNY cost basis and P&L, quantity reconciliation, atomic Portfolio NAV snapshots, allocation, a native P&L heatmap, and an identifier-only session Benchmark boundary. It remains fully usable offline from user-authored permanent records and never treats a Provider value as a Portfolio source of truth.
+
+Current Stage 8 verification is `PARTIAL`: all Unit/Integration tests and the five inherited focused UI regressions pass, while the bounded Portfolio focused UI and the single full UI run retain one native disclosure Accessibility-label failure (full UI: 11/12). Stage 9 remains `NO-GO` pending independent Reviewer action.
 
 Twelve Data remains the selected Primary Market Data Provider under **Personal Local Mode**: Aureus runs only on one user's Mac for personal/internal, non-commercial use; it is not a hosted service and does not redistribute or commercially display Provider data. Open source applies to program source, not Provider data, credentials, or user financial data. Basic Free remains the usable US-focused entry path, while every endpoint and MIC remains governed by the actual Plan and exchange entitlement.
 
@@ -35,12 +37,15 @@ Stage 7A freezes chart panes as candlestick/main overlays `0`, volume `1`, RSI `
 
 Stage 7AA preserved the four earlier Stage 7A accessibility failures as historical evidence, then tested the final source without a pre-test source change. The independent `markets.chart.status` and `markets.chart.visible-range` nodes passed the first bounded Stage 7 focused UI run (`1/1`), so no AX-only repair or focused retry occurred. The single authorized full UI run passed `11/11`; Stage 7 focused Unit/Integration passed `26/26`, the stable unsigned full Unit suite passed `210/210` definitions (`243` executions), and final clean build plus build-for-testing passed. These local and synthetic results close the implementation evidence requested by Prompt 7AA but do not decide the Reviewer Gate or expand live Provider acceptance.
 
+Stage 8 appends `permanent_v6_portfolio` without changing the v1–v5 migration blocks. Active Portfolio tables are separate from legacy foundation placeholders, use foreign keys and INTEGER authoritative values, and preserve Wealth/Ledger deletion boundaries. Wealth manual marks and saved FX provenance are the only persistent valuation inputs. Benchmark values are loaded only after an explicit user action, remain in the transient market session, compare exact overlapping civil dates at base 100, and are never stored in Portfolio tables or preferences. Stage 9 return/risk analytics, brokerage sync, live pricing, and investment advice are not implemented.
+
 - [V1 Scope — Frozen](docs/V1_SCOPE.md)
 - [V1 Architecture & Technology — Frozen](docs/V1_ARCHITECTURE.md)
 - [V1 Research Evidence](docs/V1_RESEARCH_EVIDENCE.md)
 - [Stage 6 Market Data Acceptance Evidence](docs/STAGE6_MARKET_DATA_ACCEPTANCE.md)
 - [Stage 6 Twelve Data Retention Decision](docs/STAGE6_TWELVE_DATA_RETENTION_DECISION.md)
 - [Stage 7 Markets Terminal Acceptance](docs/STAGE7_MARKETS_TERMINAL_ACCEPTANCE.md)
+- [Stage 8 Portfolio Acceptance](docs/STAGE8_PORTFOLIO_ACCEPTANCE.md)
 - [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 
 ## Build and Test
@@ -54,15 +59,15 @@ xcodebuild -resolvePackageDependencies -project Aureus.xcodeproj -scheme Aureus
 Build the arm64 Debug app and all test products in isolated DerivedData:
 
 ```sh
-xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage7-DerivedData clean build
-xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage7-DerivedData build-for-testing
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage8-DerivedData clean build
+xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage8-DerivedData build-for-testing
 ```
 
 Run the complete Unit/Integration suite, then the UI suite. The UI test runner uses only local ad-hoc signing and does not require a Development Team:
 
 ```sh
-xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage7-Unit -only-testing:AureusTests CODE_SIGNING_ALLOWED=NO
-xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage7-UI -only-testing:AureusUITests
+xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage8-Unit -only-testing:AureusTests CODE_SIGNING_ALLOWED=NO
+xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage8-UI -only-testing:AureusUITests
 ```
 
 The canonical product design source for later stages is [Aureus_Wealth_Terminal_项目设计汇总.md](Aureus_Wealth_Terminal_项目设计汇总.md).

@@ -248,8 +248,10 @@ struct ContainerDeletionImpact: Equatable, Sendable {
     let linkedAssetCount: Int
     let linkedInsurancePolicyCount: Int
     let linkedLedgerPostingCount: Int
+    let linkedPortfolioSecurityCount: Int
 
     var hasProtectedPermanentDependents: Bool {
         linkedAssetCount > 0 || linkedInsurancePolicyCount > 0 || linkedLedgerPostingCount > 0
+            || linkedPortfolioSecurityCount > 0
     }
 }

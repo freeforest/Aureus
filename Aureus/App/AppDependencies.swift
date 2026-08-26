@@ -8,6 +8,7 @@ struct AppDependencies: Sendable {
     let fxRateProvider: any FXRateProvider
     let marketDataService: MarketDataService
     let marketPreferencesStore: MarketPreferencesStore
+    let portfolioPreferencesStore: PortfolioPreferencesStore
     let credentialStore: any CredentialStore
     let credentialCoordinator: ProviderCredentialCoordinator
     let credentialStoragePolicy: ProductionCredentialStorage
@@ -28,6 +29,10 @@ struct AppDependencies: Sendable {
             suiteName: nil,
             memoryOnly: configuration.usesTemporaryStores
         )
+        let portfolioPreferencesStore = PortfolioPreferencesStore(
+            suiteName: nil,
+            memoryOnly: configuration.usesTemporaryStores
+        )
         let fixedClock = FixedClock(
             instant: UTCInstant(millisecondsSince1970: 1_768_435_200_000)
         )
@@ -37,6 +42,7 @@ struct AppDependencies: Sendable {
             try await wealthStore.seedSyntheticWealth()
             try await SyntheticLedgerSeeder.seed(in: wealthStore)
             try await SyntheticDashboardSeeder.seed(in: wealthStore)
+            try await wealthStore.seedSyntheticPortfolio()
         }
 
         let credentialStore: any CredentialStore
@@ -110,6 +116,7 @@ struct AppDependencies: Sendable {
             fxRateProvider: fxRateProvider,
             marketDataService: marketDataService,
             marketPreferencesStore: marketPreferencesStore,
+            portfolioPreferencesStore: portfolioPreferencesStore,
             credentialStore: credentialStore,
             credentialCoordinator: credentialCoordinator,
             credentialStoragePolicy: ProductionCredentialPolicy.storage,

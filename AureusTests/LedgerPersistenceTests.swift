@@ -16,7 +16,7 @@ struct LedgerPersistenceTests {
         let transfer = try context.transfer()
         try await store.createLedgerEntry(income)
         try await store.createLedgerEntry(transfer)
-        #expect(try await store.schemaVersion() == 5)
+        #expect(try await store.schemaVersion() == 6)
         #expect(try await store.ledgerTransactionCount() == 2)
         #expect(try await store.ledgerFinancialStorageClasses() == ["integer"])
 
@@ -175,7 +175,7 @@ struct LedgerPersistenceTests {
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = 'legacy-stage3'"),
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wealth_transactions'")
         ) }
-        #expect(state.0 == 5); #expect(state.1 == 1); #expect(state.2 == 1)
+        #expect(state.0 == 6); #expect(state.1 == 1); #expect(state.2 == 1)
     }
 
     @Test("v2 normalization collisions and occupied legacy fallbacks preserve every ID and reference")
@@ -452,7 +452,7 @@ struct LedgerPersistenceTests {
                     return "\(id)|\(fingerprint ?? "nil")"
                 }
         }
-        #expect(firstState.0 == 5)
+        #expect(firstState.0 == 6)
         #expect(firstState.1 == 2)
         #expect(firstState.2 == transactionIDs)
         #expect(firstState.3.filter { !$0.hasSuffix("|nil") }.count == 1)
