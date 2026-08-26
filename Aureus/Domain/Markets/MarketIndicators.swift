@@ -274,3 +274,63 @@ enum MarketIndicatorCalculator {
         return estimate
     }
 }
+
+enum MarketPresentationArithmeticError: Error, Equatable, Sendable {
+    case overflow
+    case underflow
+    case divisionByZero
+    case lossOfPrecision
+    case invalidDecimal
+}
+
+enum MarketPresentationArithmetic {
+    static func add(_ lhs: Decimal, _ rhs: Decimal) throws -> Decimal {
+        try calculate(lhs, rhs, NSDecimalAdd)
+    }
+
+    static func subtract(_ lhs: Decimal, _ rhs: Decimal) throws -> Decimal {
+        try calculate(lhs, rhs, NSDecimalSubtract)
+    }
+
+    static func multiply(_ lhs: Decimal, _ rhs: Decimal) throws -> Decimal {
+        try calculate(lhs, rhs, NSDecimalMultiply)
+    }
+
+    static func divide(_ lhs: Decimal, _ rhs: Decimal) throws -> Decimal {
+        guard rhs != 0 else { throw MarketPresentationArithmeticError.divisionByZero }
+        return try calculate(lhs, rhs, NSDecimalDivide)
+    }
+
+    static func magnitude(_ value: Decimal) throws -> Decimal {
+        value < 0 ? try multiply(value, -1) : value
+    }
+
+    static func sum(_ values: [Decimal]) throws -> Decimal {
+        try values.reduce(into: Decimal.zero) { partial, value in
+            partial = try add(partial, value)
+        }
+    }
+
+    private static func calculate(
+        _ lhs: Decimal,
+        _ rhs: Decimal,
+        _ operation: (UnsafeMutablePointer<Decimal>, UnsafePointer<Decimal>, UnsafePointer<Decimal>, Decimal.RoundingMode) -> Decimal.CalculationError
+    ) throws -> Decimal {
+        guard lhs.isFinite, rhs.isFinite else { throw MarketPresentationArithmeticError.invalidDecimal }
+        var lhs = lhs
+        var rhs = rhs
+        var result = Decimal()
+        switch operation(&result, &lhs, &rhs, .bankers) {
+        case .noError: return result
+        case .lossOfPrecision: throw MarketPresentationArithmeticError.lossOfPrecision
+        case .overflow: throw MarketPresentationArithmeticError.overflow
+        case .underflow: throw MarketPresentationArithmeticError.underflow
+        case .divideByZero: throw MarketPresentationArithmeticError.divisionByZero
+        @unknown default: throw MarketPresentationArithmeticError.invalidDecimal
+        }
+    }
+}
+
+private extension Decimal {
+    var isFinite: Bool { NSDecimalNumber(decimal: self) != .notANumber }
+}

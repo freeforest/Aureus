@@ -95,7 +95,7 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ProviderBoundaryError.invalidRequest
         }
-        return [syntheticInstrument]
+        return [syntheticInstrument, syntheticInstrumentTwo]
     }
 
     func latestQuote(for instrument: MarketInstrument) async throws -> MarketQuote {
@@ -177,6 +177,16 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
             mic: "XSYN",
             currency: .cny,
             displayName: "Synthetic Orchard Holdings"
+        )
+    }
+
+    private var syntheticInstrumentTwo: MarketInstrument {
+        MarketInstrument(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000000202")!,
+            symbol: "SYN-JPY",
+            mic: "XJPX",
+            currency: .jpy,
+            displayName: "Synthetic Cedar Industries"
         )
     }
 

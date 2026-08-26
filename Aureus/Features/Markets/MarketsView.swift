@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MarketsView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @State private var model: MarketsFeatureModel
@@ -34,6 +35,7 @@ struct MarketsView: View {
             }
         }
         .task { await model.start() }
+        .onAppear { Task { await model.refreshCapabilities() } }
     }
 
     private var marketsBanner: some View {
@@ -46,7 +48,7 @@ struct MarketsView: View {
                 .font(.subheadline.weight(.semibold))
                 .accessibilityIdentifier(model.mode == .syntheticDemo ? "markets.mode.synthetic" : "markets.mode.production")
             Spacer()
-            Text("Stage 7 Markets Terminal Implementation Candidate")
+            Text("Stage 7A Markets Terminal Correctness Repair Candidate")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -90,10 +92,17 @@ struct MarketsView: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("markets.capability.\(capabilityID(card.region))")
                 }
-                Text("Actual Plan: Not Verified · Freshness: Unknown")
+                Divider()
+                Text(model.historicalAcceptanceRecord)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("markets.capability.historical-record")
+                Text(model.currentCapabilityBoundary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("markets.capability.boundary")
+                Button("Refresh Current Capability") { Task { await model.refreshCapabilities() } }
+                    .accessibilityIdentifier("markets.capability.refresh")
             }
             .padding(.top, 4)
         }
@@ -152,12 +161,26 @@ struct MarketsView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("markets.watchlist.empty")
                 }
-                ForEach(model.watchlist) { identity in
+                ForEach(Array(model.watchlist.enumerated()), id: \.element.id) { index, identity in
                     HStack {
                         Button("\(identity.symbol) · \(identity.mic)") { model.select(identity) }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("markets.watchlist.select.\(identity.symbol).\(identity.mic)")
                         Spacer()
+                        Button {
+                            Task { await model.moveWatchlist(identity, offset: -1) }
+                        } label: { Image(systemName: "arrow.up") }
+                        .buttonStyle(.borderless)
+                        .disabled(index == model.watchlist.startIndex)
+                        .accessibilityLabel("Move \(identity.symbol) \(identity.mic) up")
+                        .accessibilityIdentifier("markets.watchlist.move-up.\(identity.symbol).\(identity.mic)")
+                        Button {
+                            Task { await model.moveWatchlist(identity, offset: 1) }
+                        } label: { Image(systemName: "arrow.down") }
+                        .buttonStyle(.borderless)
+                        .disabled(index == model.watchlist.index(before: model.watchlist.endIndex))
+                        .accessibilityLabel("Move \(identity.symbol) \(identity.mic) down")
+                        .accessibilityIdentifier("markets.watchlist.move-down.\(identity.symbol).\(identity.mic)")
                         Button {
                             Task { await model.removeFromWatchlist(identity) }
                         } label: {
@@ -298,18 +321,33 @@ struct MarketsView: View {
                 if model.showsAccessibleTable {
                     accessibleDataTable
                 } else if let payload = model.chartPayload {
-                    MarketChartWebView(payload: payload, reduceMotion: reduceMotion) { message in
+                    MarketChartWebView(payload: payload.withDarkAppearance(colorScheme == .dark), reduceMotion: reduceMotion) { message in
                         model.receiveChartMessage(message)
                     }
                     .frame(minHeight: 420)
                     .accessibilityIdentifier("markets.chart.webview")
-                    Text("\(model.chartStatus) · \(model.visibleRangeText)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(model.chartStatus)
-                        .accessibilityValue(model.visibleRangeText)
-                        .accessibilityIdentifier("markets.chart.status")
+                    HStack(spacing: 4) {
+                        Text(model.chartStatus)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(model.chartStatus)
+                            .accessibilityIdentifier("markets.chart.status")
+                        Text("·")
+                            .accessibilityHidden(true)
+                        Text(model.visibleRangeText)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(model.visibleRangeText)
+                            .accessibilityIdentifier("markets.chart.visible-range")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    if let summary = model.renderSummary {
+                        Text(summary.series.map { "\($0.identifier):\($0.type.rawValue):\($0.pane.rawValue):\($0.pointCount)" }.joined(separator: ", "))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Chart renderer pane summary")
+                            .accessibilityValue(summary.series.map { "\($0.identifier) pane \($0.pane.rawValue)" }.joined(separator: ", "))
+                            .accessibilityIdentifier("markets.chart.render-summary")
+                    }
                 } else {
                     ContentUnavailableView(
                         model.state == .insufficientData ? "Insufficient Data" : "Daily Data Not Loaded",
@@ -376,7 +414,7 @@ struct MarketsView: View {
         GroupBox("Accessible Visible-range Summary") {
             if let summary = model.visibleSummary {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("\(summary.start) through \(summary.end)")
+                    Text("\(summary.start.description) through \(summary.end.description)")
                     Text("First close \(format(summary.firstClose)); last close \(format(summary.lastClose))")
                     Text("High \(format(summary.high)); low \(format(summary.low))")
                     Text("Change \(formatSigned(summary.change)); percentage \(summary.changePercentage.map(formatSigned) ?? "Unavailable")")
@@ -398,7 +436,7 @@ struct MarketsView: View {
                 GridRow {
                     ForEach(["Date", "Open", "High", "Low", "Close", "Volume", "Freshness"], id: \.self) { Text($0).font(.caption.bold()) }
                 }
-                ForEach(model.historyPage?.bars ?? [], id: \.sessionDate) { bar in
+                ForEach(model.visibleBars, id: \.sessionDate) { bar in
                     GridRow {
                         Text(bar.sessionDate.description)
                         Text(format(bar.open.decimal))
@@ -410,7 +448,7 @@ struct MarketsView: View {
                     }
                     .font(.caption.monospacedDigit())
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(bar.sessionDate), open \(format(bar.open.decimal)), high \(format(bar.high.decimal)), low \(format(bar.low.decimal)), close \(format(bar.close.decimal)), freshness \(bar.freshness.rawValue)")
+                    .accessibilityLabel("\(bar.sessionDate.description), open \(format(bar.open.decimal)), high \(format(bar.high.decimal)), low \(format(bar.low.decimal)), close \(format(bar.close.decimal)), volume \(bar.volume.map { format($0.decimal) } ?? "Unavailable"), freshness \(bar.freshness.rawValue), \(indicatorAccessibilityText(for: bar.sessionDate))")
                 }
             }
         }
@@ -428,13 +466,33 @@ struct MarketsView: View {
     }
 
     private var latestIndicatorSummary: String {
+        guard let date = model.visibleBars.last?.sessionDate else { return "Enabled indicators unavailable" }
+        return indicatorAccessibilityText(for: date)
+    }
+
+    private func indicatorAccessibilityText(for date: CivilDate) -> String {
         guard let snapshot = model.indicatorSnapshot else { return "Enabled indicators unavailable" }
         var values: [String] = []
-        if model.enabledIndicators.contains(.sma20), let value = snapshot.sma20.last?.value { values.append("SMA 20 \(format(value))") }
-        if model.enabledIndicators.contains(.sma50), let value = snapshot.sma50.last?.value { values.append("SMA 50 \(format(value))") }
-        if model.enabledIndicators.contains(.ema12), let value = snapshot.ema12.last?.value { values.append("EMA 12 \(format(value))") }
-        if model.enabledIndicators.contains(.ema26), let value = snapshot.ema26.last?.value { values.append("EMA 26 \(format(value))") }
-        if model.enabledIndicators.contains(.rsi14), let value = snapshot.rsi14.last?.value { values.append("RSI 14 \(format(value))") }
+        func value(_ label: String, _ points: [MarketIndicatorPoint]) {
+            values.append("\(label) \(points.first { $0.sessionDate == date }.map { format($0.value) } ?? "Unavailable")")
+        }
+        if model.enabledIndicators.contains(.sma20) { value("SMA 20", snapshot.sma20) }
+        if model.enabledIndicators.contains(.sma50) { value("SMA 50", snapshot.sma50) }
+        if model.enabledIndicators.contains(.ema12) { value("EMA 12", snapshot.ema12) }
+        if model.enabledIndicators.contains(.ema26) { value("EMA 26", snapshot.ema26) }
+        if model.enabledIndicators.contains(.rsi14) { value("RSI 14", snapshot.rsi14) }
+        if model.enabledIndicators.contains(.macd) {
+            let point = snapshot.macd.first { $0.sessionDate == date }
+            values.append("MACD \(point.map { format($0.macd) } ?? "Unavailable")")
+            values.append("MACD Signal \(point?.signal.map(format) ?? "Unavailable")")
+            values.append("MACD Histogram \(point?.histogram.map(format) ?? "Unavailable")")
+        }
+        if model.enabledIndicators.contains(.bollinger20) {
+            let point = snapshot.bollinger20.first { $0.sessionDate == date }
+            values.append("Bollinger Middle \(point.map { format($0.middle) } ?? "Unavailable")")
+            values.append("Bollinger Upper \(point.map { format($0.upper) } ?? "Unavailable")")
+            values.append("Bollinger Lower \(point.map { format($0.lower) } ?? "Unavailable")")
+        }
         return values.isEmpty ? "Enabled indicators unavailable" : values.joined(separator: ", ")
     }
 
@@ -462,7 +520,8 @@ struct MarketsView: View {
     private func heatmapChange(_ item: SessionHeatmapItem) -> String {
         guard let change = item.change else { return "? Unknown" }
         let prefix = change > 0 ? "+" : (change < 0 ? "−" : "=")
-        return "\(prefix) \(format(change.magnitude)) \(item.category.rawValue)"
+        guard let magnitude = try? MarketPresentationArithmetic.magnitude(change) else { return "? Unknown" }
+        return "\(prefix) \(format(magnitude)) \(item.category.rawValue)"
     }
 
     private func heatmapColor(_ item: SessionHeatmapItem) -> Color {

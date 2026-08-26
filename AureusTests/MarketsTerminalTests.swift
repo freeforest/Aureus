@@ -190,13 +190,15 @@ struct MarketsTerminalTests {
         for index in 0..<1_000 {
             let start = try civilDate(offset: index % 100).description
             let end = try civilDate(offset: (index % 100) + 20).description
+            let startDate = try CivilDate(canonical: start)
+            let endDate = try CivilDate(canonical: end)
             #expect(
                 try MarketChartInboundMessage.decode([
                     "version": 1,
                     "type": "visibleRange",
                     "start": start,
                     "end": end
-                ]) == .visibleRange(start: start, end: end)
+                ]) == .visibleRange(start: startDate, end: endDate)
             )
             let enabled: Set<MarketIndicatorKind> = index.isMultiple(of: 2)
                 ? [.sma20, .ema12, .bollinger20]
@@ -242,7 +244,7 @@ struct MarketsTerminalTests {
         #expect(await provider.searchCount == 0)
         #expect(await provider.historyCount == 0)
         #expect(model.capabilityCards.count == 4)
-        #expect(model.capabilityCards[0].detail.contains("XNGS"))
+        #expect(model.historicalAcceptanceRecord.contains("XNGS"))
         #expect(model.capabilityCards.dropFirst().allSatisfy { $0.status == "Not Verified" })
     }
 
@@ -274,6 +276,17 @@ struct MarketsTerminalTests {
         #expect(model.historyPage?.instrument.mic == "XNGS")
         #expect(model.historyPage?.bars.count == 80)
         #expect((await dependencies.session.statistics()).entryCount == 2)
+        let bars = try #require(model.historyPage?.bars)
+        let subsetStart = bars[10].sessionDate
+        let subsetEnd = bars[19].sessionDate
+        model.receiveChartMessage(.visibleRange(start: subsetStart, end: subsetEnd))
+        #expect(model.visibleBars.count == 10)
+        #expect(model.visibleSummary?.start == subsetStart)
+        #expect(model.visibleSummary?.end == subsetEnd)
+        let outsideStart = try CivilDate(year: 1900, month: 1, day: 1)
+        let outsideEnd = try CivilDate(year: 2200, month: 1, day: 1)
+        model.receiveChartMessage(.visibleRange(start: outsideStart, end: outsideEnd))
+        #expect(model.visibleBars.count == 80)
         await model.clearSession()
         #expect((await dependencies.session.statistics()).entryCount == 0)
         #expect(model.state == .sessionCleared)
@@ -309,6 +322,143 @@ struct MarketsTerminalTests {
         #expect(MarketRange.oneDay.dailyDisclosure == "Latest Daily Bar")
         #expect(MarketRange.maximum.outputSize == 5_000)
         #expect(MarketInterval.oneDay.isIntraday == false)
+    }
+
+    @Test("Stage 7A pane contract and sanitized renderer summary are exact")
+    func paneContract() throws {
+        let bars = try syntheticBars(count: 80)
+        let indicators = try MarketIndicatorCalculator.calculate(bars: bars, interval: .oneDay, adjustment: .all)
+        let payload = try MarketChartPayload(configuration: chartConfiguration(), bars: bars, indicators: indicators, enabledIndicators: Set(MarketIndicatorKind.allCases))
+        #expect(payload.lines.filter { ["sma20", "sma50", "ema12", "ema26", "bollinger-middle", "bollinger-upper", "bollinger-lower"].contains($0.identifier) }.allSatisfy { $0.pane == .main })
+        #expect(payload.lines.first { $0.identifier == "rsi14" }?.pane == .rsi)
+        #expect(payload.lines.filter { $0.identifier.hasPrefix("macd") }.allSatisfy { $0.pane == .macd })
+        #expect(payload.lines.first { $0.identifier == "macd-histogram" }?.type == .histogram)
+        let message = try MarketChartInboundMessage.decode(["version": 1, "type": "renderSummary", "series": [
+            ["identifier": "candlestick", "seriesType": "candlestick", "pane": 0, "pointCount": 80],
+            ["identifier": "volume", "seriesType": "histogram", "pane": 1, "pointCount": 80],
+            ["identifier": "sma20", "seriesType": "line", "pane": 0, "pointCount": 61],
+            ["identifier": "rsi14", "seriesType": "line", "pane": 2, "pointCount": 66],
+            ["identifier": "macd-histogram", "seriesType": "histogram", "pane": 3, "pointCount": 47]
+        ]])
+        guard case let .renderSummary(summary) = message else { Issue.record("Expected render summary"); return }
+        #expect(summary.series.map(\.pane) == [.main, .volume, .main, .rsi, .macd])
+    }
+
+    @Test("Stage 7A Gregorian UTC range policy handles month, leap, YTD and MAX")
+    func calendarRangePolicy() throws {
+        let leap = try utcInstant(year: 2024, month: 2, day: 29)
+        #expect(try MarketRangeRequestPolicy.window(for: .oneMonth, now: leap).startDate == CivilDate(year: 2024, month: 1, day: 29))
+        #expect(try MarketRangeRequestPolicy.window(for: .oneYear, now: leap).startDate == CivilDate(year: 2023, month: 2, day: 28))
+        let januaryFirst = try utcInstant(year: 2025, month: 1, day: 1)
+        let ytd = try MarketRangeRequestPolicy.window(for: .yearToDate, now: januaryFirst)
+        #expect(ytd.startDate == ytd.endDate)
+        let maximum = try MarketRangeRequestPolicy.window(for: .maximum, now: januaryFirst)
+        #expect(maximum.startDate == nil)
+        #expect(maximum.outputSizeUpperBound == 5_000)
+        let weekend = try MarketRangeRequestPolicy.window(for: .oneDay, now: utcInstant(year: 2025, month: 3, day: 22))
+        let bars = try syntheticBars(count: 3)
+        #expect(weekend.filter(bars).count == 1)
+        #expect(weekend.filter(bars).last?.sessionDate == bars.last?.sessionDate)
+    }
+
+    @Test("Stage 7A visible ranges are typed and reject malformed or reversed dates")
+    func typedVisibleRange() throws {
+        let start = try CivilDate(year: 2025, month: 1, day: 1)
+        let end = try CivilDate(year: 2025, month: 1, day: 31)
+        #expect(try MarketChartInboundMessage.decode(["version": 1, "type": "visibleRange", "start": start.description, "end": end.description]) == .visibleRange(start: start, end: end))
+        #expect(throws: MarketChartBridgeError.invalidMessage) { _ = try MarketChartInboundMessage.decode(["version": 1, "type": "visibleRange", "start": "not-a-date", "end": end.description]) }
+        #expect(throws: MarketChartBridgeError.invalidMessage) { _ = try MarketChartInboundMessage.decode(["version": 1, "type": "visibleRange", "start": end.description, "end": start.description]) }
+    }
+
+    @Test("Stage 7A checked presentation arithmetic rejects zero division and overflow")
+    func checkedPresentationArithmetic() throws {
+        #expect(try MarketPresentationArithmetic.subtract(15, 10) == 5)
+        #expect(try MarketPresentationArithmetic.multiply(MarketPresentationArithmetic.divide(5, 10), 100) == 50)
+        #expect(try MarketPresentationArithmetic.sum([1, 2, 3]) == 6)
+        #expect(throws: MarketPresentationArithmeticError.divisionByZero) { _ = try MarketPresentationArithmetic.divide(1, 0) }
+        #expect(throws: MarketPresentationArithmeticError.overflow) { _ = try MarketPresentationArithmetic.add(.greatestFiniteMagnitude, .greatestFiniteMagnitude) }
+    }
+
+    @Test("Stage 7A bridge bounds strings, colors and panes")
+    func bridgeBounds() throws {
+        let bars = try syntheticBars(count: 10_000)
+        let indicators = try MarketIndicatorCalculator.calculate(bars: bars, interval: .oneDay, adjustment: .all)
+        let payload = try MarketChartPayload(configuration: chartConfiguration(), bars: bars, indicators: indicators, enabledIndicators: Set(MarketIndicatorKind.allCases))
+        #expect(try MarketChartPayload.encodedByteCount(payload) <= MarketChartPayload.maximumEncodedBytes)
+        #expect(payload.withDarkAppearance(true).configuration.darkAppearance)
+        #expect(!payload.withDarkAppearance(false).configuration.darkAppearance)
+        #expect(payload.withDarkAppearance(true).candles == payload.candles)
+        let invalidConfiguration = MarketChartConfiguration(schemaVersion: 1, provider: String(repeating: "p", count: 97), symbol: "AAPL", rawMIC: "XNGS", freshness: "unknown", selectedRange: "1Y", darkAppearance: false)
+        #expect(throws: MarketChartBridgeError.invalidConfiguration) { _ = try MarketChartPayload(configuration: invalidConfiguration, bars: [], indicators: indicators, enabledIndicators: []) }
+        let badLine = MarketChartLineSeries(identifier: "bad", title: "Bad", pane: .main, type: .line, color: "red", points: [])
+        #expect(throws: MarketChartBridgeError.oversizedPayload) { _ = try MarketChartPayload(validating: chartConfiguration(), candles: [], lines: [badLine]) }
+        let densePoints = try (0..<10_000).map { MarketChartLinePoint(time: try civilDate(offset: $0).description, value: 1.2345678901234567) }
+        let denseLines = (0..<16).map { MarketChartLineSeries(identifier: "dense-\($0)", title: "Dense \($0)", pane: .main, type: .line, color: "#123456", points: densePoints) }
+        let oversized = try MarketChartPayload(validating: chartConfiguration(), candles: [], lines: denseLines)
+        #expect(throws: MarketChartBridgeError.oversizedPayload) { _ = try MarketChartPayload.encodedObject(oversized) }
+        let invalidPane = "{\"identifier\":\"x\",\"title\":\"x\",\"pane\":9,\"type\":\"line\",\"color\":\"#000000\",\"points\":[]}".data(using: .utf8)!
+        #expect(throws: DecodingError.self) { _ = try JSONDecoder().decode(MarketChartLineSeries.self, from: invalidPane) }
+    }
+
+    @Test("Stage 7A current capability snapshot is separate and zero-network")
+    @MainActor
+    func currentCapabilities() async throws {
+        let clock = FixedClock(instant: try utcInstant(year: 2025, month: 3, day: 21))
+        let provider = CountingMarketProvider(clock: clock)
+        await provider.setCapabilities(capabilities(entitlement: .unknown, search: .notVerified, historical: .notVerified, rawMICs: []))
+        let dependencies = try await makeMarketDependencies(provider: provider)
+        let model = MarketsFeatureModel(marketDataService: dependencies.service, marketProvider: provider, sessionStore: dependencies.session, preferences: MarketPreferencesStore(suiteName: nil, memoryOnly: true), clock: clock, mode: .local)
+        await model.start()
+        #expect(model.capabilityCards.first?.status == "Not Verified")
+        #expect(model.historicalAcceptanceRecord.contains("Stage 6NBC"))
+        #expect(await provider.searchCount == 0)
+        #expect(await provider.historyCount == 0)
+        await provider.setCapabilities(capabilities(entitlement: .basic, search: .succeeded, historical: .notVerified, rawMICs: ["XNGS"]))
+        await model.refreshCapabilities()
+        #expect(model.capabilityCards.first?.detail.contains("Search: succeeded; Historical: notVerified") == true)
+        await provider.setCapabilities(capabilities(entitlement: .basic, search: .notVerified, historical: .succeeded, rawMICs: ["XNGS"]))
+        await model.refreshCapabilities()
+        #expect(model.capabilityCards.first?.detail.contains("Search: notVerified; Historical: succeeded") == true)
+        await provider.setCapabilities(capabilities(entitlement: .basic, search: .succeeded, historical: .succeeded, rawMICs: ["XNGS"]))
+        await model.refreshCapabilities()
+        #expect(model.capabilityCards.first?.status == "Current observation available")
+        #expect(model.capabilityCards.first?.detail.contains("XNGS") == true)
+        await provider.setCapabilities(capabilities(entitlement: .missing, search: .notVerified, historical: .notVerified, rawMICs: []))
+        await model.refreshCapabilities()
+        #expect(model.capabilityCards.first?.status == "Missing Credential")
+        #expect(await provider.searchCount == 0)
+        #expect(await provider.historyCount == 0)
+    }
+
+    @Test("Stage 7A multi-instrument heatmap is range scoped, reorder persists, and clear removes values")
+    @MainActor
+    func multiInstrumentHeatmapAndReorder() async throws {
+        let clock = FixedClock(instant: try utcInstant(year: 2025, month: 3, day: 21))
+        let provider = CountingMarketProvider(clock: clock)
+        let dependencies = try await makeMarketDependencies(provider: provider)
+        let preferences = MarketPreferencesStore(suiteName: nil, memoryOnly: true)
+        let model = MarketsFeatureModel(marketDataService: dependencies.service, marketProvider: provider, sessionStore: dependencies.session, preferences: preferences, clock: clock, mode: .local)
+        await model.start()
+        for symbol in ["AAPL", "MSFT"] {
+            model.query = symbol
+            model.submitSearch()
+            try await Task.sleep(for: .milliseconds(350))
+            let instrument = try #require(model.searchResults.first)
+            model.select(instrument)
+            await model.addSelectedToWatchlist()
+            model.refreshSelectedHistory()
+            try await Task.sleep(for: .milliseconds(150))
+        }
+        #expect(model.heatmapItems.count == 2)
+        #expect(model.heatmapItems.allSatisfy { $0.category == .gain })
+        let second = model.watchlist[1]
+        await model.moveWatchlist(second, offset: -1)
+        #expect(model.watchlist.first == second)
+        #expect(try await preferences.load().watchlist.first == second)
+        await model.updateRange(.oneMonth)
+        #expect(model.heatmapItems.allSatisfy { $0.category == .unknown })
+        await model.clearSession()
+        #expect(model.heatmapItems.allSatisfy { $0.category == .unknown })
     }
 
     private func decimalValues(_ strings: [String]) throws -> [(CivilDate, Decimal)] {
@@ -349,6 +499,23 @@ struct MarketsTerminalTests {
         return try CivilDate(year: parts.year!, month: parts.month!, day: parts.day!)
     }
 
+    private func utcInstant(year: Int, month: Int, day: Int) throws -> UTCInstant {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let date = try #require(calendar.date(from: DateComponents(year: year, month: month, day: day)))
+        return UTCInstant(date: date)
+    }
+
+    private func capabilities(entitlement: MarketEntitlementState, search: ProviderLiveObservation, historical: ProviderLiveObservation, rawMICs: [String]) -> MarketProviderCapabilities {
+        let descriptor = ProviderDescriptor(identifier: "synthetic.stage7.counting", displayName: "Synthetic Stage 7", kind: .synthetic)
+        return MarketProviderCapabilities(provider: descriptor, entitlement: entitlement, observedPlanName: nil, markets: [
+            .init(mic: "US", minimumEntitlement: .basic, observedEntitlement: entitlement, freshness: .unknown, catalogEvidence: .officialCatalogOnly, liveObservation: search == historical ? search : .mixed, liveObservedMICs: rawMICs, supportsSearch: true, supportsHistoricalBars: true, supportsCorporateActions: false, evidenceStatus: "SYNTHETIC")
+        ], supportsSearch: true, supportsHistoricalPrices: true, supportsCorporateActions: false, endpointCapabilities: [
+            .init(endpoint: .symbolSearch, minimumPlanName: "Unknown", creditWeight: 1, catalogEvidence: .notVerified, liveObservation: search, observedEntitlement: entitlement),
+            .init(endpoint: .historicalOHLCV, minimumPlanName: "Unknown", creditWeight: 1, catalogEvidence: .notVerified, liveObservation: historical, observedEntitlement: entitlement)
+        ], observedAt: nil)
+    }
+
     private func makeMarketDependencies(provider: CountingMarketProvider) async throws -> (service: MarketDataService, session: TransientMarketSessionStore) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("Aureus-Stage7-Unit-\(UUID().uuidString)", isDirectory: true)
         let cache = try MarketCacheStore(databaseURL: root.appendingPathComponent("market.sqlite"))
@@ -369,13 +536,16 @@ private actor CountingMarketProvider: MarketDataProvider {
     nonisolated let descriptor = ProviderDescriptor(identifier: "synthetic.stage7.counting", displayName: "Synthetic Stage 7", kind: .synthetic)
     private(set) var searchCount = 0
     private(set) var historyCount = 0
+    private var capabilitySnapshot: MarketProviderCapabilities?
     let clock: any Clock
 
     init(clock: any Clock) { self.clock = clock }
 
     func capabilities() -> MarketProviderCapabilities {
-        MarketProviderCapabilities(provider: descriptor, entitlement: .basic, observedPlanName: "Synthetic", markets: [], supportsSearch: true, supportsHistoricalPrices: true, supportsCorporateActions: false, endpointCapabilities: [], observedAt: clock.now())
+        capabilitySnapshot ?? MarketProviderCapabilities(provider: descriptor, entitlement: .basic, observedPlanName: "Synthetic", markets: [], supportsSearch: true, supportsHistoricalPrices: true, supportsCorporateActions: false, endpointCapabilities: [], observedAt: clock.now())
     }
+
+    func setCapabilities(_ value: MarketProviderCapabilities) { capabilitySnapshot = value }
 
     func search(query: String) async throws -> [MarketInstrument] {
         searchCount += 1
@@ -388,7 +558,7 @@ private actor CountingMarketProvider: MarketDataProvider {
         historyCount += 1
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let start = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1))!
+        let start = calendar.date(byAdding: .day, value: -79, to: clock.now().date)!
         let bars = try (0..<80).map { index in
             let date = calendar.date(byAdding: .day, value: index, to: start)!
             let parts = calendar.dateComponents([.year, .month, .day], from: date)

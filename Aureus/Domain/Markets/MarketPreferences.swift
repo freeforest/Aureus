@@ -37,6 +37,80 @@ enum MarketRange: String, CaseIterable, Codable, Identifiable, Sendable {
     }
 }
 
+enum MarketRangePolicyError: Error, Equatable, Sendable {
+    case invalidCalendarArithmetic
+}
+
+struct MarketRangeRequestWindow: Equatable, Sendable {
+    let range: MarketRange
+    let startDate: CivilDate?
+    let endDate: CivilDate
+    let outputSizeUpperBound: Int
+    let disclosure: String
+
+    func filter(_ bars: [MarketOHLCVBar]) -> [MarketOHLCVBar] {
+        let sorted = bars.sorted { $0.sessionDate < $1.sessionDate }
+        if range == .oneDay { return sorted.last.map { [$0] } ?? [] }
+        return sorted.filter { bar in
+            (startDate == nil || bar.sessionDate >= startDate!) && bar.sessionDate <= endDate
+        }
+    }
+}
+
+enum MarketRangeRequestPolicy {
+    static func window(for range: MarketRange, now: UTCInstant) throws -> MarketRangeRequestWindow {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let end = now.date
+        let endParts = calendar.dateComponents([.year, .month, .day], from: end)
+        guard let year = endParts.year, let month = endParts.month, let day = endParts.day,
+              let endDate = try? CivilDate(year: year, month: month, day: day) else {
+            throw MarketRangePolicyError.invalidCalendarArithmetic
+        }
+
+        let start: CivilDate?
+        switch range {
+        case .oneDay, .maximum:
+            start = nil
+        case .yearToDate:
+            start = try CivilDate(year: year, month: 1, day: 1)
+        case .oneWeek:
+            start = try civilDate(byAdding: .weekOfYear, value: -1, to: end, calendar: calendar)
+        case .oneMonth:
+            start = try civilDate(byAdding: .month, value: -1, to: end, calendar: calendar)
+        case .threeMonths:
+            start = try civilDate(byAdding: .month, value: -3, to: end, calendar: calendar)
+        case .oneYear:
+            start = try civilDate(byAdding: .year, value: -1, to: end, calendar: calendar)
+        case .fiveYears:
+            start = try civilDate(byAdding: .year, value: -5, to: end, calendar: calendar)
+        }
+        return MarketRangeRequestWindow(
+            range: range,
+            startDate: start,
+            endDate: endDate,
+            outputSizeUpperBound: range.outputSize,
+            disclosure: range == .oneDay ? "Latest Daily Bar — not intraday" : "Inclusive Gregorian UTC civil-date range"
+        )
+    }
+
+    private static func civilDate(
+        byAdding component: Calendar.Component,
+        value: Int,
+        to date: Date,
+        calendar: Calendar
+    ) throws -> CivilDate {
+        guard let result = calendar.date(byAdding: component, value: value, to: date) else {
+            throw MarketRangePolicyError.invalidCalendarArithmetic
+        }
+        let parts = calendar.dateComponents([.year, .month, .day], from: result)
+        guard let year = parts.year, let month = parts.month, let day = parts.day else {
+            throw MarketRangePolicyError.invalidCalendarArithmetic
+        }
+        return try CivilDate(year: year, month: month, day: day)
+    }
+}
+
 struct MarketWatchlistIdentity: Codable, Equatable, Hashable, Identifiable, Sendable {
     let symbol: String
     let mic: String

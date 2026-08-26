@@ -36,15 +36,31 @@
     return typeof value === 'number' && Number.isFinite(value);
   }
 
+  function validDate(value) {
+    return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  }
+
+  function validColor(value) {
+    return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value);
+  }
+
   function validPayload(payload) {
     if (!payload || !payload.configuration || payload.configuration.schemaVersion !== VERSION) return false;
-    if (!Array.isArray(payload.candles) || payload.candles.length > 10000 || !Array.isArray(payload.lines)) return false;
+    if (!Array.isArray(payload.candles) || payload.candles.length > 10000 || !Array.isArray(payload.lines) || payload.lines.length > 16) return false;
+    const configuration = payload.configuration;
+    if (typeof configuration.provider !== 'string' || configuration.provider.length > 96 ||
+        typeof configuration.symbol !== 'string' || configuration.symbol.length > 64 ||
+        typeof configuration.rawMIC !== 'string' || !/^[A-Za-z0-9]{4}$/.test(configuration.rawMIC) ||
+        typeof configuration.freshness !== 'string' || configuration.freshness.length > 32 ||
+        typeof configuration.selectedRange !== 'string' || configuration.selectedRange.length > 8) return false;
     return payload.candles.every(item =>
-      typeof item.time === 'string' && finite(item.open) && finite(item.high) && finite(item.low) && finite(item.close) &&
+      validDate(item.time) && finite(item.open) && finite(item.high) && finite(item.low) && finite(item.close) &&
       (item.volume === null || item.volume === undefined || finite(item.volume))
     ) && payload.lines.every(line =>
-      typeof line.identifier === 'string' && typeof line.title === 'string' && Number.isInteger(line.pane) &&
-      Array.isArray(line.points) && line.points.every(point => typeof point.time === 'string' && finite(point.value))
+      typeof line.identifier === 'string' && line.identifier.length > 0 && line.identifier.length <= 64 &&
+      typeof line.title === 'string' && line.title.length <= 80 && Number.isInteger(line.pane) && [0, 2, 3].includes(line.pane) &&
+      ['line', 'histogram'].includes(line.type) && validColor(line.color) &&
+      Array.isArray(line.points) && line.points.length <= 10000 && line.points.every(point => validDate(point.time) && finite(point.value))
     );
   }
 
@@ -77,19 +93,27 @@
         time: item.time, value: item.volume, color: item.close >= item.open ? '#0F766E88' : '#C2410C88'
       })));
 
+      const renderSeries = [
+        { identifier: 'candlestick', seriesType: 'candlestick', pane: 0, pointCount: payload.candles.length },
+        { identifier: 'volume', seriesType: 'histogram', pane: 1, pointCount: payload.candles.filter(item => item.volume !== null && item.volume !== undefined).length }
+      ];
+
       for (const line of payload.lines) {
         for (const point of line.points) {
           const current = indicatorsByTime.get(point.time) || [];
           current.push(`${line.title}: ${point.value}`);
           indicatorsByTime.set(point.time, current);
         }
-        const pane = Math.max(0, line.pane + 1);
-        const type = line.identifier === 'macd-histogram' ? LightweightCharts.HistogramSeries : LightweightCharts.LineSeries;
+        const pane = line.pane;
+        const type = line.type === 'histogram' ? LightweightCharts.HistogramSeries : LightweightCharts.LineSeries;
         const series = chart.addSeries(type, {
           title: line.title, color: line.color, lineWidth: 2, priceLineVisible: false, lastValueVisible: true
         }, pane);
         series.setData(line.points.map(point => ({ time: point.time, value: point.value, color: line.color })));
+        renderSeries.push({ identifier: line.identifier, seriesType: line.type, pane, pointCount: line.points.length });
       }
+
+      post('renderSummary', { series: renderSeries });
 
       chart.subscribeCrosshairMove(param => {
         const date = typeof param.time === 'string' ? param.time : null;
@@ -121,6 +145,12 @@
         post('visibleRange', { start: payload.candles[first].time, end: payload.candles[last].time });
       });
       chart.timeScale().fitContent();
+      if (payload.candles.length > 0) {
+        post('visibleRange', {
+          start: payload.candles[0].time,
+          end: payload.candles[payload.candles.length - 1].time
+        });
+      }
       resizeObserver = new ResizeObserver(() => chart && chart.resize(container.clientWidth, container.clientHeight));
       resizeObserver.observe(container);
       return true;

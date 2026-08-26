@@ -64,6 +64,11 @@ struct MarketsVisibleSummary: Equatable, Sendable {
     let changePercentage: Decimal?
 }
 
+private struct SessionPresentationKey: Hashable, Sendable {
+    let identity: MarketWatchlistIdentity
+    let range: MarketRange
+}
+
 @MainActor
 @Observable
 final class MarketsFeatureModel {
@@ -77,6 +82,9 @@ final class MarketsFeatureModel {
     private(set) var chartPayload: MarketChartPayload?
     private(set) var chartStatus = "Not loaded"
     private(set) var visibleRangeText = "No visible range"
+    private(set) var visibleRange: ClosedRange<CivilDate>?
+    private(set) var renderSummary: MarketChartRenderSummary?
+    private(set) var currentCapabilities: MarketProviderCapabilities?
     private(set) var sessionStatistics = TransientMarketSessionStatistics(
         entryCount: 0,
         accountedBytes: 0,
@@ -85,6 +93,7 @@ final class MarketsFeatureModel {
     private(set) var errorDisclosure: String?
     private(set) var lastActionDisclosure = "No automatic market request is made at launch."
     private(set) var ephemeralInstruments: [MarketWatchlistIdentity: MarketInstrument] = [:]
+    private var sessionPresentations: [SessionPresentationKey: MarketHistoryPage] = [:]
 
     var query = "" {
         didSet {
@@ -125,40 +134,62 @@ final class MarketsFeatureModel {
     }
 
     var capabilityCards: [MarketsCapabilityCard] {
-        [
-            .init(
-                region: .us,
-                status: "Verified at observed scope",
-                detail: "AAPL / XNGS Search and daily .all Historical succeeded at the Stage 6NBC observation instant. This is not complete US coverage."
-            ),
-            .init(region: .hongKong, status: "Not Verified", detail: "XHKG requires separate endpoint and exchange-license evidence."),
-            .init(region: .mainlandChina, status: "Not Verified", detail: "XSHG and XSHE live endpoints have not been accepted."),
-            .init(region: .japan, status: "Not Verified", detail: "XJPX requires separate endpoint and exchange-license evidence.")
-        ]
+        MarketsCapabilityCard.Region.allCases.map { region in
+            let markets = currentMarkets(for: region)
+            let observations = markets.map(\.liveObservation)
+            let rawMICs = Array(Set(markets.flatMap(\.liveObservedMICs))).sorted()
+            let status: String
+            if currentCapabilities?.entitlement == .missing { status = "Missing Credential" }
+            else if observations.contains(.mixed) || (observations.contains(.succeeded) && observations.contains(.denied)) { status = "Mixed" }
+            else if observations.contains(.succeeded) { status = "Current observation available" }
+            else if observations.contains(.denied) { status = "Unsupported by Current Entitlement" }
+            else { status = "Not Verified" }
+            var detail = rawMICs.isEmpty
+                ? "Current Provider snapshot has no live raw-MIC observation."
+                : "Current Provider snapshot raw MICs: \(rawMICs.joined(separator: ", "))."
+            if region == .us {
+                detail += " Search: \(currentEndpointObservation(.symbolSearch).rawValue); Historical: \(currentEndpointObservation(.historicalOHLCV).rawValue)."
+            }
+            return .init(region: region, status: status, detail: detail)
+        }
+    }
+
+    var historicalAcceptanceRecord: String {
+        "Historical acceptance record: Stage 6NBC observed AAPL/USD/XNGS Search and daily .all Historical for the credential and instant used then. It is not current Credential evidence."
+    }
+
+    var currentCapabilityBoundary: String {
+        let plan = currentCapabilities?.observedPlanName ?? "Unknown"
+        let entitlement = currentCapabilities?.entitlement.rawValue ?? "unknown"
+        return "Current Plan: \(plan) · entitlement: \(entitlement) · freshness remains endpoint-specific."
     }
 
     var heatmapItems: [SessionHeatmapItem] {
         watchlist.map { identity in
-            guard let page = historyPage,
-                  page.instrument.symbol == identity.symbol,
-                  page.instrument.mic == identity.mic,
+            guard let page = sessionPresentations[.init(identity: identity, range: selectedRange)],
                   let first = page.bars.first?.close.decimal,
                   let last = page.bars.last?.close.decimal else {
                 return .init(identity: identity, range: selectedRange, change: nil, category: .unknown)
             }
-            let change = last - first
+            guard let change = try? MarketPresentationArithmetic.subtract(last, first) else {
+                return .init(identity: identity, range: selectedRange, change: nil, category: .unknown)
+            }
             let category: SessionHeatmapItem.ChangeCategory = change > 0 ? .gain : (change < 0 ? .loss : .unchanged)
             return .init(identity: identity, range: selectedRange, change: change, category: category)
         }
     }
 
     var visibleSummary: MarketsVisibleSummary? {
-        guard let bars = historyPage?.bars, let first = bars.first, let last = bars.last else { return nil }
+        let bars = visibleBars
+        guard let first = bars.first, let last = bars.last else { return nil }
         let high = bars.map(\.high.decimal).max() ?? first.high.decimal
         let low = bars.map(\.low.decimal).min() ?? first.low.decimal
-        let change = last.close.decimal - first.close.decimal
-        let percentage = first.close.decimal == 0 ? nil : change / first.close.decimal * 100
+        guard let change = try? MarketPresentationArithmetic.subtract(last.close.decimal, first.close.decimal) else { return nil }
+        let percentage = first.close.decimal == 0 ? nil : try? MarketPresentationArithmetic.multiply(
+            MarketPresentationArithmetic.divide(change, first.close.decimal), 100
+        )
         let volumes = bars.compactMap(\.volume?.decimal)
+        let totalVolume = volumes.isEmpty ? nil : try? MarketPresentationArithmetic.sum(volumes)
         return MarketsVisibleSummary(
             start: first.sessionDate,
             end: last.sessionDate,
@@ -166,10 +197,16 @@ final class MarketsFeatureModel {
             lastClose: last.close.decimal,
             high: high,
             low: low,
-            totalVolume: volumes.isEmpty ? nil : volumes.reduce(.zero, +),
+            totalVolume: totalVolume,
             change: change,
             changePercentage: percentage
         )
+    }
+
+    var visibleBars: [MarketOHLCVBar] {
+        guard let bars = historyPage?.bars else { return [] }
+        guard let visibleRange else { return bars }
+        return bars.filter { visibleRange.contains($0.sessionDate) }
     }
 
     func start() async {
@@ -183,7 +220,16 @@ final class MarketsFeatureModel {
             errorDisclosure = "Market preferences could not be loaded. Provider data was not restored."
         }
         await refreshSessionStatistics()
+        await refreshCapabilities()
         if sessionStatistics.entryCount == 0 { state = .noSessionData }
+    }
+
+    func refreshCapabilities() async {
+        currentCapabilities = await marketProvider.capabilities()
+        if currentCapabilities?.entitlement == .missing {
+            sessionPresentations.removeAll()
+            visibleRange = nil
+        }
     }
 
     func submitSearch() {
@@ -217,6 +263,7 @@ final class MarketsFeatureModel {
                 self.state = .ready
                 self.lastActionDisclosure = "Search succeeded. Search visibility does not establish price, action, Plan, or freshness entitlement."
                 await self.refreshSessionStatistics()
+                await self.refreshCapabilities()
             } catch is CancellationError {
                 guard self?.searchGeneration == generation else { return }
                 self?.state = .cancelled
@@ -224,6 +271,7 @@ final class MarketsFeatureModel {
                 guard self?.searchGeneration == generation else { return }
                 self?.apply(error)
                 await self?.refreshSessionStatistics()
+                await self?.refreshCapabilities()
             } catch {
                 guard self?.searchGeneration == generation else { return }
                 self?.state = .providerError
@@ -240,6 +288,8 @@ final class MarketsFeatureModel {
         indicatorSnapshot = nil
         chartPayload = nil
         chartStatus = "Not loaded"
+        visibleRange = nil
+        renderSummary = nil
         state = .ready
     }
 
@@ -278,6 +328,14 @@ final class MarketsFeatureModel {
         await persistPreferences()
     }
 
+    func moveWatchlist(_ identity: MarketWatchlistIdentity, offset: Int) async {
+        guard let source = watchlist.firstIndex(of: identity) else { return }
+        let destination = source + offset
+        guard watchlist.indices.contains(destination) else { return }
+        watchlist.swapAt(source, destination)
+        await persistPreferences()
+    }
+
     func updateRange(_ range: MarketRange) async {
         historyTask?.cancel()
         historyGeneration = UUID()
@@ -311,24 +369,34 @@ final class MarketsFeatureModel {
         historyTask = Task { [weak self] in
             guard let self else { return }
             do {
+                let window = try MarketRangeRequestPolicy.window(for: self.selectedRange, now: self.clock.now())
                 let request = try MarketHistoryRequest(
                     instrument: instrument,
                     interval: .oneDay,
                     adjustment: .all,
-                    outputSize: self.selectedRange.outputSize
+                    startDate: window.startDate,
+                    endDate: window.endDate,
+                    outputSize: window.outputSizeUpperBound
                 )
                 let page = try await self.marketDataService.historicalBars(request)
                 try Task.checkCancellation()
                 guard self.historyGeneration == generation,
                       page.instrument.symbol == instrument.symbol,
                       page.instrument.mic == instrument.mic else { return }
-                self.historyPage = page
-                self.state = page.bars.isEmpty ? .insufficientData : .ready
-                self.lastActionDisclosure = page.bars.isEmpty
+                let filteredBars = window.filter(page.bars)
+                let presentation = MarketHistoryPage(instrument: page.instrument, bars: filteredBars, nextEndDate: page.nextEndDate, sourceRevision: page.sourceRevision, providerIdentifier: page.providerIdentifier)
+                self.historyPage = presentation
+                if let identity = try? MarketWatchlistIdentity(symbol: instrument.symbol, mic: instrument.mic) {
+                    self.sessionPresentations[.init(identity: identity, range: self.selectedRange)] = presentation
+                }
+                self.visibleRange = filteredBars.first.flatMap { first in filteredBars.last.map { first.sessionDate...$0.sessionDate } }
+                self.state = filteredBars.isEmpty ? .insufficientData : .ready
+                self.lastActionDisclosure = filteredBars.isEmpty
                     ? "Historical returned no daily bars."
-                    : "Daily .all bars loaded into the current session only."
+                    : "Daily .all bars loaded into the current session only. \(window.disclosure)."
                 self.rebuildPresentation()
                 await self.refreshSessionStatistics()
+                await self.refreshCapabilities()
             } catch is CancellationError {
                 guard self.historyGeneration == generation else { return }
                 self.state = .cancelled
@@ -336,6 +404,7 @@ final class MarketsFeatureModel {
                 guard self.historyGeneration == generation else { return }
                 self.apply(error)
                 await self.refreshSessionStatistics()
+                await self.refreshCapabilities()
             } catch {
                 guard self.historyGeneration == generation else { return }
                 self.state = .providerError
@@ -356,7 +425,10 @@ final class MarketsFeatureModel {
             indicatorSnapshot = nil
             chartPayload = nil
             ephemeralInstruments = [:]
+            sessionPresentations = [:]
             selectedInstrument = nil
+            visibleRange = nil
+            renderSummary = nil
             state = .sessionCleared
             lastActionDisclosure = "Session market data cleared. Watchlist identifiers remain preferences only."
             chartStatus = "Session cleared"
@@ -365,14 +437,22 @@ final class MarketsFeatureModel {
             errorDisclosure = "Session clear failed without changing permanent wealth data."
         }
         await refreshSessionStatistics()
+        await refreshCapabilities()
     }
 
     func receiveChartMessage(_ message: MarketChartInboundMessage) {
         switch message {
         case .ready: chartStatus = "Chart ready"
-        case let .visibleRange(start, end): visibleRangeText = "Visible range \(start) through \(end)"
+        case let .visibleRange(start, end):
+            guard let lower = historyPage?.bars.first?.sessionDate, let upper = historyPage?.bars.last?.sessionDate else { return }
+            let clampedStart = max(start, lower)
+            let clampedEnd = min(end, upper)
+            guard clampedStart <= clampedEnd else { return }
+            visibleRange = clampedStart...clampedEnd
+            visibleRangeText = "Visible range \(clampedStart) through \(clampedEnd)"
         case let .crosshair(date):
             if let date { visibleRangeText = "Crosshair session date \(date)" }
+        case let .renderSummary(summary): renderSummary = summary
         case let .rendererError(category): chartStatus = "Chart error: \(category)"
         }
     }
@@ -442,6 +522,27 @@ final class MarketsFeatureModel {
         case .invalidRequest, .providerError, .transportShutdownTimedOut, .retentionUnverified: state = .providerError
         }
         errorDisclosure = Self.disclosure(for: state)
+        switch error {
+        case .invalidOrExpired, .unsupportedEntitlement, .unsupportedMarket, .upgradeRequired:
+            sessionPresentations.removeAll()
+            historyPage = nil
+            visibleRange = nil
+        default: break
+        }
+    }
+
+    private func currentMarkets(for region: MarketsCapabilityCard.Region) -> [MarketCapability] {
+        let identifiers: Set<String> = switch region {
+        case .us: ["US"]
+        case .hongKong: ["XHKG"]
+        case .mainlandChina: ["XSHG", "XSHE"]
+        case .japan: ["XJPX"]
+        }
+        return currentCapabilities?.markets.filter { identifiers.contains($0.mic) } ?? []
+    }
+
+    private func currentEndpointObservation(_ endpoint: MarketProviderEndpoint) -> ProviderLiveObservation {
+        currentCapabilities?.endpointCapabilities.first { $0.endpoint == endpoint }?.liveObservation ?? .notVerified
     }
 
     private static func disclosure(for state: MarketsTerminalState) -> String {

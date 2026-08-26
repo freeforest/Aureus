@@ -86,6 +86,7 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["markets.capability.hong-kong"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["markets.capability.mainland-china"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["markets.capability.japan"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.capability.historical-record"].exists)
 
         let search = app.descendants(matching: .any)["markets.search.field"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
@@ -110,6 +111,10 @@ final class AureusUITests: XCTestCase {
         let chartStatus = app.descendants(matching: .any)["markets.chart.status"]
         XCTAssertTrue(chartStatus.waitForExistence(timeout: 10))
         XCTAssertEqual(chartStatus.label, "Chart ready")
+        let visibleRange = app.descendants(matching: .any)["markets.chart.visible-range"]
+        XCTAssertTrue(visibleRange.waitForExistence(timeout: 5))
+        XCTAssertTrue(visibleRange.label.contains("Visible range"))
+        XCTAssertTrue(app.descendants(matching: .any)["markets.chart.render-summary"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["markets.indicator.rsi14"].click()
         app.descendants(matching: .any)["markets.indicator.rsi14"].click()
         XCTAssertEqual(app.descendants(matching: .any)["markets.chart.status"].label, "Chart ready")
@@ -127,6 +132,16 @@ final class AureusUITests: XCTestCase {
         accessibleData.click()
         XCTAssertTrue(app.descendants(matching: .any)["markets.accessible.table"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["markets.chart.attribution"].exists)
+
+        let secondResult = app.descendants(matching: .any)["markets.search.result.SYN-JPY.XJPX"]
+        XCTAssertTrue(secondResult.waitForExistence(timeout: 5))
+        secondResult.click()
+        app.descendants(matching: .any)["markets.watchlist.add"].click()
+        let moveSecondUp = app.descendants(matching: .any)["markets.watchlist.move-up.SYN-JPY.XJPX"]
+        XCTAssertTrue(moveSecondUp.waitForExistence(timeout: 5))
+        XCTAssertTrue(moveSecondUp.isEnabled)
+        moveSecondUp.click()
+        XCTAssertFalse(app.descendants(matching: .any)["markets.watchlist.move-up.SYN-JPY.XJPX"].isEnabled)
 
         app.descendants(matching: .any)["markets.session.clear"].click()
         XCTAssertTrue(app.descendants(matching: .any)["markets.detail.empty"].waitForExistence(timeout: 5))
