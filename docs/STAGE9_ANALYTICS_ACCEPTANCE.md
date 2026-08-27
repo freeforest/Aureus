@@ -1,6 +1,6 @@
 # Stage 9 Portfolio Analytics Acceptance
 
-**Status:** Stage 9A PARTIAL — Awaiting Reviewer Gate  
+**Status:** Stage 9AA PARTIAL — Awaiting Reviewer Gate  
 **Implementation date:** 2026-08-27  
 **Authority:** This document records implementation and bounded local/synthetic evidence. It does not decide the Stage 9 Gate, authorize Stage 10, or establish any Provider capability.
 
@@ -266,3 +266,57 @@ The one authorized minimal AX-only repair added explicit `.accessibilityElement(
 Both Stage 9A focused result bundles contain `Info.plist`; summary and tests parsing succeeded in the standard Xcode permission environment. The single business-repair and final-business-retry budget is exhausted. The current blocker is specifically the independent native Performance table AX surface; no evidence establishes a calculation, persistence, or Provider failure. Provider requests remained `NOT RUN`, Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 10 remains `NO-GO`.
 
 This is **Stage 9A PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+
+## 22. Stage 9AA native accessible-table contract repair
+
+Prompt 9AA preserved the two Prompt 9A business failures as historical evidence. Both Stage 9A result bundles remain complete and parseable, both contain one business execution, and both failed at `analytics.performance.table`; neither result is rewritten as a current Prompt 9AA outcome.
+
+The seven Analytics data regions now expose their identifiers on visible, standalone summary `Text` nodes rather than on parent `.contain` containers. Each summary ignores children, has a unique identifier and a self-contained label with the actual row count, and leaves the real data rows independently accessible. The strengthened Stage 9 UI contract checks table names, `rows`, dynamic counts, representative row identifiers, and self-contained row content without using AXValue, fixed coordinates, row indexes, invisible overlays, or combined whole-table strings. Analytics formulas, Domain arithmetic, FeatureModel scheduling, Portfolio data, persistence, Provider routing, and Stage 9 performance implementation were not changed.
+
+The required current-candidate verification produced the following evidence:
+
+| Verification | Result bundle | Result |
+|---|---|---|
+| Stage 9 focused Unit, final | `/private/tmp/Aureus-Stage9AA-hnEvhC/Stage9FocusedUnit-Final.xcresult` | `PASS` — exit 0; 20 definitions / 20 executions; 0 failed; 0 skipped |
+| Stage 6–8 focused regression, final | `/private/tmp/Aureus-Stage9AA-hnEvhC/Stage68FocusedRegression-Final.xcresult` | `PASS` — exit 0; 204 definitions / 237 executions; 0 failed; 0 skipped |
+| Full `AureusTests`, first final attempt | `/private/tmp/Aureus-Stage9AA-hnEvhC/FullUnit-Final.xcresult` | `PARTIAL` — worker/coverage finalization hung after tests; bounded interruption; exit 143; incomplete result bundle |
+| Full `AureusTests`, equivalent infrastructure retry | `/private/tmp/Aureus-Stage9AA-hnEvhC/FullUnit-Final-Retry.xcresult` | `PASS` — exit 0; 254 definitions / 287 executions; 0 failed; 0 skipped |
+| Clean Debug arm64 Build, final | `/private/tmp/Aureus-Stage9AA-hnEvhC/CleanDebugBuild-Final.xcresult` | `PASS` — exit 0; build succeeded; errors 0 |
+| Signed build-for-testing, final | `/private/tmp/Aureus-Stage9AA-hnEvhC/BuildForTesting-Final.xcresult` | `PASS` — exit 0; test build succeeded; errors 0 |
+| Stage 9AA focused UI, initial business execution | `/private/tmp/Aureus-Stage9AA-hnEvhC/Stage9FocusedUI.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; existing chart-summary element was outside the visible scroll region |
+| Stage 9AA focused UI, final business retry | `/private/tmp/Aureus-Stage9AA-hnEvhC/Stage9FocusedUI-Final.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; existing `analytics.coverage` element was outside the visible scroll region |
+| Existing focused UI regression | — | `NOT RUN` — final Stage 9 focused UI did not pass |
+| Full `AureusUITests` | — | `NOT RUN` — ordered focused UI prerequisite did not pass |
+
+All final successful result bundles contain `Info.plist` and their summary/tests reports parse successfully. The first full-Unit final attempt is retained as an infrastructure interruption rather than hidden; the equivalent unsigned-host retry used the same source and assertions with code coverage disabled and passed completely. Both Stage 9AA UI invocations entered the business method, so the authorized two-business-execution budget is exhausted. The final focused failure occurred before the new table assertions; therefore the source-level table contract and Unit/build evidence are present, but the complete focused Synthetic/typed-unavailable/Production-isolation flow is not UI-verified in this round.
+
+Performance is `NOT RUN — accepted Stage 9 performance implementation unchanged`. Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
+
+This is **Stage 9AA PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+
+## 23. Stage 9AAA viewport-aware UI lifecycle repair
+
+Prompt 9AAA preserves both Stage 9AA focused business failures as historical evidence. The initial Stage 9AA execution failed at the offscreen `analytics.chart.performance.summary`; its one authorized retry failed at `analytics.coverage` before reaching the seven table-summary, representative-row, typed-unavailable, or Production-isolation assertions. Neither historical result is rewritten as a Stage 9AAA result.
+
+The Stage 9 UI test now uses one bounded, bidirectional viewport helper. Every iteration performs a fresh identifier query; `towardTop` semantically calls `swipeDown()` and `towardBottom` calls `swipeUp()` on the uniquely identified `analytics.detail.scroll`. The helper has finite timeout and scroll-count bounds, never retains an element across a scroll or state transition, and does not use coordinates, row indexes, a transient menu tree, or an infinite loop. The ordered test contract verifies the initial top state, returns to coverage after Calculate, proceeds through metrics and the performance/drawdown/observed/detail tables from top to bottom, returns to the top after selecting the sparse Portfolio, and launches a separate Production process for isolation checks.
+
+The initial Stage 9AAA business execution completed the initial Synthetic state and Calculate. Sanitized activity titles showed that `analytics.coverage` was present as one unique node on every query; the failure was the test's literal `incomplete excluded` predicate, while the frozen Production AX label is the more specific `incomplete snapshots excluded`. The one authorized test-only repair changed that predicate without modifying Production or weakening the identifier, uniqueness, coverage-content, or state assertions.
+
+The fresh final UI product built successfully, but the only authorized final focused business retry failed at `analytics.chart.performance`. It completed coverage and all top metric assertions, then the finite 8-second helper bound permitted three semantic `swipeUp()` operations before timing out. This is a current business assertion failure in the UI-test viewport lifecycle, not evidence of an Analytics formula, Domain, persistence, Provider, or Production AX-node failure. The focused business-retry budget is exhausted, so the ordered `7/7` regression and `13/13` full UI suite were not run.
+
+| Verification | Result bundle | Result |
+|---|---|---|
+| Initial fresh build-for-testing | `/private/tmp/Aureus-Stage9AAA-VYK9KL/BuildForTesting.xcresult` | `PASS` by complete build summary — status succeeded, errors 0; original shell exit became `NOT AVAILABLE` after the asynchronous command handle was lost |
+| Stage 9AAA focused UI, initial business execution | `/private/tmp/Aureus-Stage9AAA-VYK9KL/Stage9FocusedUI.xcresult` | `FAIL` — shell exit `NOT AVAILABLE`; 1 executed / 0 passed / 1 failed / 0 skipped; unique coverage node did not satisfy the overly literal label predicate |
+| Final fresh signed build-for-testing | `/private/tmp/Aureus-Stage9AAA-VYK9KL/FinalBuildForTesting.xcresult` | `PASS` — exit 0; `TEST BUILD SUCCEEDED`; errors 0 |
+| Stage 9AAA focused UI, final business retry | `/private/tmp/Aureus-Stage9AAA-VYK9KL/Stage9FocusedUI-Final.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; finite viewport timeout before `analytics.chart.performance` |
+| Existing focused UI regression | — | `NOT RUN` — final Stage 9 focused UI did not pass |
+| Full `AureusUITests` | — | `NOT RUN` — Existing focused regression prerequisite did not pass |
+
+All four listed result bundles contain `Info.plist` and parse successfully. The initial parser attempt against the still-running focused bundle returned exit 64 because `Info.plist` had not yet been finalized; the same bundle parsed with exit 0 after the original process completed, and no test was rerun for parsing.
+
+Because only `AureusUITests.swift` changed, Stage 9 focused Unit `20/20`, Stage 6–8 regression `204` definitions / `237` executions, full Unit `254` definitions / `287` executions, Stage 9 performance `3/3`, and Clean Debug arm64 Build are `NOT RUN — INHERITED AFTER EXACT Production/Unit SOURCE-HASH VERIFICATION`. Analytics Production, Domain, FeatureModel, persistence, migrations, Provider routing, entitlements, Package, project, and chart assets remained byte-identical.
+
+Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
+
+This is **Stage 9AAA PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.

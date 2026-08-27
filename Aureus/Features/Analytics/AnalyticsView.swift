@@ -153,6 +153,7 @@ struct AnalyticsView: View {
             }
             .padding(18)
         }
+        .accessibilityIdentifier("analytics.detail.scroll")
     }
 
     private func reportView(_ report: PortfolioAnalyticsReport) -> some View {
@@ -276,6 +277,16 @@ struct AnalyticsView: View {
     private func observedMonthlyTable(_ rows: [ObservedMonthlyTWR]) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Monthly").font(.subheadline.weight(.semibold))
+            accessibleTableSummary(
+                "Observed monthly TWR table: \(rows.count) rows",
+                identifier: "analytics.monthly.table"
+            )
+            if rows.isEmpty {
+                accessibleEmptyTableRow(
+                    "No observed monthly TWR rows available.",
+                    identifier: "analytics.monthly.empty"
+                )
+            }
             ForEach(rows) { row in
                 let label = "\(row.id): \(AnalyticsDisplay.percent(row.returnDecimal)), \(AnalyticsDisplay.coverage(row.coverage)), available"
                 Text(label)
@@ -287,12 +298,21 @@ struct AnalyticsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("analytics.monthly.table")
     }
 
     private func observedAnnualTable(_ rows: [ObservedAnnualTWR]) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Annual").font(.subheadline.weight(.semibold))
+            accessibleTableSummary(
+                "Observed annual TWR table: \(rows.count) rows",
+                identifier: "analytics.annual.table"
+            )
+            if rows.isEmpty {
+                accessibleEmptyTableRow(
+                    "No observed annual TWR rows available.",
+                    identifier: "analytics.annual.empty"
+                )
+            }
             ForEach(rows) { row in
                 let label = "\(row.year): \(AnalyticsDisplay.percent(row.returnDecimal)), \(AnalyticsDisplay.coverage(row.coverage)), available"
                 Text(label)
@@ -304,65 +324,88 @@ struct AnalyticsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("analytics.annual.table")
     }
 
     private func cashFlowTable(_ report: PortfolioAnalyticsReport) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("Capital Flows Used").font(.headline)
+            accessibleTableSummary(
+                "Portfolio capital-flow table: \(report.capitalFlows.count) rows",
+                identifier: "analytics.cash-flow.table"
+            )
             Text("Opening Lots and Buys are contributions; Sells are withdrawals; Manual Splits are zero-flow. XIRR uses the inverse investor sign.")
                 .font(.caption).foregroundStyle(.secondary)
             if report.capitalFlows.isEmpty {
-                Text("No capital flows inside (start, end].")
+                accessibleEmptyTableRow(
+                    "No Portfolio capital-flow rows inside the selected range.",
+                    identifier: "analytics.cash-flow.empty"
+                )
             } else {
-                ForEach(Array(report.capitalFlows.enumerated()), id: \.element.activityID) { index, flow in
+                ForEach(Array(report.capitalFlows.enumerated()), id: \.element.activityID) { _, flow in
                     let signed = flow.direction == .contribution ? "+" : "−"
                     let label = "\(flow.date): \(flow.direction.rawValue), \(signed)\(WealthDisplay.money(flow.amountCNY))"
                     Text(label)
                         .font(.caption.monospacedDigit())
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(label)
-                        .accessibilityIdentifier("analytics.cash-flow.\(index)")
+                        .accessibilityIdentifier("analytics.cash-flow.row.\(flow.activityID.uuidString)")
                 }
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("analytics.cash-flow.table")
     }
 
     private func subperiodTable(_ rows: [AnalyticsSubperiodReturn]) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Accessible TWR Subperiod Table").font(.headline)
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+            accessibleTableSummary(
+                "Accessible TWR subperiod table: \(rows.count) rows",
+                identifier: "analytics.subperiod.table"
+            )
+            if rows.isEmpty {
+                accessibleEmptyTableRow(
+                    "No TWR subperiod rows available.",
+                    identifier: "analytics.subperiod.empty"
+                )
+            }
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 let label = "\(row.startDate) to \(row.endDate): Portfolio NAV Snapshot return \(AnalyticsDisplay.percent(row.returnDecimal)), capital flow \(WealthDisplay.money(row.portfolioCashFlow))"
                 Text(label)
                     .font(.caption.monospacedDigit())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(label)
-                    .accessibilityIdentifier("analytics.subperiod.\(index)")
+                    .accessibilityIdentifier("analytics.subperiod.row.\(row.startDate).\(row.endDate)")
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("analytics.subperiod.table")
     }
 
     private func xirrCashFlowTable(_ rows: [AnalyticsXIRRCashFlow]) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Accessible XIRR Cash-flow Table").font(.headline)
+            accessibleTableSummary(
+                "Accessible XIRR cash-flow table: \(rows.count) rows",
+                identifier: "analytics.xirr-flow.table"
+            )
             Text("Investor perspective: negative is invested capital; positive is returned capital or ending value.")
                 .font(.caption).foregroundStyle(.secondary)
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+            if rows.isEmpty {
+                accessibleEmptyTableRow(
+                    "No XIRR cash-flow rows available.",
+                    identifier: "analytics.xirr-flow.empty"
+                )
+            }
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 let direction = row.investorAmountCNY.minorUnits < 0 ? "invested" : "returned"
                 let label = "\(row.date): \(direction), \(WealthDisplay.money(row.investorAmountCNY))"
                 Text(label)
                     .font(.caption.monospacedDigit())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(label)
-                    .accessibilityIdentifier("analytics.xirr-flow.\(index)")
+                    .accessibilityIdentifier("analytics.xirr-flow.row.\(row.date)")
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("analytics.xirr-flow.table")
     }
 
     private func calculationEvidence(_ report: PortfolioAnalyticsReport) -> some View {
@@ -384,29 +427,67 @@ struct AnalyticsView: View {
     private func nativeIndexTable(_ rows: [AnalyticsIndexPoint]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Accessible Wealth Index Table").font(.subheadline.weight(.semibold))
+            accessibleTableSummary(
+                "Accessible wealth index table: \(rows.count) rows",
+                identifier: "analytics.performance.table"
+            )
+            if rows.isEmpty {
+                accessibleEmptyTableRow(
+                    "No wealth index rows available.",
+                    identifier: "analytics.performance.empty"
+                )
+            }
             ForEach(rows, id: \.date) { row in
                 let label = "\(row.date): index \(AnalyticsDisplay.number(row.value, digits: 6))"
                 Text(label).font(.caption.monospacedDigit())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(label)
+                    .accessibilityIdentifier("analytics.performance.row.\(row.date)")
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("analytics.performance.table")
     }
 
     private func nativeDrawdownTable(_ rows: [AnalyticsDrawdownPoint]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Accessible Drawdown Table").font(.subheadline.weight(.semibold))
+            accessibleTableSummary(
+                "Accessible drawdown table: \(rows.count) rows",
+                identifier: "analytics.drawdown.table"
+            )
+            if rows.isEmpty {
+                accessibleEmptyTableRow(
+                    "No drawdown rows available.",
+                    identifier: "analytics.drawdown.empty"
+                )
+            }
             ForEach(rows, id: \.date) { row in
                 let label = "\(row.date): drawdown \(AnalyticsDisplay.percent(row.signedDrawdown))"
                 Text(label).font(.caption.monospacedDigit())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(label)
+                    .accessibilityIdentifier("analytics.drawdown.row.\(row.date)")
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("analytics.drawdown.table")
+    }
+
+    private func accessibleTableSummary(_ label: String, identifier: String) -> some View {
+        Text(verbatim: label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: label))
+            .accessibilityIdentifier(identifier)
+    }
+
+    private func accessibleEmptyTableRow(_ label: String, identifier: String) -> some View {
+        Text(verbatim: label)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: label))
+            .accessibilityIdentifier(identifier)
     }
 }
 

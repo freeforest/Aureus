@@ -2,6 +2,11 @@ import AppKit
 import XCTest
 
 final class AureusUITests: XCTestCase {
+    private enum AnalyticsScrollDirection {
+        case towardTop
+        case towardBottom
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -289,28 +294,191 @@ final class AureusUITests: XCTestCase {
             equals: "Analytics status: Calculated",
             timeout: 10
         ))
+
+        // Calculation replaces the detail content while preserving the
+        // ScrollView's prior viewport. Re-query from the semantic scroll
+        // surface and deliberately return to the top before reading coverage.
+        XCTAssertTrue(
+            waitForAnalyticsElement(
+                in: app,
+                identifier: "analytics.coverage",
+                direction: .towardTop,
+                timeout: 8,
+                requireUnique: true,
+                labelSatisfies: { $0.contains("incomplete snapshots excluded") }
+            ),
+            "Missing Stage 9 coverage after returning to the top viewport"
+        )
+
         for identifier in [
-            "analytics.metric.total-return", "analytics.metric.twr", "analytics.metric.cagr",
-            "analytics.metric.xirr", "analytics.metric.volatility", "analytics.metric.sharpe",
-            "analytics.metric.drawdown", "analytics.chart.performance", "analytics.chart.drawdown",
-            "analytics.performance.table", "analytics.drawdown.table", "analytics.monthly.table",
-            "analytics.annual.table", "analytics.subperiod.table", "analytics.xirr-flow.table",
-            "analytics.cash-flow.table", "analytics.accessible-data.toggle",
-            "analytics.chart.performance.summary", "analytics.risk-free.disclosure",
-            "analytics.evidence"
+            "analytics.report.portfolio",
+            "analytics.coverage",
+            "analytics.metric.total-return",
+            "analytics.metric.twr",
+            "analytics.metric.cagr",
+            "analytics.metric.xirr",
+            "analytics.metric.volatility",
+            "analytics.metric.sharpe",
+            "analytics.metric.drawdown",
+            "analytics.accessible-data.toggle",
+            "analytics.risk-free.disclosure"
         ] {
             XCTAssertTrue(
-                app.descendants(matching: .any)[identifier].waitForExistence(timeout: 5),
+                waitForAnalyticsElement(
+                    in: app,
+                    identifier: identifier,
+                    direction: .towardBottom,
+                    timeout: 8,
+                    requireUnique: true
+                ),
                 "Missing Stage 9 accessibility surface: \(identifier)"
             )
         }
-        XCTAssertTrue(app.descendants(matching: .any)["analytics.coverage"].label.contains("incomplete excluded"))
+        XCTAssertTrue(
+            waitForAnalyticsElement(
+                in: app,
+                identifier: "analytics.chart.performance",
+                direction: .towardBottom,
+                timeout: 8,
+                requireUnique: true
+            ),
+            "Missing Stage 9 accessibility surface: analytics.chart.performance"
+        )
+        XCTAssertTrue(
+            waitForAnalyticsElement(
+                in: app,
+                identifier: "analytics.chart.performance.summary",
+                direction: .towardBottom,
+                timeout: 8,
+                requireUnique: true,
+                labelSatisfies: { $0.contains("TWR index chart summary") }
+            ),
+            "Missing Stage 9 accessibility surface: analytics.chart.performance.summary"
+        )
+        XCTAssertTrue(waitForAnalyticsTableSummary(
+            in: app,
+            identifier: "analytics.performance.table",
+            labelPrefix: "Accessible wealth index table:",
+            direction: .towardBottom,
+            timeout: 8
+        ))
+        XCTAssertTrue(waitForAnalyticsTableRow(
+            in: app,
+            identifierPrefix: "analytics.performance.row.",
+            labelContaining: "index",
+            direction: .towardBottom,
+            timeout: 8
+        ))
 
-        let sparse = app.descendants(matching: .any)[
-            "analytics.portfolio.00000000-0000-4000-8000-000000009001"
-        ]
-        XCTAssertTrue(sparse.waitForExistence(timeout: 5))
-        sparse.click()
+        XCTAssertTrue(waitForAnalyticsElement(
+            in: app,
+            identifier: "analytics.chart.drawdown",
+            direction: .towardBottom,
+            timeout: 8,
+            requireUnique: true
+        ))
+        XCTAssertTrue(waitForAnalyticsElement(
+            in: app,
+            identifier: "analytics.drawdown.summary",
+            direction: .towardBottom,
+            timeout: 8,
+            requireUnique: true,
+            labelSatisfies: { $0.contains("Observed snapshot drawdown summary") }
+        ))
+        XCTAssertTrue(waitForAnalyticsTableSummary(
+            in: app,
+            identifier: "analytics.drawdown.table",
+            labelPrefix: "Accessible drawdown table:",
+            direction: .towardBottom,
+            timeout: 8
+        ))
+        XCTAssertTrue(waitForAnalyticsTableRow(
+            in: app,
+            identifierPrefix: "analytics.drawdown.row.",
+            labelContaining: "drawdown",
+            direction: .towardBottom,
+            timeout: 8
+        ))
+
+        XCTAssertTrue(waitForAnalyticsElement(
+            in: app,
+            identifier: "analytics.observed.tables",
+            direction: .towardBottom,
+            timeout: 8,
+            requireUnique: true
+        ))
+        for contract in [
+            ("analytics.monthly.table", "Observed monthly TWR table:", "analytics.month.", "available"),
+            ("analytics.annual.table", "Observed annual TWR table:", "analytics.year.", "available")
+        ] {
+            XCTAssertTrue(waitForAnalyticsTableSummary(
+                in: app,
+                identifier: contract.0,
+                labelPrefix: contract.1,
+                direction: .towardBottom,
+                timeout: 8
+            ))
+            XCTAssertTrue(waitForAnalyticsTableRow(
+                in: app,
+                identifierPrefix: contract.2,
+                labelContaining: contract.3,
+                direction: .towardBottom,
+                timeout: 8
+            ))
+        }
+
+        for contract in [
+            ("analytics.subperiod.table", "Accessible TWR subperiod table:", "analytics.subperiod.row.", "capital flow"),
+            ("analytics.xirr-flow.table", "Accessible XIRR cash-flow table:", "analytics.xirr-flow.row.", "CNY"),
+            ("analytics.cash-flow.table", "Portfolio capital-flow table:", "analytics.cash-flow.row.", "CNY")
+        ] {
+            XCTAssertTrue(waitForAnalyticsTableSummary(
+                in: app,
+                identifier: contract.0,
+                labelPrefix: contract.1,
+                direction: .towardBottom,
+                timeout: 8
+            ))
+            XCTAssertTrue(waitForAnalyticsTableRow(
+                in: app,
+                identifierPrefix: contract.2,
+                labelContaining: contract.3,
+                direction: .towardBottom,
+                timeout: 8
+            ))
+        }
+        XCTAssertTrue(waitForAnalyticsElement(
+            in: app,
+            identifier: "analytics.xirr-flow.row.",
+            identifierIsPrefix: true,
+            direction: .towardBottom,
+            timeout: 8,
+            labelSatisfies: {
+                $0.contains("CNY") && ($0.contains("invested") || $0.contains("returned"))
+            }
+        ))
+        XCTAssertTrue(waitForAnalyticsElement(
+            in: app,
+            identifier: "analytics.cash-flow.table",
+            direction: .towardBottom,
+            timeout: 8,
+            requireUnique: true,
+            labelSatisfies: { !$0.contains(": 0 rows") }
+        ))
+        XCTAssertTrue(
+            waitForAnalyticsElement(
+                in: app,
+                identifier: "analytics.evidence",
+                direction: .towardBottom,
+                timeout: 8,
+                requireUnique: true
+            ),
+            "Missing Stage 9 accessibility surface: analytics.evidence"
+        )
+
+        let sparseIdentifier = "analytics.portfolio.00000000-0000-4000-8000-000000009001"
+        XCTAssertTrue(app.descendants(matching: .any)[sparseIdentifier].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)[sparseIdentifier].click()
         XCTAssertTrue(waitForAccessibilityLabel(
             in: app,
             identifier: "analytics.status",
@@ -325,12 +493,24 @@ final class AureusUITests: XCTestCase {
             timeout: 10
         ))
         XCTAssertTrue(
-            app.descendants(matching: .any)["analytics.metric.xirr"]
-                .label.contains("non-conventional cash flows")
+            waitForAnalyticsElement(
+                in: app,
+                identifier: "analytics.metric.xirr",
+                direction: .towardTop,
+                timeout: 8,
+                requireUnique: true,
+                labelSatisfies: { $0.contains("non-conventional cash flows") }
+            )
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["analytics.metric.volatility"]
-                .label.contains("irregular daily observations")
+            waitForAnalyticsElement(
+                in: app,
+                identifier: "analytics.metric.volatility",
+                direction: .towardBottom,
+                timeout: 8,
+                requireUnique: true,
+                labelSatisfies: { $0.contains("irregular daily observations") }
+            )
         )
 
         app.terminate()
@@ -345,6 +525,7 @@ final class AureusUITests: XCTestCase {
             "analytics.portfolio.00000000-0000-4000-8000-000000009001"
         ].exists)
         XCTAssertFalse(production.descendants(matching: .any)["analytics.metrics"].exists)
+        production.terminate()
     }
 
     @MainActor
@@ -1264,6 +1445,83 @@ final class AureusUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.05)
         } while Date() < deadline
         return false
+    }
+
+    @MainActor
+    private func waitForAnalyticsElement(
+        in app: XCUIApplication,
+        identifier: String,
+        identifierIsPrefix: Bool = false,
+        direction: AnalyticsScrollDirection,
+        timeout: TimeInterval,
+        maximumScrollCount: Int = 12,
+        requireUnique: Bool = false,
+        labelSatisfies: (String) -> Bool = { _ in true }
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var remainingScrolls = max(0, maximumScrollCount)
+        repeat {
+            let identifierPredicate = identifierIsPrefix
+                ? NSPredicate(format: "identifier BEGINSWITH %@", identifier)
+                : NSPredicate(format: "identifier == %@", identifier)
+            let matches = app.descendants(matching: .any).matching(identifierPredicate)
+            if (!requireUnique || matches.count == 1) {
+                let current = matches.firstMatch
+                if current.exists, labelSatisfies(current.label) { return true }
+            }
+            if remainingScrolls > 0 {
+                let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+                guard scrollView.exists else { return false }
+                switch direction {
+                case .towardTop:
+                    scrollView.swipeDown()
+                case .towardBottom:
+                    scrollView.swipeUp()
+                }
+                remainingScrolls -= 1
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+        } while Date() < deadline
+        return false
+    }
+
+    @MainActor
+    private func waitForAnalyticsTableSummary(
+        in app: XCUIApplication,
+        identifier: String,
+        labelPrefix: String,
+        direction: AnalyticsScrollDirection,
+        timeout: TimeInterval
+    ) -> Bool {
+        waitForAnalyticsElement(
+            in: app,
+            identifier: identifier,
+            direction: direction,
+            timeout: timeout,
+            requireUnique: true,
+            labelSatisfies: { label in
+                label.hasPrefix(labelPrefix)
+                    && label.range(of: #": [0-9]+ rows$"#, options: .regularExpression) != nil
+            }
+        )
+    }
+
+    @MainActor
+    private func waitForAnalyticsTableRow(
+        in app: XCUIApplication,
+        identifierPrefix: String,
+        labelContaining expected: String,
+        direction: AnalyticsScrollDirection,
+        timeout: TimeInterval
+    ) -> Bool {
+        waitForAnalyticsElement(
+            in: app,
+            identifier: identifierPrefix,
+            identifierIsPrefix: true,
+            direction: direction,
+            timeout: timeout,
+            labelSatisfies: { $0.contains(expected) }
+        )
     }
 
     @MainActor
