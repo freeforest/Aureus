@@ -55,6 +55,9 @@
 		A10000000000000000000033 /* PortfolioPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002F /* PortfolioPersistence.swift */; };
 		A10000000000000000000034 /* PortfolioFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* PortfolioFeatureModel.swift */; };
 		A10000000000000000000035 /* PortfolioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* PortfolioView.swift */; };
+		A10000000000000000000036 /* PortfolioAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000032 /* PortfolioAnalytics.swift */; };
+		A10000000000000000000037 /* AnalyticsFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000033 /* AnalyticsFeatureModel.swift */; };
+		A10000000000000000000038 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* AnalyticsView.swift */; };
 		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
 		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
 		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
@@ -73,6 +76,7 @@
 		A2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */; };
 		A20000000000000000000010 /* MarketsTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* MarketsTerminalTests.swift */; };
 		A20000000000000000000011 /* PortfolioTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* PortfolioTerminalTests.swift */; };
+		A20000000000000000000012 /* PortfolioAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* PortfolioAnalyticsTests.swift */; };
 		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
 		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
 /* End PBXBuildFile section */
@@ -144,6 +148,9 @@
 		B1000000000000000000002F /* PortfolioPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioPersistence.swift; sourceTree = "<group>"; };
 		B10000000000000000000030 /* PortfolioFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioFeatureModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000031 /* PortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioView.swift; sourceTree = "<group>"; };
+		B10000000000000000000032 /* PortfolioAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioAnalytics.swift; sourceTree = "<group>"; };
+		B10000000000000000000033 /* AnalyticsFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000034 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
@@ -161,6 +168,7 @@
 		B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainAndFXInfrastructureTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000010 /* MarketsTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketsTerminalTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000011 /* PortfolioTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioTerminalTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000012 /* PortfolioAnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioAnalyticsTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
 		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -252,6 +260,7 @@
 				D12700000000000000000001 /* Dashboard */,
 				D12800000000000000000001 /* Markets */,
 				D12900000000000000000001 /* Portfolio */,
+				D12A00000000000000000001 /* Calculations */,
 			);
 			path = Domain;
 			sourceTree = "<group>";
@@ -319,6 +328,12 @@
 			path = Portfolio;
 			sourceTree = "<group>";
 		};
+		D12A00000000000000000001 /* Calculations */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000032 /* PortfolioAnalytics.swift */);
+			path = Calculations;
+			sourceTree = "<group>";
+		};
 		D13000000000000000000001 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
@@ -373,6 +388,7 @@
 				D14400000000000000000001 /* Settings */,
 				D14500000000000000000001 /* Markets */,
 				D14600000000000000000001 /* Portfolio */,
+				D14700000000000000000001 /* Analytics */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -433,6 +449,15 @@
 			path = Portfolio;
 			sourceTree = "<group>";
 		};
+		D14700000000000000000001 /* Analytics */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000033 /* AnalyticsFeatureModel.swift */,
+				B10000000000000000000034 /* AnalyticsView.swift */,
+			);
+			path = Analytics;
+			sourceTree = "<group>";
+		};
 		D15000000000000000000001 /* Security */ = {
 			isa = PBXGroup;
 			children = (B10000000000000000000022 /* KeychainCredentialStore.swift */);
@@ -474,6 +499,7 @@
 				B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */,
 				B20000000000000000000010 /* MarketsTerminalTests.swift */,
 				B20000000000000000000011 /* PortfolioTerminalTests.swift */,
+				B20000000000000000000012 /* PortfolioAnalyticsTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -628,6 +654,9 @@
 				A10000000000000000000033 /* PortfolioPersistence.swift in Sources */,
 				A10000000000000000000034 /* PortfolioFeatureModel.swift in Sources */,
 				A10000000000000000000035 /* PortfolioView.swift in Sources */,
+				A10000000000000000000036 /* PortfolioAnalytics.swift in Sources */,
+				A10000000000000000000037 /* AnalyticsFeatureModel.swift in Sources */,
+				A10000000000000000000038 /* AnalyticsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -652,6 +681,7 @@
 				A2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift in Sources */,
 				A20000000000000000000010 /* MarketsTerminalTests.swift in Sources */,
 				A20000000000000000000011 /* PortfolioTerminalTests.swift in Sources */,
+				A20000000000000000000012 /* PortfolioAnalyticsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

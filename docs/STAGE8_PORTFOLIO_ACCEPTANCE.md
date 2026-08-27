@@ -1,8 +1,8 @@
 # Stage 8 Portfolio Acceptance
 
-**Status:** Stage 8ACA UI Evidence Completion Candidate — Awaiting Reviewer Gate  
+**Status:** Stage 8 Reviewer Gate `PASS`; Stage 9 implementation entry `GO`  
 **Implementation date:** 2026-08-26  
-**Authority:** This document records Stage 8 implementation and synthetic verification evidence. It does not decide the Stage 8 Gate or authorize Stage 9.
+**Authority:** This document preserves Stage 8 implementation and synthetic verification evidence plus the later independent Reviewer decision. It does not authorize Stage 10.
 
 ## 1. Product and evidence boundary
 
@@ -239,3 +239,7 @@ Prompt 8ACA was evidence-only. Before UI execution, all specified Production, Te
 | Real Provider requests | `NOT RUN` |
 
 The current evidence is **Stage 8ACA UI Evidence Completion Candidate — Awaiting Reviewer Gate**. This Executor result does not declare Stage 8 `PASS`, enter Stage 9, or expand the live Provider matrix. Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 9 remains `NO-GO` pending independent Reviewer action.
+
+## 17. Independent Reviewer gate bookkeeping
+
+After the Stage 8ACA evidence round, the independent Reviewer recorded the Stage 8 Portfolio Gate as `PASS` and Stage 9 implementation entry as `GO`. The historical Stage 8, 8A, 8AA, 8AB, 8AC, and 8ACA failures and bounded retries above remain unchanged; the Reviewer decision does not rewrite them. Stage 9 analytics are implemented under their own acceptance document and do not alter the Stage 8 Portfolio source-of-truth, migration, Provider, persistence, or Benchmark boundaries. Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 10 remains `NO-GO`.

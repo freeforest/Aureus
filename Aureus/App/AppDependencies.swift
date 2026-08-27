@@ -43,6 +43,7 @@ struct AppDependencies: Sendable {
             try await SyntheticLedgerSeeder.seed(in: wealthStore)
             try await SyntheticDashboardSeeder.seed(in: wealthStore)
             try await wealthStore.seedSyntheticPortfolio()
+            try await SyntheticAnalyticsSeeder.seed(in: wealthStore)
         }
 
         let credentialStore: any CredentialStore

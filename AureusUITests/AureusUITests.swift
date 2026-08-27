@@ -31,6 +31,7 @@ final class AureusUITests: XCTestCase {
                 else if destination == "markets" { expectedIdentifier = "markets.terminal" }
                 else if destination == "portfolio" { expectedIdentifier = "portfolio.page" }
                 else if destination == "settings" { expectedIdentifier = "settings.content" }
+                else if destination == "analytics" { expectedIdentifier = "analytics.page" }
                 else { expectedIdentifier = "destination.\(destination)" }
                 XCTAssertTrue(
                     app.descendants(matching: .any)[expectedIdentifier].waitForExistence(timeout: 5),
@@ -191,21 +192,27 @@ final class AureusUITests: XCTestCase {
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "portfolio.benchmark.disclosure").count, 1)
         XCTAssertTrue(benchmarkDisclosure.label.contains("Benchmark session data not loaded"))
         let initialPortfolioRowIdentifiers = portfolioRowIdentifiers(in: app)
-        XCTAssertEqual(initialPortfolioRowIdentifiers.count, 1)
+        XCTAssertEqual(initialPortfolioRowIdentifiers.count, 2)
 
         let name = app.descendants(matching: .any)["portfolio.create.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.click()
         name.typeText("Synthetic Second Portfolio")
         app.descendants(matching: .any)["portfolio.create"].click()
-        XCTAssertTrue(waitForPortfolioRowCount(2, in: app, timeout: 5))
+        XCTAssertTrue(waitForPortfolioRowCount(3, in: app, timeout: 5))
         let identifiersAfterCreate = portfolioRowIdentifiers(in: app)
         let createdIdentifiers = identifiersAfterCreate.subtracting(initialPortfolioRowIdentifiers)
         XCTAssertEqual(createdIdentifiers.count, 1)
         let createdPortfolioIdentifier = try XCTUnwrap(createdIdentifiers.first)
         XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio", timeout: 5))
         XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: true, timeout: 5))
-        app.descendants(matching: .any)["portfolio.move.up"].click()
+        for _ in 0..<2 {
+            XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: true, timeout: 5))
+            app.descendants(matching: .any)["portfolio.move.up"].click()
+            app.descendants(matching: .any)["sidebar.dashboard"].click()
+            app.descendants(matching: .any)["sidebar.portfolio"].click()
+            XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio", timeout: 5))
+        }
         XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: false, timeout: 5))
 
         // Recreate the feature model against the same temporary Store by
@@ -216,14 +223,14 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 5))
         XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio", timeout: 5))
         XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: false, timeout: 5))
-        XCTAssertTrue(waitForPortfolioRowCount(2, in: app, timeout: 5))
+        XCTAssertTrue(waitForPortfolioRowCount(3, in: app, timeout: 5))
         XCTAssertEqual(portfolioRowIdentifiers(in: app), identifiersAfterCreate)
 
         app.descendants(matching: .any)["portfolio.delete"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.delete.confirm"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["portfolio.delete.confirm"].click()
         XCTAssertTrue(waitForIdentifierToDisappear("portfolio.delete.confirm", in: app, timeout: 5))
-        XCTAssertTrue(waitForPortfolioRowCount(1, in: app, timeout: 5))
+        XCTAssertTrue(waitForPortfolioRowCount(2, in: app, timeout: 5))
         XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Local Portfolio", timeout: 5))
         XCTAssertTrue(waitForIdentifierToDisappear(createdPortfolioIdentifier, in: app, timeout: 5))
         XCTAssertEqual(portfolioRowIdentifiers(in: app), initialPortfolioRowIdentifiers)
@@ -234,7 +241,7 @@ final class AureusUITests: XCTestCase {
         app.descendants(matching: .any)["sidebar.dashboard"].click()
         app.descendants(matching: .any)["sidebar.portfolio"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 5))
-        XCTAssertTrue(waitForPortfolioRowCount(1, in: app, timeout: 5))
+        XCTAssertTrue(waitForPortfolioRowCount(2, in: app, timeout: 5))
         XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Local Portfolio", timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)[createdPortfolioIdentifier].exists)
         XCTAssertEqual(portfolioRowIdentifiers(in: app), initialPortfolioRowIdentifiers)
@@ -250,6 +257,94 @@ final class AureusUITests: XCTestCase {
         XCTAssertFalse(production.descendants(matching: .any)["portfolio.holding.SYNX|XSYN"].exists)
         XCTAssertTrue(waitForPortfolioRowCount(0, in: production, timeout: 5))
         XCTAssertFalse(production.descendants(matching: .any)["portfolio.benchmark.chart"].exists)
+    }
+
+    @MainActor
+    func testStage9AnalyticsSyntheticMetricsAccessibilityAndIsolation() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+
+        app.descendants(matching: .any)["sidebar.analytics"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["analytics.page"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["analytics.mode.synthetic"].waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "analytics.portfolio."))
+                .count,
+            2
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["analytics.not-calculated"].exists)
+        XCTAssertEqual(app.descendants(matching: .any)["analytics.status"].label, "Analytics status: Ready")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["analytics.disclosure.local-only"]
+                .label.contains("No Provider request")
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["analytics.metrics"].exists)
+
+        app.descendants(matching: .any)["analytics.calculate"].click()
+        XCTAssertTrue(waitForAccessibilityLabel(
+            in: app,
+            identifier: "analytics.status",
+            equals: "Analytics status: Calculated",
+            timeout: 10
+        ))
+        for identifier in [
+            "analytics.metric.total-return", "analytics.metric.twr", "analytics.metric.cagr",
+            "analytics.metric.xirr", "analytics.metric.volatility", "analytics.metric.sharpe",
+            "analytics.metric.drawdown", "analytics.chart.performance", "analytics.chart.drawdown",
+            "analytics.performance.table", "analytics.drawdown.table", "analytics.monthly.table",
+            "analytics.annual.table", "analytics.subperiod.table", "analytics.xirr-flow.table",
+            "analytics.cash-flow.table", "analytics.accessible-data.toggle",
+            "analytics.chart.performance.summary", "analytics.risk-free.disclosure",
+            "analytics.evidence"
+        ] {
+            XCTAssertTrue(
+                app.descendants(matching: .any)[identifier].waitForExistence(timeout: 5),
+                "Missing Stage 9 accessibility surface: \(identifier)"
+            )
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["analytics.coverage"].label.contains("incomplete excluded"))
+
+        let sparse = app.descendants(matching: .any)[
+            "analytics.portfolio.00000000-0000-4000-8000-000000009001"
+        ]
+        XCTAssertTrue(sparse.waitForExistence(timeout: 5))
+        sparse.click()
+        XCTAssertTrue(waitForAccessibilityLabel(
+            in: app,
+            identifier: "analytics.status",
+            equals: "Analytics status: Ready",
+            timeout: 5
+        ))
+        app.descendants(matching: .any)["analytics.calculate"].click()
+        XCTAssertTrue(waitForAccessibilityLabel(
+            in: app,
+            identifier: "analytics.status",
+            equals: "Analytics status: Calculated",
+            timeout: 10
+        ))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["analytics.metric.xirr"]
+                .label.contains("non-conventional cash flows")
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["analytics.metric.volatility"]
+                .label.contains("irregular daily observations")
+        )
+
+        app.terminate()
+        let production = XCUIApplication()
+        production.launchArguments = uiTestingArguments()
+        launchApp(production)
+        production.descendants(matching: .any)["sidebar.analytics"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["analytics.mode.production"].waitForExistence(timeout: 5))
+        XCTAssertTrue(production.descendants(matching: .any)["analytics.empty"].waitForExistence(timeout: 5))
+        XCTAssertFalse(production.descendants(matching: .any)["analytics.mode.synthetic"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)[
+            "analytics.portfolio.00000000-0000-4000-8000-000000009001"
+        ].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["analytics.metrics"].exists)
     }
 
     @MainActor
