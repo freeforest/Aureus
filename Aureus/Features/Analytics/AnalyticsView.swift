@@ -286,6 +286,7 @@ struct AnalyticsView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analytics.monthly.table")
     }
 
@@ -302,6 +303,7 @@ struct AnalyticsView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analytics.annual.table")
     }
 
@@ -324,6 +326,7 @@ struct AnalyticsView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analytics.cash-flow.table")
     }
 
@@ -339,6 +342,7 @@ struct AnalyticsView: View {
                     .accessibilityIdentifier("analytics.subperiod.\(index)")
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analytics.subperiod.table")
     }
 
@@ -357,6 +361,7 @@ struct AnalyticsView: View {
                     .accessibilityIdentifier("analytics.xirr-flow.\(index)")
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analytics.xirr-flow.table")
     }
 
@@ -386,6 +391,7 @@ struct AnalyticsView: View {
                     .accessibilityLabel(label)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analytics.performance.table")
     }
 
@@ -399,6 +405,7 @@ struct AnalyticsView: View {
                     .accessibilityLabel(label)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analytics.drawdown.table")
     }
 }

@@ -1,6 +1,6 @@
 # Stage 9 Portfolio Analytics Acceptance
 
-**Status:** Stage 9 Analytics Implementation Candidate — Awaiting Reviewer Gate  
+**Status:** Stage 9A PARTIAL — Awaiting Reviewer Gate  
 **Implementation date:** 2026-08-27  
 **Authority:** This document records implementation and bounded local/synthetic evidence. It does not decide the Stage 9 Gate, authorize Stage 10, or establish any Provider capability.
 
@@ -243,4 +243,26 @@ The final signed build-for-testing produced:
 - Monthly/annual rows are observed-period TWR and disclose partial coverage; they are not fabricated complete-period performance.
 - Analytics does not include taxes, benchmark attribution, Alpha/Beta, forecasting, advice, or Stage 10 functionality.
 
-This is **Stage 9 Analytics Implementation Candidate — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+## 21. Stage 9A current-source UI evidence closure
+
+Prompt 9A first verified every listed current-source hash before making any change. The two Prompt 9 focused UI result bundles remain historical runner-level automation bootstrap timeouts: both contain `Info.plist`, both parse, neither entered the business test, and neither is rewritten as a business result.
+
+The first Stage 9A current-source focused invocation entered the business method and completed Synthetic mode, explicit calculation, all seven metric cards, and both native charts. It then failed at `AureusUITests.swift:302` because `analytics.performance.table` was not queryable as an independent native Accessibility surface. This was a business assertion failure, not a bootstrap timeout.
+
+The one authorized minimal AX-only repair added explicit `.accessibilityElement(children: .contain)` boundaries to the seven existing native Analytics table containers. It did not change Analytics formulas, Domain arithmetic, Feature calculation scheduling, Portfolio data, persistence, Provider routing, Session Store behavior, or UI test assertions. Because Production source changed, the required conditional verification was executed against the modified candidate:
+
+| Verification | Result bundle | Result |
+|---|---|---|
+| Stage 9 focused Unit | `/private/tmp/Aureus-Stage9A-DrYR4O/Stage9FocusedUnit.xcresult` | `PASS` — exit 0; 20 definitions / 20 executions; 0 failed; 0 skipped |
+| Stage 6–8 focused regression | `/private/tmp/Aureus-Stage9A-DrYR4O/Stage68FocusedRegression.xcresult` | `PASS` — exit 0; 204 definitions / 237 executions; 0 failed; 0 skipped |
+| Full `AureusTests` | `/private/tmp/Aureus-Stage9A-DrYR4O/FullUnit.xcresult` | `PASS` — exit 0; 254 definitions / 287 executions; 0 failed; 0 skipped |
+| Clean Debug arm64 Build | `/private/tmp/Aureus-Stage9A-DrYR4O/CleanDebugBuild.xcresult` | `PASS` — exit 0; build succeeded |
+| Final signed build-for-testing | `/private/tmp/Aureus-Stage9A-DrYR4O/FinalBuildForTesting.xcresult` | `PASS` — exit 0; test build succeeded |
+| Stage 9A focused UI, first business execution | `/private/tmp/Aureus-Stage9A-DrYR4O/Stage9FocusedUI.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; missing `analytics.performance.table` |
+| Stage 9A focused UI, final business retry | `/private/tmp/Aureus-Stage9A-DrYR4O/Stage9FocusedUI-Final.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; same finite AX failure |
+| Existing focused UI regression | — | `NOT RUN` — final Stage 9 focused UI did not pass |
+| Full `AureusUITests` | — | `NOT RUN` — Existing focused regression was not authorized to start |
+
+Both Stage 9A focused result bundles contain `Info.plist`; summary and tests parsing succeeded in the standard Xcode permission environment. The single business-repair and final-business-retry budget is exhausted. The current blocker is specifically the independent native Performance table AX surface; no evidence establishes a calculation, persistence, or Provider failure. Provider requests remained `NOT RUN`, Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 10 remains `NO-GO`.
+
+This is **Stage 9A PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
