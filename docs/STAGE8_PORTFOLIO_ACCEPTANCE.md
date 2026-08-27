@@ -1,6 +1,6 @@
 # Stage 8 Portfolio Acceptance
 
-**Status:** Stage 8AC PARTIAL — Awaiting Reviewer Gate  
+**Status:** Stage 8ACA UI Evidence Completion Candidate — Awaiting Reviewer Gate  
 **Implementation date:** 2026-08-26  
 **Authority:** This document records Stage 8 implementation and synthetic verification evidence. It does not decide the Stage 8 Gate or authorize Stage 9.
 
@@ -220,3 +220,22 @@ Four deterministic synthetic tests cover confirmed deletion after simulated dism
 | Real Provider requests | `NOT RUN` |
 
 The local delete lifecycle and Portfolio/Ledger focused evidence pass, but an interrupted, non-finalized Markets result cannot be promoted to PASS. Stage 8AC therefore remains `PARTIAL` and awaits independent Reviewer action. No live capability is expanded; Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 9 remains `NO-GO`.
+
+## 16. Stage 8ACA UI evidence completion
+
+Prompt 8ACA was evidence-only. Before UI execution, all specified Production, Test, Migration, Project, Package, and Entitlement SHA-256 values matched the Stage 8AC final source exactly. No Production or Test Swift file changed. A new signed build-for-testing produced the exact current UI Test Runner and completed with exit 0.
+
+| Verification | Result |
+|---|---|
+| Source identity preflight | `PASS` — all 14 required hashes matched Stage 8AC |
+| Signed build-for-testing | `PASS` — exit 0; complete xcresult; exact xctestrun recorded |
+| Markets focused UI | `PASS` — 1/1, exit 0; Synthetic Search, chart/accessibility, Watchlist, Session Clear, and Production isolation completed |
+| Existing focused regression | `PASS` — 6/6 selected tests, exit 0; Settings, Wealth, Ledger Dynamic, Native CSV, Markets, and Portfolio all executed |
+| Full `AureusUITests` | `PASS` — 12/12, 0 failed, 0 skipped, exit 0 |
+| Result bundles | `PASS` — all current UI xcresults contain `Info.plist` and parse successfully |
+| Independent Unit/Integration | `NOT RUN` — Stage 8AC current-source evidence inherited after exact source-hash verification |
+| Clean Debug arm64 build | `NOT RUN` — Stage 8AC current-source clean-build evidence inherited after exact source-hash verification |
+| Performance | `NOT RUN` — Stage 8A evidence accepted; no performance implementation changed |
+| Real Provider requests | `NOT RUN` |
+
+The current evidence is **Stage 8ACA UI Evidence Completion Candidate — Awaiting Reviewer Gate**. This Executor result does not declare Stage 8 `PASS`, enter Stage 9, or expand the live Provider matrix. Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 9 remains `NO-GO` pending independent Reviewer action.
