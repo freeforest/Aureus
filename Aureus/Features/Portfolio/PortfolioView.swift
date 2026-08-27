@@ -169,7 +169,10 @@ struct PortfolioView: View {
         }
         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
-        .accessibilityElement(children: .combine).accessibilityIdentifier(identifier)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title == "Portfolio" ? "Portfolio name" : title)
+        .accessibilityValue(value)
+        .accessibilityIdentifier(identifier)
     }
 
     private var securityLinkSection: some View {

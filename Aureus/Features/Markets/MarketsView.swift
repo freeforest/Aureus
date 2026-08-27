@@ -125,6 +125,12 @@ struct MarketsView: View {
                         .controlSize(.small)
                         .accessibilityIdentifier("markets.search.progress")
                 }
+                Text("Search status: \(searchAccessibilityValue)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Search status: \(searchAccessibilityValue)")
+                    .accessibilityIdentifier("markets.search.status")
                 ForEach(model.searchResults) { instrument in
                     Button {
                         model.select(instrument)
@@ -150,6 +156,27 @@ struct MarketsView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 4)
+        }
+    }
+
+    private var searchAccessibilityValue: String {
+        switch model.state {
+        case .idle, .noSessionData, .sessionCleared: "Idle"
+        case .searching: "Searching"
+        case .ready, .loadingHistory: "Ready"
+        case .cancelled: "Cancelled"
+        case .invalidPayload: "Invalid Payload"
+        case .providerError: "Provider Error"
+        case .missingCredential: "Missing Credential"
+        case .invalidCredential: "Invalid Credential"
+        case .upgradeRequired: "Upgrade Required"
+        case .unsupportedEntitlement: "Unsupported Entitlement"
+        case .unsupportedMarket: "Unsupported Market"
+        case .rateLimited: "Rate Limited"
+        case .offline: "Offline"
+        case .timeout: "Timeout"
+        case .missing: "Missing"
+        case .insufficientData: "Insufficient Data"
         }
     }
 

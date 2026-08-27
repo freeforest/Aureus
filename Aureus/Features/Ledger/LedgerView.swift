@@ -122,7 +122,9 @@ struct LedgerView: View {
             }
             .padding(10).frame(maxWidth: .infinity, alignment: .leading)
             .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Transfers")
+            .accessibilityValue("\(model.summary.transferCount)")
             .accessibilityIdentifier("ledger.summary.transfers")
         }
         .padding(16)
@@ -135,7 +137,10 @@ struct LedgerView: View {
         }
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-        .accessibilityElement(children: .combine).accessibilityIdentifier(identifier)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(Self.money(money))
+        .accessibilityIdentifier(identifier)
     }
 
     private var filterBar: some View {
@@ -156,7 +161,11 @@ struct LedgerView: View {
                 Picker("Container", selection: Binding(get: { model.filter.containerID?.uuidString ?? "all" }, set: { model.filter.containerID = UUID(uuidString: $0); model.applyFilter() })) {
                     Text("All Containers").tag("all")
                     ForEach(model.containers) { Text($0.container.name).tag($0.id.uuidString) }
-                }.frame(width: 180).accessibilityIdentifier("ledger.filter.container")
+                }
+                .frame(width: 180)
+                .accessibilityLabel("Container")
+                .accessibilityValue(selectedContainerFilterName)
+                .accessibilityIdentifier("ledger.filter.container")
                 Picker("Currency", selection: Binding(get: { model.filter.currency?.rawValue ?? "all" }, set: { model.filter.currency = $0 == "all" ? nil : CurrencyCode(rawValue: $0); model.applyFilter() })) {
                     Text("All Currencies").tag("all")
                     ForEach(CurrencyCode.allCases, id: \.rawValue) { Text($0.rawValue).tag($0.rawValue) }
@@ -177,6 +186,11 @@ struct LedgerView: View {
                 Spacer()
             }
         }.padding(.horizontal, 16).padding(.bottom, 8)
+    }
+
+    private var selectedContainerFilterName: String {
+        guard let id = model.filter.containerID else { return "All Containers" }
+        return model.containers.first(where: { $0.id == id })?.container.name ?? "Unavailable Container"
     }
 
     private var transactionTable: some View {

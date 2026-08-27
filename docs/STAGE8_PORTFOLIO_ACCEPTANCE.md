@@ -1,6 +1,6 @@
 # Stage 8 Portfolio Acceptance
 
-**Status:** Stage 8A PARTIAL — Awaiting Reviewer Gate  
+**Status:** Stage 8AA PARTIAL — Awaiting Reviewer Gate  
 **Implementation date:** 2026-08-26  
 **Authority:** This document records Stage 8 implementation and synthetic verification evidence. It does not decide the Stage 8 Gate or authorize Stage 9.
 
@@ -145,3 +145,26 @@ Single-iteration workloads report p95 as `NOT AVAILABLE`. The small ranges above
 | Real Provider requests | `NOT RUN` |
 
 Both Portfolio UI executions reached the Portfolio page, CNY NAV, synthetic holding, NAV chart/table, heatmap, Benchmark control, and both disclosure nodes before failing. Because the required CRUD/reorder/delete/Production-isolation tail did not execute to completion and the two-business-run budget is exhausted, Stage 8A remains `PARTIAL`. Synthetic evidence does not expand live Provider capability. Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 9 remains `NO-GO`.
+
+## 13. Stage 8AA native UI gate-closure evidence
+
+Prompt 8AA preserved the accepted Portfolio domain, persistence, FIFO, FX, NAV, Benchmark, and performance implementation. It made only bounded native UI/Accessibility observability changes and corresponding UI-test lifecycle updates. The Portfolio summary now declares an explicit field label and value contract; the Ledger container Picker is re-queried around native popup transitions; Markets exposes a finite independent Search-status Accessibility label before the synthetic result is queried.
+
+| Verification | Result |
+|---|---|
+| Stage 8/8A focused Unit/Integration | `PASS` — 17 definitions / 17 executions |
+| Stage 6/7 focused regression | `PASS` — 107 definitions / 116 parameterized executions |
+| Full `AureusTests` | `PASS` — 227 definitions / 260 parameterized executions |
+| Final Debug arm64 clean build | `PASS` |
+| Final build-for-testing | `PASS` |
+| Portfolio focused UI, first execution | `FAIL` — 0/1; `portfolio.summary.name` did not expose the asserted created-name value |
+| Portfolio focused UI, one authorized final execution | `FAIL` — 0/1; the same bounded semantic-value assertion remained unresolved |
+| Ledger Dynamic focused UI, first execution | `FAIL` — 0/1; native Picker flow completed, then a Ledger summary value was not exposed through AX |
+| Ledger Dynamic focused UI, one authorized final execution | `FAIL` — 0/1; `ledger.summary.ordinaryInflow` still did not expose the asserted value |
+| Markets focused UI, first execution | `FAIL` — 0/1; Search binding and submit completed, but the independent status node exposed no finite value |
+| Markets focused UI, one authorized final execution | `PASS` — 1/1; Ready status, result, chart/accessibility, clear, and Production isolation completed |
+| Existing focused regression combination | `NOT RUN` — Portfolio and Ledger focused gates did not pass |
+| Full `AureusUITests` | `NOT RUN` — focused UI gate did not pass |
+| Real Provider requests | `NOT RUN` |
+
+The two failed focused gates cannot be offset by Unit, build, or Markets evidence. Stage 8AA therefore remains `PARTIAL` and awaits independent Reviewer action. No live capability is expanded; Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 9 remains `NO-GO`.

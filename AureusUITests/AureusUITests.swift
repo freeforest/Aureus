@@ -91,9 +91,18 @@ final class AureusUITests: XCTestCase {
 
         let search = app.descendants(matching: .any)["markets.search.field"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.click()
-        search.typeText("SYN")
-        app.descendants(matching: .any)["markets.search.submit"].click()
+        let initialSearchValue = String(describing: search.value ?? "")
+        XCTAssertTrue(
+            initialSearchValue.isEmpty || initialSearchValue == "Symbol or company",
+            "Search must begin empty; the native field may expose its placeholder as AX value"
+        )
+        replaceText(in: app.descendants(matching: .any)["markets.search.field"], with: "SYN")
+        XCTAssertTrue(waitForValue(app.descendants(matching: .any)["markets.search.field"], containing: "SYN", timeout: 5))
+        let submit = app.descendants(matching: .any)["markets.search.submit"]
+        XCTAssertTrue(waitForEnabled(submit, timeout: 5))
+        submit.click()
+        let terminal = waitForMarketsSearchTerminal(in: app, timeout: 8)
+        XCTAssertEqual(terminal, "Ready", "Synthetic Search ended with finite state: \(terminal)")
         let result = app.descendants(matching: .any)["markets.search.result.SYN-CNY.XSYN"]
         XCTAssertTrue(result.waitForExistence(timeout: 8))
         result.click()
@@ -187,18 +196,29 @@ final class AureusUITests: XCTestCase {
         name.click()
         name.typeText("Synthetic Second Portfolio")
         app.descendants(matching: .any)["portfolio.create"].click()
-        let selectedName = app.descendants(matching: .any)["portfolio.summary.name"]
-        XCTAssertTrue(selectedName.waitForExistence(timeout: 5))
-        XCTAssertTrue(selectedName.label.contains("Synthetic Second Portfolio"))
-        let moveUp = app.descendants(matching: .any)["portfolio.move.up"]
-        XCTAssertTrue(moveUp.isEnabled)
-        moveUp.click()
+        XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row.")).count, 2)
+        XCTAssertTrue(assertPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio"))
+        XCTAssertEqual(app.descendants(matching: .any)["portfolio.summary.name"].label, "Portfolio name")
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.move.up"].isEnabled)
+        app.descendants(matching: .any)["portfolio.move.up"].click()
         XCTAssertFalse(app.descendants(matching: .any)["portfolio.move.up"].isEnabled)
+
+        // Recreate the feature model against the same temporary Store by
+        // navigating away and back. The first persisted row must remain the
+        // moved Portfolio, without relying on a List row index.
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        app.descendants(matching: .any)["sidebar.portfolio"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 5))
+        XCTAssertTrue(assertPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio"))
+        XCTAssertFalse(app.descendants(matching: .any)["portfolio.move.up"].isEnabled)
+        XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row.")).count, 2)
+
         app.descendants(matching: .any)["portfolio.delete"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.delete.confirm"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["portfolio.delete.confirm"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.summary.name"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.descendants(matching: .any)["portfolio.summary.name"].label.contains("Synthetic Second Portfolio"))
+        XCTAssertTrue(assertPortfolioSummaryName(in: app, equals: "Synthetic Local Portfolio"))
+        XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row.")).count, 1)
 
         app.terminate()
         let production = XCUIApplication()
@@ -788,18 +808,13 @@ final class AureusUITests: XCTestCase {
             app.descendants(matching: .any)[identifier].waitForExistence(timeout: 5),
             "Missing picker \(identifier)"
         )
-        // Re-query immediately before opening. This normalized coordinate is
-        // derived from the current Picker, not a fixed screen position, and no
-        // AX element is retained across the native popup transition.
-        app.descendants(matching: .any)[identifier]
-            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .click()
-        // Native macOS menu snapshots can fail inside CoreServices UIAgent.
-        // Drive the open menu through its built-in type-to-select behavior,
-        // then verify the Picker's accessible value instead of querying a
-        // transient MenuItem tree or relying on a row position.
-        app.typeText(title)
-        app.typeKey(.return, modifierFlags: [])
+        // Re-query immediately before opening and query only the named native
+        // menu item after the popup transition. No pre-popup element, menu row
+        // index, coordinate, or complete transient menu tree is retained.
+        app.descendants(matching: .any)[identifier].click()
+        let option = app.menuItems[title]
+        XCTAssertTrue(option.waitForExistence(timeout: 5), "Missing picker option \(title)")
+        option.click()
         XCTAssertTrue(
             waitForPickerSelection(
                 in: app,
@@ -1082,17 +1097,44 @@ final class AureusUITests: XCTestCase {
         containing text: String,
         timeout: TimeInterval
     ) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            let picker = app.descendants(matching: .any)[identifier]
-            if picker.exists,
-               (String(describing: picker.value ?? "").localizedCaseInsensitiveContains(text)
-                    || picker.label.localizedCaseInsensitiveContains(text)) {
-                return true
-            }
-            Thread.sleep(forTimeInterval: 0.05)
-        } while Date() < deadline
-        return false
+        let pickerAfterPopup = app.descendants(matching: .any)[identifier]
+        guard pickerAfterPopup.waitForExistence(timeout: timeout) else { return false }
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "value CONTAINS[c] %@ OR label CONTAINS[c] %@",
+                text,
+                text
+            ),
+            object: pickerAfterPopup
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func assertPortfolioSummaryName(in app: XCUIApplication, equals expected: String) -> Bool {
+        let summary = app.descendants(matching: .any)["portfolio.summary.name"]
+        guard summary.waitForExistence(timeout: 5), summary.label == "Portfolio name" else { return false }
+        return String(describing: summary.value ?? "").contains(expected)
+    }
+
+    @MainActor
+    private func waitForMarketsSearchTerminal(in app: XCUIApplication, timeout: TimeInterval) -> String {
+        let status = app.descendants(matching: .any)["markets.search.status"]
+        guard status.waitForExistence(timeout: 5) else { return "Status Missing" }
+        let terminals = [
+            "Ready", "Cancelled", "Invalid Payload", "Provider Error",
+            "Missing Credential", "Invalid Credential", "Upgrade Required",
+            "Unsupported Entitlement", "Unsupported Market", "Rate Limited",
+            "Offline", "Timeout", "Missing", "Insufficient Data"
+        ]
+        let terminalLabels = terminals.map { "Search status: \($0)" }
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label IN %@", terminalLabels),
+            object: status
+        )
+        _ = XCTWaiter.wait(for: [expectation], timeout: timeout)
+        let label = app.descendants(matching: .any)["markets.search.status"].label
+        return label.replacingOccurrences(of: "Search status: ", with: "")
     }
 
     @MainActor
