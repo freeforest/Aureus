@@ -222,6 +222,18 @@ final class AureusUITests: XCTestCase {
         app.descendants(matching: .any)["portfolio.delete"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.delete.confirm"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["portfolio.delete.confirm"].click()
+        XCTAssertTrue(waitForIdentifierToDisappear("portfolio.delete.confirm", in: app, timeout: 5))
+        XCTAssertTrue(waitForPortfolioRowCount(1, in: app, timeout: 5))
+        XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Local Portfolio", timeout: 5))
+        XCTAssertTrue(waitForIdentifierToDisappear(createdPortfolioIdentifier, in: app, timeout: 5))
+        XCTAssertEqual(portfolioRowIdentifiers(in: app), initialPortfolioRowIdentifiers)
+
+        // Recreate the Portfolio surface once more after deletion. The exact
+        // captured UUID must stay absent while the original UUID and fallback
+        // selection remain stable.
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        app.descendants(matching: .any)["sidebar.portfolio"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 5))
         XCTAssertTrue(waitForPortfolioRowCount(1, in: app, timeout: 5))
         XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Local Portfolio", timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)[createdPortfolioIdentifier].exists)
@@ -233,6 +245,8 @@ final class AureusUITests: XCTestCase {
         launchApp(production)
         production.descendants(matching: .any)["sidebar.portfolio"].click()
         XCTAssertTrue(production.descendants(matching: .any)["portfolio.empty"].waitForExistence(timeout: 5))
+        XCTAssertFalse(production.descendants(matching: .any)[createdPortfolioIdentifier].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["portfolio.summary.name"].exists)
         XCTAssertFalse(production.descendants(matching: .any)["portfolio.holding.SYNX|XSYN"].exists)
         XCTAssertTrue(waitForPortfolioRowCount(0, in: production, timeout: 5))
         XCTAssertFalse(production.descendants(matching: .any)["portfolio.benchmark.chart"].exists)
@@ -1168,6 +1182,21 @@ final class AureusUITests: XCTestCase {
             let rows = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row."))
             if rows.count == expected { return true }
+            Thread.sleep(forTimeInterval: 0.05)
+        } while Date() < deadline
+        return false
+    }
+
+    @MainActor
+    private func waitForIdentifierToDisappear(
+        _ identifier: String,
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let current = app.descendants(matching: .any)[identifier]
+            if !current.exists { return true }
             Thread.sleep(forTimeInterval: 0.05)
         } while Date() < deadline
         return false

@@ -156,6 +156,102 @@ struct PortfolioTerminalTests {
         #expect(try await reopened.fetchWealthContainer(id: wealth.id) != nil)
     }
 
+    @Test("Confirmed delete survives alert presentation dismissal")
+    @MainActor
+    func confirmedDeleteSurvivesPresentationDismissal() async throws {
+        let fixture = try await makeDeleteLifecycleFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let sentinelsBefore = try await fixture.store.isolationSentinels()
+
+        fixture.model.requestDeleteSelected()
+        let capturedID = try #require(fixture.model.pendingPortfolioDeletion?.id)
+        #expect(capturedID == fixture.first.id)
+        fixture.model.cancelDelete()
+        #expect(fixture.model.pendingPortfolioDeletion == nil)
+
+        await fixture.model.confirmDelete(id: capturedID)
+
+        #expect(try await fixture.store.fetchPortfolios() == [fixture.second])
+        #expect(fixture.model.portfolios == [fixture.second])
+        #expect(fixture.model.selectedPortfolioID == fixture.second.id)
+        #expect(try await fixture.store.isolationSentinels() == sentinelsBefore)
+        let requests = await fixture.provider.requestCounts()
+        #expect(requests.search == 0 && requests.history == 0)
+    }
+
+    @Test("Cancelled delete issues no Store mutation")
+    @MainActor
+    func cancelledDeleteDoesNotMutateStore() async throws {
+        let fixture = try await makeDeleteLifecycleFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let sentinelsBefore = try await fixture.store.isolationSentinels()
+
+        fixture.model.requestDeleteSelected()
+        #expect(fixture.model.pendingPortfolioDeletion?.id == fixture.first.id)
+        fixture.model.cancelDelete()
+
+        #expect(fixture.model.pendingPortfolioDeletion == nil)
+        #expect(try await fixture.store.fetchPortfolios() == [fixture.first, fixture.second])
+        #expect(try await fixture.store.isolationSentinels() == sentinelsBefore)
+        let requests = await fixture.provider.requestCounts()
+        #expect(requests.search == 0 && requests.history == 0)
+    }
+
+    @Test("Captured delete identity remains authoritative after selection changes")
+    @MainActor
+    func capturedDeleteIdentitySurvivesSelectionChange() async throws {
+        let fixture = try await makeDeleteLifecycleFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let sentinelsBefore = try await fixture.store.isolationSentinels()
+
+        fixture.model.requestDeleteSelected()
+        let capturedID = try #require(fixture.model.pendingPortfolioDeletion?.id)
+        await fixture.model.select(fixture.second.id)
+        #expect(fixture.model.selectedPortfolioID == fixture.second.id)
+
+        await fixture.model.confirmDelete(id: capturedID)
+
+        #expect(try await fixture.store.fetchPortfolios() == [fixture.second])
+        #expect(fixture.model.selectedPortfolioID == fixture.second.id)
+        #expect(try await fixture.store.isolationSentinels() == sentinelsBefore)
+        let requests = await fixture.provider.requestCounts()
+        #expect(requests.search == 0 && requests.history == 0)
+    }
+
+    @Test("Delete failure is finite and preserves every Portfolio")
+    @MainActor
+    func deleteFailureIsIsolated() async throws {
+        let fixture = try await makeDeleteLifecycleFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let sentinelsBefore = try await fixture.store.isolationSentinels()
+        let faultQueue = try DatabaseQueueFactory.open(at: fixture.databaseURL)
+        try await faultQueue.write { db in
+            try db.execute(sql: """
+                CREATE TRIGGER synthetic_reject_portfolio_delete
+                BEFORE DELETE ON portfolio_definitions
+                BEGIN
+                    SELECT RAISE(ABORT, 'synthetic delete rejection');
+                END
+                """)
+        }
+
+        fixture.model.requestDeleteSelected()
+        let capturedID = try #require(fixture.model.pendingPortfolioDeletion?.id)
+        await fixture.model.confirmDelete(id: capturedID)
+
+        try await faultQueue.write { db in
+            try db.execute(sql: "DROP TRIGGER synthetic_reject_portfolio_delete")
+        }
+        #expect(try await fixture.store.fetchPortfolios() == [fixture.first, fixture.second])
+        #expect(fixture.model.portfolios == [fixture.first, fixture.second])
+        #expect(fixture.model.selectedPortfolioID == fixture.first.id)
+        #expect(fixture.model.pendingPortfolioDeletion == nil)
+        #expect(fixture.model.errorMessage == "Portfolio delete failed. Wealth, Ledger, and Snapshots were not altered.")
+        #expect(try await fixture.store.isolationSentinels() == sentinelsBefore)
+        let requests = await fixture.provider.requestCounts()
+        #expect(requests.search == 0 && requests.history == 0)
+    }
+
     @Test("Same-date complete NAV snapshot is atomically replaced")
     func snapshotReplacement() async throws {
         let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
@@ -415,6 +511,64 @@ struct PortfolioTerminalTests {
             preferences: PortfolioPreferencesStore(suiteName: nil, memoryOnly: true),
             clock: fixed, mode: .syntheticDemo
         ), root)
+    }
+
+    @MainActor
+    private func makeDeleteLifecycleFixture() async throws -> (
+        root: URL,
+        databaseURL: URL,
+        store: WealthStore,
+        model: PortfolioFeatureModel,
+        provider: Stage8ANoRequestMarketProvider,
+        first: PortfolioRecord,
+        second: PortfolioRecord
+    ) {
+        let root = try temporaryDirectory()
+        let databaseURL = root.appendingPathComponent("permanent.sqlite")
+        let store = try WealthStore(databaseURL: databaseURL)
+        let first = try PortfolioRecord(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000008001")!,
+            name: "Synthetic Portfolio A",
+            createdAt: instant,
+            updatedAt: instant,
+            sortOrder: 0
+        )
+        let secondInstant = UTCInstant(millisecondsSince1970: instant.millisecondsSince1970 + 1)
+        let second = try PortfolioRecord(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000008002")!,
+            name: "Synthetic Portfolio B",
+            createdAt: secondInstant,
+            updatedAt: secondInstant,
+            sortOrder: 1
+        )
+        try await store.createPortfolio(first)
+        try await store.createPortfolio(second)
+        try await store.insertIsolationSentinel(
+            id: "00000000-0000-4000-8000-000000008099",
+            name: "Synthetic Unrelated Permanent Sentinel"
+        )
+
+        let provider = Stage8ANoRequestMarketProvider(now: instant)
+        let clock = FixedClock(instant: instant)
+        let session = TransientMarketSessionStore()
+        let service = MarketDataService(
+            marketProvider: provider,
+            fxProvider: SyntheticFXRateProvider(clock: clock),
+            cache: try MarketCacheStore(databaseURL: root.appendingPathComponent("market.sqlite")),
+            sessionStore: session,
+            clock: clock
+        )
+        let model = PortfolioFeatureModel(
+            store: store,
+            marketDataService: service,
+            marketSessionStore: session,
+            preferences: PortfolioPreferencesStore(suiteName: nil, memoryOnly: true),
+            clock: clock,
+            mode: .syntheticDemo
+        )
+        await model.start()
+        await model.select(first.id)
+        return (root, databaseURL, store, model, provider, first, second)
     }
 
     @MainActor

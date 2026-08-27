@@ -168,11 +168,14 @@ final class PortfolioFeatureModel {
 
     func cancelDelete() { pendingPortfolioDeletion = nil }
 
-    func confirmDelete() async {
-        guard let pending = pendingPortfolioDeletion else { return }
+    func confirmDelete(id: UUID) async {
+        defer {
+            if pendingPortfolioDeletion?.id == id {
+                pendingPortfolioDeletion = nil
+            }
+        }
         do {
-            try await store.deletePortfolio(id: pending.id)
-            pendingPortfolioDeletion = nil
+            try await store.deletePortfolio(id: id)
             await reload(selecting: nil)
         } catch { errorMessage = "Portfolio delete failed. Wealth, Ledger, and Snapshots were not altered." }
     }

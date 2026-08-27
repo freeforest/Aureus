@@ -54,14 +54,21 @@ struct PortfolioView: View {
         .onChange(of: model.selectedPortfolioID) { _, id in
             Task { await model.select(id) }
         }
-        .alert("Delete Portfolio?", isPresented: Binding(
-            get: { model.pendingPortfolioDeletion != nil },
-            set: { if !$0 { model.cancelDelete() } }
-        )) {
+        .alert(
+            "Delete Portfolio?",
+            isPresented: Binding(
+                get: { model.pendingPortfolioDeletion != nil },
+                set: { if !$0 { model.cancelDelete() } }
+            ),
+            presenting: model.pendingPortfolioDeletion
+        ) { portfolio in
             Button("Cancel", role: .cancel) { model.cancelDelete() }
-            Button("Delete Portfolio Records", role: .destructive) { Task { await model.confirmDelete() } }
+            Button("Delete Portfolio Records", role: .destructive) {
+                let confirmedID = portfolio.id
+                Task { await model.confirmDelete(id: confirmedID) }
+            }
                 .accessibilityIdentifier("portfolio.delete.confirm")
-        } message: {
+        } message: { _ in
             Text("Only this Portfolio's links, activities, and Portfolio NAV snapshots will be deleted. Wealth, Ledger, Dashboard snapshots, Market Cache, and Credentials remain unchanged.")
         }
     }

@@ -1,6 +1,6 @@
 # Stage 8 Portfolio Acceptance
 
-**Status:** Stage 8AB PARTIAL — Awaiting Reviewer Gate  
+**Status:** Stage 8AC PARTIAL — Awaiting Reviewer Gate  
 **Implementation date:** 2026-08-26  
 **Authority:** This document records Stage 8 implementation and synthetic verification evidence. It does not decide the Stage 8 Gate or authorize Stage 9.
 
@@ -194,3 +194,29 @@ The Portfolio UI helper now uses finite deadlines and re-queries `XCUIApplicatio
 | Real Provider requests | `NOT RUN` |
 
 Unit and build evidence cannot offset the exhausted Portfolio UI gate. Stage 8AB therefore remains `PARTIAL` and awaits independent Reviewer action. No live capability is expanded; Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 9 remains `NO-GO`.
+
+## 15. Stage 8AC Portfolio delete lifecycle evidence
+
+Prompt 8AC addressed only the confirmed-delete lifecycle race. The alert's destructive action now captures the presented Portfolio UUID synchronously and passes that immutable identifier to `confirmDelete(id:)`. The asynchronous command never rereads `pendingPortfolioDeletion` to discover its target; alert dismissal may clear presentation state without losing or retargeting the confirmed command. Cancellation remains presentation-only. Store failure produces a finite sanitized disclosure and does not report success or affect another Portfolio.
+
+Four deterministic synthetic tests cover confirmed deletion after simulated dismissal, cancellation without deletion, selection changes after ID capture, and Store-failure isolation. The Portfolio UI flow keeps stable UUID row identifiers, clicks the destructive confirmation once, observes the confirmation disappear, verifies the row count becomes one, checks that the deleted UUID disappears while the surviving UUID remains, navigates away and back to confirm persistence, and then verifies isolated Production empty state.
+
+| Verification | Result |
+|---|---|
+| Delete lifecycle method-selector attempt | `NOT RUN` as business evidence — exit 65; compilation failed before test entry because two test-only GRDB writes required `await` |
+| Delete lifecycle selector compile retry | `NOT RUN` as business evidence — exit 0 but 0 tests matched the Swift Testing method selectors |
+| Expanded Stage 8 focused Unit, stable unsigned host | `PASS` — 21 definitions / 21 executions, including all four delete lifecycle tests |
+| Stage 6/7 focused regression, stable unsigned host | `PASS` — 107 definitions / 116 parameterized executions |
+| Full `AureusTests`, stable unsigned host | `PASS` — 231 definitions / 264 parameterized executions |
+| Debug arm64 clean build | `PASS` — exit 0 |
+| Signed build-for-testing | `PASS` — exit 0 |
+| Portfolio focused UI, initial command | `NOT RUN` as business evidence — exit 65; automation mode timed out before the test method entered |
+| Portfolio focused UI, infrastructure retry | `PASS` — 1/1, exit 0; complete CRUD/reorder/delete/reload/Production-isolation flow |
+| Ledger Dynamic focused UI | `PASS` — 1/1, exit 0; no retry |
+| Markets focused UI | `NOT VERIFIED` — its single actual business execution reached the Production-isolation tail after completing Synthetic Search, chart/accessibility, Watchlist, and Session Clear, but the executor turn was interrupted and the xcresult did not finalize; no rerun was permitted |
+| Existing focused regression combination | `NOT RUN` — Markets focused gate did not produce a final PASS result |
+| Full `AureusUITests` | `NOT RUN` — focused UI gate did not pass |
+| Performance | `NOT RUN` — Stage 8A evidence accepted and no performance implementation changed |
+| Real Provider requests | `NOT RUN` |
+
+The local delete lifecycle and Portfolio/Ledger focused evidence pass, but an interrupted, non-finalized Markets result cannot be promoted to PASS. Stage 8AC therefore remains `PARTIAL` and awaits independent Reviewer action. No live capability is expanded; Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 9 remains `NO-GO`.
