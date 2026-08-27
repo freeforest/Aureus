@@ -1,6 +1,6 @@
 # Stage 8 Portfolio Acceptance
 
-**Status:** Stage 8AA PARTIAL — Awaiting Reviewer Gate  
+**Status:** Stage 8AB PARTIAL — Awaiting Reviewer Gate  
 **Implementation date:** 2026-08-26  
 **Authority:** This document records Stage 8 implementation and synthetic verification evidence. It does not decide the Stage 8 Gate or authorize Stage 9.
 
@@ -168,3 +168,29 @@ Prompt 8AA preserved the accepted Portfolio domain, persistence, FIFO, FX, NAV, 
 | Real Provider requests | `NOT RUN` |
 
 The two failed focused gates cannot be offset by Unit, build, or Markets evidence. Stage 8AA therefore remains `PARTIAL` and awaits independent Reviewer action. No live capability is expanded; Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 9 remains `NO-GO`.
+
+## 14. Stage 8AB static-summary Accessibility evidence
+
+Prompt 8AB made only the authorized native summary and UI-lifecycle changes. `portfolio.summary.name` now exposes a self-contained `Portfolio name: <selected name>` label with ignored children. Ledger summary identifiers now expose complete labels that bind each existing title to the existing formatted Money, while Transfers states the count and cash-flow exclusion. Neither change modifies Portfolio/Ledger calculation, persistence, Picker, Provider, Session Store, Migration, or Market behavior.
+
+The Portfolio UI helper now uses finite deadlines and re-queries `XCUIApplication` on every poll. It verifies the stable summary label rather than AXValue, observes two stable Portfolio row identifiers after creation, re-queries Move Up before and after reordering, and navigates away and back before checking the persisted selection and order. The initial Stage 8AB execution failed only because an additional test assertion expected an unsupported Portfolio row label after the row count had already reached two. The one authorized lifecycle repair removed that non-contract label dependency and retained stable row identifiers. The final authorized execution passed creation, selected-summary, reorder, and navigation/reload checks, then failed because the row count did not return to one within five seconds after confirmed deletion. The two-business-execution budget was exhausted, so no further repair or UI execution occurred.
+
+| Verification | Result |
+|---|---|
+| Stage 8/8A focused Unit, first sandboxed command | `NOT RUN` as business evidence — exit 65; runner communication failed before test entry |
+| Stage 8/8A focused Unit, signed host | `FAIL` — 11/17 passed; six filesystem-dependent cases received the retained `/private/tmp/AureusTests` sandbox denial |
+| Stage 8/8A focused Unit, stable unsigned host | `PASS` — 17 definitions / 17 executions |
+| Stage 6/7 focused regression, stable unsigned host | `PASS` — 107 definitions / 116 parameterized executions |
+| Full `AureusTests`, stable unsigned host | `PASS` — 227 definitions / 260 parameterized executions |
+| Final Debug arm64 clean build | `PASS` |
+| Final build-for-testing, first attempt | `FAIL` — exit 74; cached GRDB submodule transfer ended early |
+| Final build-for-testing, fixed-cache bounded retry | `PASS` — GRDB 7.11.1 reused without changing `Package.resolved` |
+| Portfolio focused UI, first execution | `FAIL` — 0/1; unsupported row-label assertion after row count reached two |
+| Portfolio focused UI, one authorized final execution | `FAIL` — 0/1; deletion confirmation completed, but row count did not become one within the finite deadline |
+| Ledger focused UI | `NOT RUN` — Portfolio focused gate did not pass |
+| Markets focused regression | `NOT RUN` — Portfolio focused gate did not pass; Markets source/test remained frozen |
+| Existing focused regression combination | `NOT RUN` — focused UI gate did not pass |
+| Full `AureusUITests` | `NOT RUN` — focused UI gate did not pass |
+| Real Provider requests | `NOT RUN` |
+
+Unit and build evidence cannot offset the exhausted Portfolio UI gate. Stage 8AB therefore remains `PARTIAL` and awaits independent Reviewer action. No live capability is expanded; Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, and Stage 9 remains `NO-GO`.

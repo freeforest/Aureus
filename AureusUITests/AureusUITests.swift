@@ -190,18 +190,23 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(benchmarkDisclosure.waitForExistence(timeout: 5))
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "portfolio.benchmark.disclosure").count, 1)
         XCTAssertTrue(benchmarkDisclosure.label.contains("Benchmark session data not loaded"))
+        let initialPortfolioRowIdentifiers = portfolioRowIdentifiers(in: app)
+        XCTAssertEqual(initialPortfolioRowIdentifiers.count, 1)
 
         let name = app.descendants(matching: .any)["portfolio.create.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.click()
         name.typeText("Synthetic Second Portfolio")
         app.descendants(matching: .any)["portfolio.create"].click()
-        XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row.")).count, 2)
-        XCTAssertTrue(assertPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio"))
-        XCTAssertEqual(app.descendants(matching: .any)["portfolio.summary.name"].label, "Portfolio name")
-        XCTAssertTrue(app.descendants(matching: .any)["portfolio.move.up"].isEnabled)
+        XCTAssertTrue(waitForPortfolioRowCount(2, in: app, timeout: 5))
+        let identifiersAfterCreate = portfolioRowIdentifiers(in: app)
+        let createdIdentifiers = identifiersAfterCreate.subtracting(initialPortfolioRowIdentifiers)
+        XCTAssertEqual(createdIdentifiers.count, 1)
+        let createdPortfolioIdentifier = try XCTUnwrap(createdIdentifiers.first)
+        XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio", timeout: 5))
+        XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: true, timeout: 5))
         app.descendants(matching: .any)["portfolio.move.up"].click()
-        XCTAssertFalse(app.descendants(matching: .any)["portfolio.move.up"].isEnabled)
+        XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: false, timeout: 5))
 
         // Recreate the feature model against the same temporary Store by
         // navigating away and back. The first persisted row must remain the
@@ -209,16 +214,18 @@ final class AureusUITests: XCTestCase {
         app.descendants(matching: .any)["sidebar.dashboard"].click()
         app.descendants(matching: .any)["sidebar.portfolio"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 5))
-        XCTAssertTrue(assertPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio"))
-        XCTAssertFalse(app.descendants(matching: .any)["portfolio.move.up"].isEnabled)
-        XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row.")).count, 2)
+        XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio", timeout: 5))
+        XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: false, timeout: 5))
+        XCTAssertTrue(waitForPortfolioRowCount(2, in: app, timeout: 5))
+        XCTAssertEqual(portfolioRowIdentifiers(in: app), identifiersAfterCreate)
 
         app.descendants(matching: .any)["portfolio.delete"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.delete.confirm"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["portfolio.delete.confirm"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["portfolio.summary.name"].waitForExistence(timeout: 5))
-        XCTAssertTrue(assertPortfolioSummaryName(in: app, equals: "Synthetic Local Portfolio"))
-        XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row.")).count, 1)
+        XCTAssertTrue(waitForPortfolioRowCount(1, in: app, timeout: 5))
+        XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Local Portfolio", timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)[createdPortfolioIdentifier].exists)
+        XCTAssertEqual(portfolioRowIdentifiers(in: app), initialPortfolioRowIdentifiers)
 
         app.terminate()
         let production = XCUIApplication()
@@ -227,6 +234,8 @@ final class AureusUITests: XCTestCase {
         production.descendants(matching: .any)["sidebar.portfolio"].click()
         XCTAssertTrue(production.descendants(matching: .any)["portfolio.empty"].waitForExistence(timeout: 5))
         XCTAssertFalse(production.descendants(matching: .any)["portfolio.holding.SYNX|XSYN"].exists)
+        XCTAssertTrue(waitForPortfolioRowCount(0, in: production, timeout: 5))
+        XCTAssertFalse(production.descendants(matching: .any)["portfolio.benchmark.chart"].exists)
     }
 
     @MainActor
@@ -836,16 +845,24 @@ final class AureusUITests: XCTestCase {
         net: String,
         transfers: String
     ) {
-        let values = [
-            ("ledger.summary.ordinaryInflow", ordinaryInflow),
-            ("ledger.summary.ordinaryOutflow", ordinaryOutflow),
-            ("ledger.summary.investmentInflow", investmentInflow),
-            ("ledger.summary.investmentOutflow", investmentOutflow),
-            ("ledger.summary.net", net),
-            ("ledger.summary.transfers", transfers)
+        let labels = [
+            ("ledger.summary.ordinaryInflow", "Ordinary Inflow: CNY \(ordinaryInflow)"),
+            ("ledger.summary.ordinaryOutflow", "Ordinary Outflow: CNY \(ordinaryOutflow)"),
+            ("ledger.summary.investmentInflow", "Investment Inflow: CNY \(investmentInflow)"),
+            ("ledger.summary.investmentOutflow", "Investment Outflow: CNY \(investmentOutflow)"),
+            ("ledger.summary.net", "Net Cash Flow: CNY \(net)"),
+            ("ledger.summary.transfers", "Transfers: \(transfers), excluded from cash flow")
         ]
-        for (identifier, expected) in values {
-            XCTAssertTrue(waitForValue(app.descendants(matching: .any)[identifier], containing: expected, timeout: 5), "Expected \(identifier) to contain \(expected)")
+        for (identifier, expectedLabel) in labels {
+            XCTAssertTrue(
+                waitForAccessibilityLabel(
+                    in: app,
+                    identifier: identifier,
+                    equals: expectedLabel,
+                    timeout: 5
+                ),
+                "Expected \(identifier) label to equal \(expectedLabel)"
+            )
         }
     }
 
@@ -1111,10 +1128,75 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
-    private func assertPortfolioSummaryName(in app: XCUIApplication, equals expected: String) -> Bool {
-        let summary = app.descendants(matching: .any)["portfolio.summary.name"]
-        guard summary.waitForExistence(timeout: 5), summary.label == "Portfolio name" else { return false }
-        return String(describing: summary.value ?? "").contains(expected)
+    private func waitForPortfolioSummaryName(
+        in app: XCUIApplication,
+        equals expected: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        waitForAccessibilityLabel(
+            in: app,
+            identifier: "portfolio.summary.name",
+            equals: "Portfolio name: \(expected)",
+            timeout: timeout
+        )
+    }
+
+    @MainActor
+    private func waitForAccessibilityLabel(
+        in app: XCUIApplication,
+        identifier: String,
+        equals expected: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let current = app.descendants(matching: .any)[identifier]
+            if current.exists, current.label == expected { return true }
+            Thread.sleep(forTimeInterval: 0.05)
+        } while Date() < deadline
+        return false
+    }
+
+    @MainActor
+    private func waitForPortfolioRowCount(
+        _ expected: Int,
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let rows = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row."))
+            if rows.count == expected { return true }
+            Thread.sleep(forTimeInterval: 0.05)
+        } while Date() < deadline
+        return false
+    }
+
+    @MainActor
+    private func portfolioRowIdentifiers(in app: XCUIApplication) -> Set<String> {
+        Set(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.row."))
+                .allElementsBoundByIndex
+                .map(\.identifier)
+        )
+    }
+
+    @MainActor
+    private func waitForControlState(
+        in app: XCUIApplication,
+        identifier: String,
+        isEnabled expected: Bool,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let current = app.descendants(matching: .any)[identifier]
+            if current.exists, current.isEnabled == expected { return true }
+            Thread.sleep(forTimeInterval: 0.05)
+        } while Date() < deadline
+        return false
     }
 
     @MainActor

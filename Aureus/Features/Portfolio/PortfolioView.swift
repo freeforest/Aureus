@@ -170,7 +170,7 @@ struct PortfolioView: View {
         .padding(12).frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title == "Portfolio" ? "Portfolio name" : title)
+        .accessibilityLabel("\(title == "Portfolio" ? "Portfolio name" : title): \(value)")
         .accessibilityValue(value)
         .accessibilityIdentifier(identifier)
     }

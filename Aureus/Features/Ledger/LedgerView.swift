@@ -123,7 +123,7 @@ struct LedgerView: View {
             .padding(10).frame(maxWidth: .infinity, alignment: .leading)
             .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Transfers")
+            .accessibilityLabel("Transfers: \(model.summary.transferCount), excluded from cash flow")
             .accessibilityValue("\(model.summary.transferCount)")
             .accessibilityIdentifier("ledger.summary.transfers")
         }
@@ -138,7 +138,7 @@ struct LedgerView: View {
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
+        .accessibilityLabel("\(title): \(Self.money(money))")
         .accessibilityValue(Self.money(money))
         .accessibilityIdentifier(identifier)
     }
