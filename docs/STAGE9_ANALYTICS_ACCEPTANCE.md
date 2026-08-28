@@ -1,7 +1,7 @@
 # Stage 9 Portfolio Analytics Acceptance
 
-**Status:** Stage 9AA PARTIAL — Awaiting Reviewer Gate  
-**Implementation date:** 2026-08-27  
+**Status:** Stage 9AAAA PARTIAL — Awaiting Reviewer Gate  
+**Implementation date:** 2026-08-28  
 **Authority:** This document records implementation and bounded local/synthetic evidence. It does not decide the Stage 9 Gate, authorize Stage 10, or establish any Provider capability.
 
 ## 1. Gate and scope boundary
@@ -320,3 +320,30 @@ Because only `AureusUITests.swift` changed, Stage 9 focused Unit `20/20`, Stage 
 Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
 
 This is **Stage 9AAA PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+
+## 24. Stage 9AAAA finite-scroll-budget closure
+
+Prompt 9AAAA preserves the two Stage 9AAA business failures as historical evidence. The initial Stage 9AAA execution failed at the coverage-label predicate; its final retry corrected that predicate, completed the top coverage and metric assertions, and then failed at `analytics.chart.performance` after the former 8-second global deadline allowed only three `swipeUp()` operations. Neither historical failure is rewritten as a current Prompt 9AAAA result.
+
+The Stage 9 UI test now makes the finite scroll count its executable boundary. It first performs a fresh identifier query, then permits at most 12 element-scoped scroll operations, re-queries both `analytics.detail.scroll` and the target before and after each operation, and derives the finite wall-clock allowance as `maximumScrollCount × 4 + 5` seconds (53 seconds for 12 operations). Success and exhaustion activities report only the identifier, direction, actual count, and maximum count; they do not export an AX hierarchy. The frozen Production coverage wording remains `incomplete snapshots excluded`.
+
+The first current business execution completed Calculate, coverage, the Portfolio report title, all seven metric cards, the accessible-data toggle, and the risk-free disclosure. It then performed all 12 authorized semantic `swipeUp()` operations and failed at `analytics.chart.performance`. This proves the old 8-second truncation was removed but does not establish the downstream chart or table runtime contracts.
+
+The single authorized direct UI-test lifecycle repair replaced the swipe call with element-scoped native relative scrolling on the freshly queried `analytics.detail.scroll`; no Production Swift, calculation, fixture, Accessibility identifier, label, or business assertion changed. A fresh final signed build-for-testing passed. The only authorized final focused business retry again completed all top assertions and 12 bounded relative-scroll operations, then failed at the same `analytics.chart.performance` identifier. The two-business-execution budget is exhausted, so no third focused run, Existing focused regression, or full UI run occurred.
+
+| Verification | Result bundle | Result |
+|---|---|---|
+| Initial fresh signed build-for-testing | `/private/tmp/Aureus-Stage9AAAA-dbQmEQ/BuildForTesting.xcresult` | `PASS` — exit 0; `TEST BUILD SUCCEEDED`; `Info.plist` present; build summary parse exit 0; errors 0 |
+| Stage 9AAAA focused UI, initial business execution | `/private/tmp/Aureus-Stage9AAAA-dbQmEQ/Stage9FocusedUI.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; 12/12 semantic swipes completed; failure at `analytics.chart.performance` |
+| Final fresh signed build-for-testing | `/private/tmp/Aureus-Stage9AAAA-dbQmEQ/BuildForTesting-Final.xcresult` | `PASS` — exit 0; `TEST BUILD SUCCEEDED`; `Info.plist` present; build summary parse exit 0; errors 0 |
+| Stage 9AAAA focused UI, final business retry | `/private/tmp/Aureus-Stage9AAAA-dbQmEQ/Stage9FocusedUI-Final.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; 12/12 native relative-scroll operations completed; same finite identifier failure |
+| Existing focused UI regression | — | `NOT RUN` — final Stage 9 focused UI did not pass |
+| Full `AureusUITests` | — | `NOT RUN` — Existing focused regression prerequisite did not pass |
+
+Both focused bundles contain `Info.plist`. Their first sandboxed summary/tests parser attempts returned exit 64 because the TestReport cache was not writable; read-only parsing of the same bundles in the standard Xcode permission environment returned exit 0, without rerunning either test. Both focused invocations entered the business method, so neither is an infrastructure retry. The second is the one authorized business retry.
+
+Because only `AureusUITests.swift` changed, Stage 9 focused Unit `20/20`, Stage 6–8 regression `204` definitions / `237` executions, full Unit `254` definitions / `287` executions, Stage 9 performance `3/3`, and Clean Debug arm64 Build are `NOT RUN — INHERITED AFTER EXACT Production/Unit SOURCE-HASH VERIFICATION`. Analytics Production, Domain, FeatureModel, Unit tests, persistence, migrations, Provider routing, entitlements, Package, project, and chart assets remained byte-identical.
+
+The performance and remaining native table assertions, sparse-Portfolio typed-unavailable flow, and Production isolation were not reached in either current focused execution and remain `NOT VERIFIED`. Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
+
+This is **Stage 9AAAA PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.

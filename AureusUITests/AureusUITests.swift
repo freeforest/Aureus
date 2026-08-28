@@ -5,6 +5,15 @@ final class AureusUITests: XCTestCase {
     private enum AnalyticsScrollDirection {
         case towardTop
         case towardBottom
+
+        var activityDescription: String {
+            switch self {
+            case .towardTop:
+                "towardTop"
+            case .towardBottom:
+                "towardBottom"
+            }
+        }
     }
 
     override func setUpWithError() throws {
@@ -1458,31 +1467,93 @@ final class AureusUITests: XCTestCase {
         requireUnique: Bool = false,
         labelSatisfies: (String) -> Bool = { _ in true }
     ) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        var remainingScrolls = max(0, maximumScrollCount)
-        repeat {
+        let scrollLimit = max(0, maximumScrollCount)
+        // A native macOS XCTest swipe can take roughly three seconds. Keep the
+        // traversal count-bounded while ensuring the optional wall-clock guard
+        // can never recreate the former 8-second/3-swipe truncation.
+        let effectiveTimeout = max(timeout, (Double(scrollLimit) * 4) + 5)
+        let deadline = Date().addingTimeInterval(effectiveTimeout)
+        var performedScrolls = 0
+
+        for queryAttempt in 0...scrollLimit {
             let identifierPredicate = identifierIsPrefix
                 ? NSPredicate(format: "identifier BEGINSWITH %@", identifier)
                 : NSPredicate(format: "identifier == %@", identifier)
             let matches = app.descendants(matching: .any).matching(identifierPredicate)
             if (!requireUnique || matches.count == 1) {
                 let current = matches.firstMatch
-                if current.exists, labelSatisfies(current.label) { return true }
-            }
-            if remainingScrolls > 0 {
-                let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
-                guard scrollView.exists else { return false }
-                switch direction {
-                case .towardTop:
-                    scrollView.swipeDown()
-                case .towardBottom:
-                    scrollView.swipeUp()
+                if current.exists, labelSatisfies(current.label) {
+                    XCTContext.runActivity(named: analyticsViewportActivityTitle(
+                        outcome: "resolved",
+                        identifier: identifier,
+                        direction: direction,
+                        performedScrolls: performedScrolls,
+                        maximumScrollCount: scrollLimit
+                    )) { _ in }
+                    return true
                 }
-                remainingScrolls -= 1
             }
-            Thread.sleep(forTimeInterval: 0.05)
-        } while Date() < deadline
+
+            guard queryAttempt < scrollLimit else { break }
+            guard Date() < deadline else {
+                XCTContext.runActivity(named: analyticsViewportActivityTitle(
+                    outcome: "wall-clock budget exhausted",
+                    identifier: identifier,
+                    direction: direction,
+                    performedScrolls: performedScrolls,
+                    maximumScrollCount: scrollLimit
+                )) { _ in }
+                return false
+            }
+
+            let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+            guard scrollView.exists else {
+                XCTContext.runActivity(named: analyticsViewportActivityTitle(
+                    outcome: "semantic scroll surface unavailable",
+                    identifier: identifier,
+                    direction: direction,
+                    performedScrolls: performedScrolls,
+                    maximumScrollCount: scrollLimit
+                )) { _ in }
+                return false
+            }
+
+            // macOS can synthesize a swipe activity without advancing a
+            // SwiftUI ScrollView's content offset. Use the element-scoped
+            // native scroll API with a viewport-relative page instead of a
+            // fixed screen coordinate.
+            let pageDelta = max(scrollView.frame.height * 0.8, 1)
+            switch direction {
+            case .towardTop:
+                scrollView.scroll(byDeltaX: 0, deltaY: pageDelta)
+            case .towardBottom:
+                scrollView.scroll(byDeltaX: 0, deltaY: -pageDelta)
+            }
+            performedScrolls += 1
+            // The next loop iteration performs a new identifier, uniqueness,
+            // label, and semantic ScrollView query after the viewport change.
+        }
+
+        XCTContext.runActivity(named: analyticsViewportActivityTitle(
+            outcome: "scroll limit exhausted",
+            identifier: identifier,
+            direction: direction,
+            performedScrolls: performedScrolls,
+            maximumScrollCount: scrollLimit
+        )) { _ in }
         return false
+    }
+
+    private func analyticsViewportActivityTitle(
+        outcome: String,
+        identifier: String,
+        direction: AnalyticsScrollDirection,
+        performedScrolls: Int,
+        maximumScrollCount: Int
+    ) -> String {
+        "Analytics viewport \(outcome): identifier=\(identifier), "
+            + "direction=\(direction.activityDescription), "
+            + "scrolls=\(performedScrolls), maximum=\(maximumScrollCount)"
     }
 
     @MainActor
