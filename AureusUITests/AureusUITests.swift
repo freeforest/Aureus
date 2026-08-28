@@ -20,6 +20,7 @@ final class AureusUITests: XCTestCase {
         case aboveViewport
         case insideViewport
         case belowViewport
+        case outsideScrollRegion
         case notExposed
         case invalidFrame
     }
@@ -387,8 +388,7 @@ final class AureusUITests: XCTestCase {
             "analytics.metric.volatility",
             "analytics.metric.sharpe",
             "analytics.metric.drawdown",
-            "analytics.accessible-data.toggle",
-            "analytics.risk-free.disclosure"
+            "analytics.accessible-data.toggle"
         ] {
             XCTAssertTrue(
                 waitForAnalyticsElement(
@@ -401,6 +401,20 @@ final class AureusUITests: XCTestCase {
                 "Missing Stage 9 accessibility surface: \(identifier)"
             )
         }
+        let fixedRiskFreeDisclosure = app.descendants(matching: .any)["analytics.risk-free.disclosure"]
+        let detailScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+        XCTAssertTrue(
+            fixedRiskFreeDisclosure.exists,
+            "Missing fixed Analytics control: analytics.risk-free.disclosure"
+        )
+        XCTAssertEqual(
+            analyticsViewportSnapshot(
+                of: fixedRiskFreeDisclosure,
+                in: detailScrollView
+            ).relation.rawValue,
+            AnalyticsViewportRelation.outsideScrollRegion.rawValue,
+            "Fixed Analytics controls must remain outside the detail scroll region"
+        )
         // Navigate by the standalone visible summary, then independently
         // preserve the parent chart-container assertion in the same viewport.
         XCTAssertTrue(
@@ -1543,11 +1557,12 @@ final class AureusUITests: XCTestCase {
         anchorIdentifier: String,
         labelSatisfies: (String) -> Bool
     ) -> Bool {
-        let matches = app.descendants(matching: .any)
+        let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+        guard scrollView.exists else { return false }
+        let matches = scrollView.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == %@", anchorIdentifier))
         guard matches.count == 1 else { return false }
 
-        let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
         let anchor = matches.firstMatch
         guard scrollView.exists,
               anchor.exists,
@@ -1558,7 +1573,10 @@ final class AureusUITests: XCTestCase {
         let candidates: [AnalyticsScrollDriver] = [.positiveDelta, .negativeDelta, .swipeUp]
         for candidate in candidates {
             let currentScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
-            let currentAnchor = app.descendants(matching: .any)[anchorIdentifier]
+            let currentAnchor = analyticsDetailElement(
+                in: currentScrollView,
+                identifier: anchorIdentifier
+            )
             guard currentScrollView.exists, currentAnchor.exists else { return false }
 
             let before = analyticsViewportSnapshot(of: currentAnchor, in: currentScrollView)
@@ -1566,7 +1584,10 @@ final class AureusUITests: XCTestCase {
             performAnalyticsScroll(candidate, on: currentScrollView, pageDelta: pageDelta)
 
             let refreshedScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
-            let refreshedAnchor = app.descendants(matching: .any)[anchorIdentifier]
+            let refreshedAnchor = analyticsDetailElement(
+                in: refreshedScrollView,
+                identifier: anchorIdentifier
+            )
             let after = analyticsViewportSnapshot(of: refreshedAnchor, in: refreshedScrollView)
             let progressed = analyticsViewportProgressed(
                 direction: .towardBottom,
@@ -1606,13 +1627,13 @@ final class AureusUITests: XCTestCase {
         let effectiveTimeout = max(timeout, (Double(scrollLimit) * 4) + 5)
         let deadline = Date().addingTimeInterval(effectiveTimeout)
         var performedScrolls = 0
-        var consecutiveNoProgress = 0
+        var stalledWitnessIdentifier: String?
+        var consecutiveSameWitnessStalls = 0
 
         for queryAttempt in 0...scrollLimit {
             let currentScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
             guard currentScrollView.exists else { return false }
             let current = analyticsMatchingElement(
-                in: app,
                 identifier: identifier,
                 identifierIsPrefix: identifierIsPrefix,
                 requireUnique: requireUnique,
@@ -1647,11 +1668,11 @@ final class AureusUITests: XCTestCase {
             // After exactly one verified no-progress delta, try the equivalent
             // semantic swipe once; it must itself demonstrate viewport progress
             // before becoming the calibrated driver for later navigation.
-            let usesSemanticFallback = consecutiveNoProgress == 1
+            let usesSemanticFallback = consecutiveSameWitnessStalls == 1
             let driver = usesSemanticFallback
                 ? analyticsSemanticSwipeDriver(for: actualDirection)
                 : activeCalibration.driver(for: actualDirection)
-            let witnessBefore = analyticsVisibleProgressWitness(in: app, scrollView: currentScrollView)
+            let witnessBefore = analyticsVisibleProgressWitness(scrollView: currentScrollView)
             let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
             guard scrollView.exists else { return false }
             let pageDelta = max(scrollView.frame.height * 0.8, 1)
@@ -1660,7 +1681,6 @@ final class AureusUITests: XCTestCase {
 
             let refreshedScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
             let refreshed = analyticsMatchingElement(
-                in: app,
                 identifier: identifier,
                 identifierIsPrefix: identifierIsPrefix,
                 requireUnique: requireUnique,
@@ -1675,11 +1695,21 @@ final class AureusUITests: XCTestCase {
             )
             let witnessAfter = witnessBefore.map {
                 analyticsViewportSnapshot(
-                    of: app.descendants(matching: .any)[$0.identifier],
+                    of: analyticsDetailElement(
+                        in: refreshedScrollView,
+                        identifier: $0.identifier
+                    ),
                     in: refreshedScrollView
                 )
             }
-            let witnessProgressed = if let witnessBefore, let witnessAfter {
+            let witnessComparable = if let witnessBefore, let witnessAfter {
+                witnessBefore.snapshot.relation == .insideViewport
+                    && witnessAfter.relation != .invalidFrame
+                    && witnessAfter.relation != .outsideScrollRegion
+            } else {
+                false
+            }
+            let witnessProgressed = if let witnessBefore, let witnessAfter, witnessComparable {
                 analyticsViewportProgressed(
                     direction: actualDirection,
                     before: witnessBefore.snapshot,
@@ -1693,7 +1723,33 @@ final class AureusUITests: XCTestCase {
                 activeCalibration = AnalyticsScrollCalibration(towardBottom: .swipeUp)
                 analyticsScrollCalibration = activeCalibration
             }
-            consecutiveNoProgress = progressed ? 0 : consecutiveNoProgress + 1
+            if progressed {
+                stalledWitnessIdentifier = nil
+                consecutiveSameWitnessStalls = 0
+            } else if let witnessBefore, witnessComparable {
+                if stalledWitnessIdentifier == witnessBefore.identifier {
+                    consecutiveSameWitnessStalls += 1
+                } else {
+                    stalledWitnessIdentifier = witnessBefore.identifier
+                    consecutiveSameWitnessStalls = 1
+                }
+            } else {
+                // An absent or incomparable witness does not prove a stall.
+                // The next bounded iteration may select a new visible detail
+                // descendant while the global scroll-count limit still applies.
+                stalledWitnessIdentifier = nil
+                consecutiveSameWitnessStalls = 0
+            }
+            if let witnessBefore {
+                XCTContext.runActivity(named: analyticsWitnessActivityTitle(
+                    identifier: witnessBefore.identifier,
+                    direction: actualDirection,
+                    before: witnessBefore.snapshot.relation,
+                    after: witnessAfter?.relation,
+                    comparable: witnessComparable,
+                    progressed: witnessProgressed
+                )) { _ in }
+            }
             XCTContext.runActivity(named: analyticsViewportActivityTitle(
                 targetIdentifier: identifier,
                 driver: driver,
@@ -1703,7 +1759,7 @@ final class AureusUITests: XCTestCase {
                 targetRelation: refreshedSnapshot.relation,
                 progressed: progressed
             )) { _ in }
-            if consecutiveNoProgress >= 2 { return false }
+            if consecutiveSameWitnessStalls >= 2 { return false }
         }
 
         return false
@@ -1747,6 +1803,21 @@ final class AureusUITests: XCTestCase {
             + "progress=\(progressed ? "progressed" : "stalled")"
     }
 
+    private func analyticsWitnessActivityTitle(
+        identifier: String,
+        direction: AnalyticsScrollDirection,
+        before: AnalyticsViewportRelation,
+        after: AnalyticsViewportRelation?,
+        comparable: Bool,
+        progressed: Bool
+    ) -> String {
+        "Analytics detail witness: identifier=\(identifier), "
+            + "direction=\(direction.activityDescription), "
+            + "relation=\(before.rawValue)->\(after?.rawValue ?? "notExposed"), "
+            + "comparable=\(comparable), "
+            + "progress=\(progressed ? "progressed" : "stalled")"
+    }
+
     @MainActor
     private func performAnalyticsScroll(
         _ driver: AnalyticsScrollDriver,
@@ -1774,7 +1845,7 @@ final class AureusUITests: XCTestCase {
     ) -> Bool {
         let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
         guard scrollView.exists else { return false }
-        let matches = app.descendants(matching: .any)
+        let matches = scrollView.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == %@", identifier))
         guard !requireUnique || matches.count == 1 else { return false }
         return analyticsViewportSnapshot(of: matches.firstMatch, in: scrollView).relation == .insideViewport
@@ -1782,7 +1853,6 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func analyticsMatchingElement(
-        in app: XCUIApplication,
         identifier: String,
         identifierIsPrefix: Bool,
         requireUnique: Bool,
@@ -1792,7 +1862,7 @@ final class AureusUITests: XCTestCase {
         let predicate = identifierIsPrefix
             ? NSPredicate(format: "identifier BEGINSWITH %@", identifier)
             : NSPredicate(format: "identifier == %@", identifier)
-        let matches = app.descendants(matching: .any).matching(predicate)
+        let matches = scrollView.descendants(matching: .any).matching(predicate)
         guard !requireUnique || matches.count == 1 else { return nil }
         let candidates = matches.allElementsBoundByAccessibilityElement.filter {
             $0.exists && labelSatisfies($0.label)
@@ -1814,6 +1884,15 @@ final class AureusUITests: XCTestCase {
         let viewportFrame = scrollView.frame
         guard analyticsFrameIsValid(elementFrame), analyticsFrameIsValid(viewportFrame) else {
             return AnalyticsViewportSnapshot(relation: .invalidFrame, midY: nil, height: nil)
+        }
+        let horizontalOverlap = min(elementFrame.maxX, viewportFrame.maxX)
+            - max(elementFrame.minX, viewportFrame.minX)
+        guard horizontalOverlap > 0 else {
+            return AnalyticsViewportSnapshot(
+                relation: .outsideScrollRegion,
+                midY: elementFrame.midY,
+                height: elementFrame.height
+            )
         }
         if elementFrame.maxY <= viewportFrame.minY {
             return AnalyticsViewportSnapshot(
@@ -1856,8 +1935,13 @@ final class AureusUITests: XCTestCase {
     ) -> Bool {
         if before.relation == .notExposed,
            after.relation != .notExposed,
+           after.relation != .outsideScrollRegion,
            after.relation != .invalidFrame {
             return true
+        }
+        if before.relation == .outsideScrollRegion
+            || after.relation == .outsideScrollRegion {
+            return false
         }
         switch direction {
         case .towardBottom:
@@ -1898,20 +1982,33 @@ final class AureusUITests: XCTestCase {
         switch targetRelation {
         case .aboveViewport: .towardTop
         case .belowViewport: .towardBottom
-        case .insideViewport, .notExposed, .invalidFrame: preferredDirection
+        case .insideViewport, .outsideScrollRegion, .notExposed, .invalidFrame: preferredDirection
         }
     }
 
     @MainActor
+    private func analyticsDetailElement(
+        in scrollView: XCUIElement,
+        identifier: String
+    ) -> XCUIElement {
+        scrollView.descendants(matching: .any)[identifier]
+    }
+
+    @MainActor
     private func analyticsVisibleProgressWitness(
-        in app: XCUIApplication,
         scrollView: XCUIElement
     ) -> (identifier: String, snapshot: AnalyticsViewportSnapshot)? {
         let exactIdentifiers = [
+            "analytics.report.portfolio",
             "analytics.coverage",
             "analytics.metric.total-return",
+            "analytics.metric.twr",
+            "analytics.metric.cagr",
+            "analytics.metric.xirr",
+            "analytics.metric.volatility",
+            "analytics.metric.sharpe",
             "analytics.metric.drawdown",
-            "analytics.risk-free.disclosure",
+            "analytics.accessible-data.toggle",
             "analytics.chart.performance.summary",
             "analytics.performance.table",
             "analytics.drawdown.summary",
@@ -1924,9 +2021,14 @@ final class AureusUITests: XCTestCase {
             "analytics.evidence"
         ]
         for identifier in exactIdentifiers {
-            let element = app.descendants(matching: .any)[identifier]
+            let element = analyticsDetailElement(in: scrollView, identifier: identifier)
             let snapshot = analyticsViewportSnapshot(of: element, in: scrollView)
-            if snapshot.relation == .insideViewport {
+            // Resolve viewport exposure before reading the identifier. An
+            // offscreen SwiftUI descendant may legitimately be absent from the
+            // current AX snapshot; asking that unresolved query for its
+            // identifier turns a bounded witness miss into an XCTest snapshot
+            // failure instead of allowing the next candidate/scroll step.
+            if snapshot.relation == .insideViewport, !element.identifier.isEmpty {
                 return (element.identifier, snapshot)
             }
         }
@@ -1939,11 +2041,11 @@ final class AureusUITests: XCTestCase {
             "analytics.xirr-flow.row.",
             "analytics.cash-flow.row."
         ] {
-            let matches = app.descendants(matching: .any)
+            let matches = scrollView.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
             for element in matches.allElementsBoundByAccessibilityElement {
                 let snapshot = analyticsViewportSnapshot(of: element, in: scrollView)
-                if snapshot.relation == .insideViewport {
+                if !element.identifier.isEmpty, snapshot.relation == .insideViewport {
                     return (element.identifier, snapshot)
                 }
             }

@@ -374,3 +374,30 @@ Because only `AureusUITests.swift` changed, Stage 9 focused Unit `20/20`, Stage 
 Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
 
 This is **Stage 9AAAAA PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+
+## 26. Stage 9-UI-02 detail-scroll witness isolation
+
+Prompt 9-UI-02 preserves both Prompt 9AAAAA focused business failures as historical evidence. They selected negative relative delta for `towardBottom` but used an application-wide progress-witness set whose left-side fixed risk-free disclosure could be mistaken for right-side ScrollView content. Neither historical failure is rewritten as a current result.
+
+The current UI test now requires positive horizontal and vertical intersection with `analytics.detail.scroll` before classifying a node as inside its viewport. No-horizontal-overlap nodes are `outsideScrollRegion`. Every Analytics detail target and progress witness is queried from the freshly resolved detail ScrollView descendants; fixed controls remain app-scoped, and `analytics.risk-free.disclosure` is explicitly verified outside the detail region. Progress compares the same descendant identifier before and after a scroll, while absent or incomparable witnesses allow the next bounded candidate instead of immediately proving a stall. No coordinate value or AX hierarchy is logged.
+
+The initial current business execution completed direction calibration and the top Analytics assertions. Positive delta left coverage inside without downward progress; negative delta moved coverage from inside to above. It then failed with an XCTest matching-snapshot error because the witness loop read `identifier` from an offscreen unresolved candidate before short-circuiting on its `notExposed` viewport relation. This is a direct UI-test lifecycle failure, not an Analytics calculation or Production failure.
+
+The single authorized UI-test-only repair reversed that safe-evaluation order: it now accepts a witness identifier only after the two-dimensional relation is `insideViewport`. A fresh final signed build-for-testing passed. The final business retry preserved calibration and produced right-side progress using the same identifiers: `analytics.report.portfolio`, `analytics.performance.table`, `analytics.drawdown.table`, and `analytics.monthly.table` moved from inside to above, while later `analytics.xirr-flow.table` observations provided the finite stall boundary. Despite that demonstrated traversal, `analytics.chart.performance.summary` remained `notExposed`; the unchanged assertion failed after seven of the maximum twelve bounded operations. No third focused run is authorized.
+
+| Verification | Result bundle | Result |
+|---|---|---|
+| Initial fresh signed build-for-testing | `/private/tmp/Aureus-Stage9-UI-02-KSS3LN/BuildForTesting.xcresult` | `PASS` — exit 0; `TEST BUILD SUCCEEDED`; `Info.plist` present; build-summary parse exit 0; errors 0 |
+| Stage 9-UI-02 focused UI, initial business execution | `/private/tmp/Aureus-Stage9-UI-02-KSS3LN/Stage9FocusedUI.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; direct offscreen-witness query lifecycle failure |
+| Final fresh signed build-for-testing | `/private/tmp/Aureus-Stage9-UI-02-KSS3LN/BuildForTesting-Final.xcresult` | `PASS` — exit 0; `TEST BUILD SUCCEEDED`; `Info.plist` present; build-summary parse exit 0; errors 0 |
+| Stage 9-UI-02 focused UI, final business retry | `/private/tmp/Aureus-Stage9-UI-02-KSS3LN/Stage9FocusedUI-Final.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; `analytics.chart.performance.summary` remained unexposed after real detail-region progress and bounded traversal |
+| Existing focused UI regression | — | `NOT RUN` — final Stage 9 focused UI did not pass |
+| Full `AureusUITests` | — | `NOT RUN` — Existing focused regression prerequisite did not pass |
+
+Both focused bundles contain `Info.plist`. The initial sandboxed summary/tests parser attempts returned exit 64 because the TestReport cache was unavailable; read-only parsing of the same result bundle in the standard Xcode permission environment returned exit 0 without rerunning the test. Final summary/tests parsing returned exit 0. Both focused invocations entered the business method; the second is the single authorized business retry.
+
+Because only `AureusUITests.swift` changed, Stage 9 focused Unit `20/20`, Stage 6–8 regression `204` definitions / `237` executions, full Unit `254` definitions / `287` executions, Clean Debug arm64 Build, and Stage 9 performance `3/3` are `NOT RUN — INHERITED AFTER EXACT Production/Unit SOURCE-HASH VERIFICATION`. Analytics Production, Domain, FeatureModel, Unit tests, persistence, migrations, Provider routing, entitlements, Package, project, and chart assets remained byte-identical.
+
+The Performance summary/chart/table runtime assertions, remaining tables, sparse-Portfolio typed-unavailable flow, and Production isolation remain `NOT VERIFIED`. Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
+
+This is **Stage 9-UI-02 PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
