@@ -16,8 +16,49 @@ final class AureusUITests: XCTestCase {
         }
     }
 
+    private enum AnalyticsViewportRelation: String {
+        case aboveViewport
+        case insideViewport
+        case belowViewport
+        case notExposed
+        case invalidFrame
+    }
+
+    private enum AnalyticsScrollDriver: String {
+        case positiveDelta
+        case negativeDelta
+        case swipeUp
+        case swipeDown
+    }
+
+    private struct AnalyticsScrollCalibration {
+        let towardBottom: AnalyticsScrollDriver
+
+        func driver(for direction: AnalyticsScrollDirection) -> AnalyticsScrollDriver {
+            switch (towardBottom, direction) {
+            case (.positiveDelta, .towardBottom): .positiveDelta
+            case (.positiveDelta, .towardTop): .negativeDelta
+            case (.negativeDelta, .towardBottom): .negativeDelta
+            case (.negativeDelta, .towardTop): .positiveDelta
+            case (.swipeUp, .towardBottom): .swipeUp
+            case (.swipeUp, .towardTop): .swipeDown
+            case (.swipeDown, .towardBottom): .swipeDown
+            case (.swipeDown, .towardTop): .swipeUp
+            }
+        }
+    }
+
+    private struct AnalyticsViewportSnapshot {
+        let relation: AnalyticsViewportRelation
+        let midY: CGFloat?
+        let height: CGFloat?
+    }
+
+    private var analyticsScrollCalibration: AnalyticsScrollCalibration?
+
     override func setUpWithError() throws {
         continueAfterFailure = false
+        analyticsScrollCalibration = nil
     }
 
     @MainActor
@@ -304,9 +345,22 @@ final class AureusUITests: XCTestCase {
             timeout: 10
         ))
 
-        // Calculation replaces the detail content while preserving the
-        // ScrollView's prior viewport. Re-query from the semantic scroll
-        // surface and deliberately return to the top before reading coverage.
+        // Calibrate the native macOS scrolling direction from an observable
+        // top anchor. Sending a scroll event is not accepted as progress: the
+        // coverage relation must actually move toward or beyond the viewport's
+        // top edge. The inverse calibrated driver then returns to coverage.
+        XCTAssertTrue(
+            calibrateAnalyticsViewport(
+                in: app,
+                anchorIdentifier: "analytics.coverage",
+                labelSatisfies: {
+                    $0.contains("Observation coverage")
+                        && $0.contains("complete snapshots used")
+                        && $0.contains("incomplete snapshots excluded")
+                }
+            ),
+            "ANALYTICS_VIEWPORT_NO_PROGRESS"
+        )
         XCTAssertTrue(
             waitForAnalyticsElement(
                 in: app,
@@ -314,9 +368,13 @@ final class AureusUITests: XCTestCase {
                 direction: .towardTop,
                 timeout: 8,
                 requireUnique: true,
-                labelSatisfies: { $0.contains("incomplete snapshots excluded") }
+                labelSatisfies: {
+                    $0.contains("Observation coverage")
+                        && $0.contains("complete snapshots used")
+                        && $0.contains("incomplete snapshots excluded")
+                }
             ),
-            "Missing Stage 9 coverage after returning to the top viewport"
+            "Missing Stage 9 coverage after calibrated return to the top viewport"
         )
 
         for identifier in [
@@ -343,16 +401,8 @@ final class AureusUITests: XCTestCase {
                 "Missing Stage 9 accessibility surface: \(identifier)"
             )
         }
-        XCTAssertTrue(
-            waitForAnalyticsElement(
-                in: app,
-                identifier: "analytics.chart.performance",
-                direction: .towardBottom,
-                timeout: 8,
-                requireUnique: true
-            ),
-            "Missing Stage 9 accessibility surface: analytics.chart.performance"
-        )
+        // Navigate by the standalone visible summary, then independently
+        // preserve the parent chart-container assertion in the same viewport.
         XCTAssertTrue(
             waitForAnalyticsElement(
                 in: app,
@@ -364,6 +414,14 @@ final class AureusUITests: XCTestCase {
             ),
             "Missing Stage 9 accessibility surface: analytics.chart.performance.summary"
         )
+        XCTAssertTrue(
+            analyticsElementIsInsideViewport(
+                in: app,
+                identifier: "analytics.chart.performance",
+                requireUnique: true
+            ),
+            "PARENT_CHART_CONTAINER_NOT_EXPOSED: analytics.chart.performance"
+        )
         XCTAssertTrue(waitForAnalyticsTableSummary(
             in: app,
             identifier: "analytics.performance.table",
@@ -374,18 +432,14 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForAnalyticsTableRow(
             in: app,
             identifierPrefix: "analytics.performance.row.",
-            labelContaining: "index",
-            direction: .towardBottom,
-            timeout: 8
-        ))
-
-        XCTAssertTrue(waitForAnalyticsElement(
-            in: app,
-            identifier: "analytics.chart.drawdown",
             direction: .towardBottom,
             timeout: 8,
-            requireUnique: true
+            labelSatisfies: {
+                $0.range(of: #"[0-9]{4}-[0-9]{2}-[0-9]{2}"#, options: .regularExpression) != nil
+                    && $0.contains("index")
+            }
         ))
+
         XCTAssertTrue(waitForAnalyticsElement(
             in: app,
             identifier: "analytics.drawdown.summary",
@@ -394,6 +448,14 @@ final class AureusUITests: XCTestCase {
             requireUnique: true,
             labelSatisfies: { $0.contains("Observed snapshot drawdown summary") }
         ))
+        XCTAssertTrue(
+            analyticsElementIsInsideViewport(
+                in: app,
+                identifier: "analytics.chart.drawdown",
+                requireUnique: true
+            ),
+            "PARENT_CHART_CONTAINER_NOT_EXPOSED: analytics.chart.drawdown"
+        )
         XCTAssertTrue(waitForAnalyticsTableSummary(
             in: app,
             identifier: "analytics.drawdown.table",
@@ -404,9 +466,12 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForAnalyticsTableRow(
             in: app,
             identifierPrefix: "analytics.drawdown.row.",
-            labelContaining: "drawdown",
             direction: .towardBottom,
-            timeout: 8
+            timeout: 8,
+            labelSatisfies: {
+                $0.range(of: #"[0-9]{4}-[0-9]{2}-[0-9]{2}"#, options: .regularExpression) != nil
+                    && $0.contains("drawdown")
+            }
         ))
 
         XCTAssertTrue(waitForAnalyticsElement(
@@ -430,9 +495,13 @@ final class AureusUITests: XCTestCase {
             XCTAssertTrue(waitForAnalyticsTableRow(
                 in: app,
                 identifierPrefix: contract.2,
-                labelContaining: contract.3,
                 direction: .towardBottom,
-                timeout: 8
+                timeout: 8,
+                labelSatisfies: {
+                    $0.contains(contract.3)
+                        && $0.contains("%")
+                        && $0.contains("period")
+                }
             ))
         }
 
@@ -451,9 +520,21 @@ final class AureusUITests: XCTestCase {
             XCTAssertTrue(waitForAnalyticsTableRow(
                 in: app,
                 identifierPrefix: contract.2,
-                labelContaining: contract.3,
                 direction: .towardBottom,
-                timeout: 8
+                timeout: 8,
+                labelSatisfies: {
+                    guard $0.contains(contract.3) else { return false }
+                    if contract.2 == "analytics.subperiod.row." {
+                        return $0.range(
+                            of: #"[0-9]{4}-[0-9]{2}-[0-9]{2} to [0-9]{4}-[0-9]{2}-[0-9]{2}"#,
+                            options: .regularExpression
+                        ) != nil
+                    }
+                    if contract.2 == "analytics.xirr-flow.row." {
+                        return $0.contains("invested") || $0.contains("returned")
+                    }
+                    return $0.contains("contribution") || $0.contains("withdrawal")
+                }
             ))
         }
         XCTAssertTrue(waitForAnalyticsElement(
@@ -1457,6 +1538,58 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    private func calibrateAnalyticsViewport(
+        in app: XCUIApplication,
+        anchorIdentifier: String,
+        labelSatisfies: (String) -> Bool
+    ) -> Bool {
+        let matches = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", anchorIdentifier))
+        guard matches.count == 1 else { return false }
+
+        let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+        let anchor = matches.firstMatch
+        guard scrollView.exists,
+              anchor.exists,
+              labelSatisfies(anchor.label),
+              analyticsViewportSnapshot(of: anchor, in: scrollView).relation == .insideViewport
+        else { return false }
+
+        let candidates: [AnalyticsScrollDriver] = [.positiveDelta, .negativeDelta, .swipeUp]
+        for candidate in candidates {
+            let currentScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+            let currentAnchor = app.descendants(matching: .any)[anchorIdentifier]
+            guard currentScrollView.exists, currentAnchor.exists else { return false }
+
+            let before = analyticsViewportSnapshot(of: currentAnchor, in: currentScrollView)
+            let pageDelta = max(currentScrollView.frame.height * 0.8, 1)
+            performAnalyticsScroll(candidate, on: currentScrollView, pageDelta: pageDelta)
+
+            let refreshedScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+            let refreshedAnchor = app.descendants(matching: .any)[anchorIdentifier]
+            let after = analyticsViewportSnapshot(of: refreshedAnchor, in: refreshedScrollView)
+            let progressed = analyticsViewportProgressed(
+                direction: .towardBottom,
+                before: before,
+                after: after
+            )
+            XCTContext.runActivity(named: analyticsCalibrationActivityTitle(
+                targetIdentifier: anchorIdentifier,
+                driver: candidate,
+                before: before.relation,
+                after: after.relation,
+                progressed: progressed
+            )) { _ in }
+            if progressed {
+                analyticsScrollCalibration = AnalyticsScrollCalibration(towardBottom: candidate)
+                return true
+            }
+        }
+
+        return false
+    }
+
+    @MainActor
     private func waitForAnalyticsElement(
         in app: XCUIApplication,
         identifier: String,
@@ -1467,93 +1600,355 @@ final class AureusUITests: XCTestCase {
         requireUnique: Bool = false,
         labelSatisfies: (String) -> Bool = { _ in true }
     ) -> Bool {
+        guard let calibration = analyticsScrollCalibration else { return false }
+        var activeCalibration = calibration
         let scrollLimit = max(0, maximumScrollCount)
-        // A native macOS XCTest swipe can take roughly three seconds. Keep the
-        // traversal count-bounded while ensuring the optional wall-clock guard
-        // can never recreate the former 8-second/3-swipe truncation.
         let effectiveTimeout = max(timeout, (Double(scrollLimit) * 4) + 5)
         let deadline = Date().addingTimeInterval(effectiveTimeout)
         var performedScrolls = 0
+        var consecutiveNoProgress = 0
 
         for queryAttempt in 0...scrollLimit {
-            let identifierPredicate = identifierIsPrefix
-                ? NSPredicate(format: "identifier BEGINSWITH %@", identifier)
-                : NSPredicate(format: "identifier == %@", identifier)
-            let matches = app.descendants(matching: .any).matching(identifierPredicate)
-            if (!requireUnique || matches.count == 1) {
-                let current = matches.firstMatch
-                if current.exists, labelSatisfies(current.label) {
-                    XCTContext.runActivity(named: analyticsViewportActivityTitle(
-                        outcome: "resolved",
-                        identifier: identifier,
-                        direction: direction,
-                        performedScrolls: performedScrolls,
-                        maximumScrollCount: scrollLimit
-                    )) { _ in }
-                    return true
-                }
+            let currentScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+            guard currentScrollView.exists else { return false }
+            let current = analyticsMatchingElement(
+                in: app,
+                identifier: identifier,
+                identifierIsPrefix: identifierIsPrefix,
+                requireUnique: requireUnique,
+                labelSatisfies: labelSatisfies,
+                scrollView: currentScrollView
+            )
+            let currentSnapshot = analyticsViewportSnapshot(of: current, in: currentScrollView)
+            if currentSnapshot.relation == .insideViewport,
+               let current,
+               labelSatisfies(current.label) {
+                XCTContext.runActivity(named: analyticsViewportActivityTitle(
+                    targetIdentifier: identifier,
+                    driver: activeCalibration.driver(for: direction),
+                    direction: direction,
+                    performedScrolls: performedScrolls,
+                    maximumScrollCount: scrollLimit,
+                    targetRelation: currentSnapshot.relation,
+                    progressed: true
+                )) { _ in }
+                return true
             }
 
             guard queryAttempt < scrollLimit else { break }
-            guard Date() < deadline else {
-                XCTContext.runActivity(named: analyticsViewportActivityTitle(
-                    outcome: "wall-clock budget exhausted",
-                    identifier: identifier,
-                    direction: direction,
-                    performedScrolls: performedScrolls,
-                    maximumScrollCount: scrollLimit
-                )) { _ in }
-                return false
-            }
+            guard Date() < deadline else { return false }
 
+            let actualDirection = analyticsNavigationDirection(
+                targetRelation: currentSnapshot.relation,
+                preferredDirection: direction
+            )
+            // A calibrated wheel delta can make one observable move and then
+            // stall when macOS hands later events to a nested native surface.
+            // After exactly one verified no-progress delta, try the equivalent
+            // semantic swipe once; it must itself demonstrate viewport progress
+            // before becoming the calibrated driver for later navigation.
+            let usesSemanticFallback = consecutiveNoProgress == 1
+            let driver = usesSemanticFallback
+                ? analyticsSemanticSwipeDriver(for: actualDirection)
+                : activeCalibration.driver(for: actualDirection)
+            let witnessBefore = analyticsVisibleProgressWitness(in: app, scrollView: currentScrollView)
             let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
-            guard scrollView.exists else {
-                XCTContext.runActivity(named: analyticsViewportActivityTitle(
-                    outcome: "semantic scroll surface unavailable",
-                    identifier: identifier,
-                    direction: direction,
-                    performedScrolls: performedScrolls,
-                    maximumScrollCount: scrollLimit
-                )) { _ in }
-                return false
-            }
-
-            // macOS can synthesize a swipe activity without advancing a
-            // SwiftUI ScrollView's content offset. Use the element-scoped
-            // native scroll API with a viewport-relative page instead of a
-            // fixed screen coordinate.
+            guard scrollView.exists else { return false }
             let pageDelta = max(scrollView.frame.height * 0.8, 1)
-            switch direction {
-            case .towardTop:
-                scrollView.scroll(byDeltaX: 0, deltaY: pageDelta)
-            case .towardBottom:
-                scrollView.scroll(byDeltaX: 0, deltaY: -pageDelta)
-            }
+            performAnalyticsScroll(driver, on: scrollView, pageDelta: pageDelta)
             performedScrolls += 1
-            // The next loop iteration performs a new identifier, uniqueness,
-            // label, and semantic ScrollView query after the viewport change.
+
+            let refreshedScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+            let refreshed = analyticsMatchingElement(
+                in: app,
+                identifier: identifier,
+                identifierIsPrefix: identifierIsPrefix,
+                requireUnique: requireUnique,
+                labelSatisfies: labelSatisfies,
+                scrollView: refreshedScrollView
+            )
+            let refreshedSnapshot = analyticsViewportSnapshot(of: refreshed, in: refreshedScrollView)
+            let targetProgressed = analyticsViewportProgressed(
+                direction: actualDirection,
+                before: currentSnapshot,
+                after: refreshedSnapshot
+            )
+            let witnessAfter = witnessBefore.map {
+                analyticsViewportSnapshot(
+                    of: app.descendants(matching: .any)[$0.identifier],
+                    in: refreshedScrollView
+                )
+            }
+            let witnessProgressed = if let witnessBefore, let witnessAfter {
+                analyticsViewportProgressed(
+                    direction: actualDirection,
+                    before: witnessBefore.snapshot,
+                    after: witnessAfter
+                )
+            } else {
+                false
+            }
+            let progressed = targetProgressed || witnessProgressed
+            if progressed, usesSemanticFallback {
+                activeCalibration = AnalyticsScrollCalibration(towardBottom: .swipeUp)
+                analyticsScrollCalibration = activeCalibration
+            }
+            consecutiveNoProgress = progressed ? 0 : consecutiveNoProgress + 1
+            XCTContext.runActivity(named: analyticsViewportActivityTitle(
+                targetIdentifier: identifier,
+                driver: driver,
+                direction: actualDirection,
+                performedScrolls: performedScrolls,
+                maximumScrollCount: scrollLimit,
+                targetRelation: refreshedSnapshot.relation,
+                progressed: progressed
+            )) { _ in }
+            if consecutiveNoProgress >= 2 { return false }
         }
 
-        XCTContext.runActivity(named: analyticsViewportActivityTitle(
-            outcome: "scroll limit exhausted",
-            identifier: identifier,
-            direction: direction,
-            performedScrolls: performedScrolls,
-            maximumScrollCount: scrollLimit
-        )) { _ in }
         return false
     }
 
+    private func analyticsSemanticSwipeDriver(
+        for direction: AnalyticsScrollDirection
+    ) -> AnalyticsScrollDriver {
+        switch direction {
+        case .towardBottom: .swipeUp
+        case .towardTop: .swipeDown
+        }
+    }
+
     private func analyticsViewportActivityTitle(
-        outcome: String,
-        identifier: String,
+        targetIdentifier: String,
+        driver: AnalyticsScrollDriver,
         direction: AnalyticsScrollDirection,
         performedScrolls: Int,
-        maximumScrollCount: Int
+        maximumScrollCount: Int,
+        targetRelation: AnalyticsViewportRelation,
+        progressed: Bool
     ) -> String {
-        "Analytics viewport \(outcome): identifier=\(identifier), "
+        "Analytics viewport: target=\(targetIdentifier), driver=\(driver.rawValue), "
             + "direction=\(direction.activityDescription), "
-            + "scrolls=\(performedScrolls), maximum=\(maximumScrollCount)"
+            + "scrolls=\(performedScrolls)/\(maximumScrollCount), "
+            + "relation=\(targetRelation.rawValue), "
+            + "progress=\(progressed ? "progressed" : "stalled")"
+    }
+
+    private func analyticsCalibrationActivityTitle(
+        targetIdentifier: String,
+        driver: AnalyticsScrollDriver,
+        before: AnalyticsViewportRelation,
+        after: AnalyticsViewportRelation,
+        progressed: Bool
+    ) -> String {
+        "Analytics calibration: target=\(targetIdentifier), driver=\(driver.rawValue), "
+            + "direction=towardBottom, scrolls=1/1, "
+            + "relation=\(before.rawValue)->\(after.rawValue), "
+            + "progress=\(progressed ? "progressed" : "stalled")"
+    }
+
+    @MainActor
+    private func performAnalyticsScroll(
+        _ driver: AnalyticsScrollDriver,
+        on scrollView: XCUIElement,
+        pageDelta: CGFloat
+    ) {
+        scrollView.hover()
+        switch driver {
+        case .positiveDelta:
+            scrollView.scroll(byDeltaX: 0, deltaY: pageDelta)
+        case .negativeDelta:
+            scrollView.scroll(byDeltaX: 0, deltaY: -pageDelta)
+        case .swipeUp:
+            scrollView.swipeUp(velocity: .fast)
+        case .swipeDown:
+            scrollView.swipeDown(velocity: .fast)
+        }
+    }
+
+    @MainActor
+    private func analyticsElementIsInsideViewport(
+        in app: XCUIApplication,
+        identifier: String,
+        requireUnique: Bool
+    ) -> Bool {
+        let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+        guard scrollView.exists else { return false }
+        let matches = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", identifier))
+        guard !requireUnique || matches.count == 1 else { return false }
+        return analyticsViewportSnapshot(of: matches.firstMatch, in: scrollView).relation == .insideViewport
+    }
+
+    @MainActor
+    private func analyticsMatchingElement(
+        in app: XCUIApplication,
+        identifier: String,
+        identifierIsPrefix: Bool,
+        requireUnique: Bool,
+        labelSatisfies: (String) -> Bool,
+        scrollView: XCUIElement
+    ) -> XCUIElement? {
+        let predicate = identifierIsPrefix
+            ? NSPredicate(format: "identifier BEGINSWITH %@", identifier)
+            : NSPredicate(format: "identifier == %@", identifier)
+        let matches = app.descendants(matching: .any).matching(predicate)
+        guard !requireUnique || matches.count == 1 else { return nil }
+        let candidates = matches.allElementsBoundByAccessibilityElement.filter {
+            $0.exists && labelSatisfies($0.label)
+        }
+        return candidates.first {
+            analyticsViewportSnapshot(of: $0, in: scrollView).relation == .insideViewport
+        } ?? candidates.first
+    }
+
+    @MainActor
+    private func analyticsViewportSnapshot(
+        of element: XCUIElement?,
+        in scrollView: XCUIElement
+    ) -> AnalyticsViewportSnapshot {
+        guard let element, element.exists, scrollView.exists else {
+            return AnalyticsViewportSnapshot(relation: .notExposed, midY: nil, height: nil)
+        }
+        let elementFrame = element.frame
+        let viewportFrame = scrollView.frame
+        guard analyticsFrameIsValid(elementFrame), analyticsFrameIsValid(viewportFrame) else {
+            return AnalyticsViewportSnapshot(relation: .invalidFrame, midY: nil, height: nil)
+        }
+        if elementFrame.maxY <= viewportFrame.minY {
+            return AnalyticsViewportSnapshot(
+                relation: .aboveViewport,
+                midY: elementFrame.midY,
+                height: elementFrame.height
+            )
+        }
+        if elementFrame.minY >= viewportFrame.maxY {
+            return AnalyticsViewportSnapshot(
+                relation: .belowViewport,
+                midY: elementFrame.midY,
+                height: elementFrame.height
+            )
+        }
+        let overlap = min(elementFrame.maxY, viewportFrame.maxY)
+            - max(elementFrame.minY, viewportFrame.minY)
+        return AnalyticsViewportSnapshot(
+            relation: overlap > 0 ? .insideViewport : .invalidFrame,
+            midY: elementFrame.midY,
+            height: elementFrame.height
+        )
+    }
+
+    private func analyticsFrameIsValid(_ frame: CGRect) -> Bool {
+        !frame.isNull
+            && !frame.isInfinite
+            && frame.width > 0
+            && frame.height > 0
+            && frame.minX.isFinite
+            && frame.minY.isFinite
+            && frame.maxX.isFinite
+            && frame.maxY.isFinite
+    }
+
+    private func analyticsViewportProgressed(
+        direction: AnalyticsScrollDirection,
+        before: AnalyticsViewportSnapshot,
+        after: AnalyticsViewportSnapshot
+    ) -> Bool {
+        if before.relation == .notExposed,
+           after.relation != .notExposed,
+           after.relation != .invalidFrame {
+            return true
+        }
+        switch direction {
+        case .towardBottom:
+            if before.relation == .insideViewport,
+               after.relation == .aboveViewport || after.relation == .notExposed {
+                return true
+            }
+            if before.relation == .belowViewport,
+               after.relation == .insideViewport || after.relation == .aboveViewport {
+                return true
+            }
+        case .towardTop:
+            if before.relation == .insideViewport,
+               after.relation == .belowViewport || after.relation == .notExposed {
+                return true
+            }
+            if before.relation == .aboveViewport,
+               after.relation == .insideViewport || after.relation == .belowViewport {
+                return true
+            }
+        }
+        guard let beforeMidY = before.midY,
+              let afterMidY = after.midY
+        else { return false }
+        let threshold = max(8, min(before.height ?? 0, after.height ?? 0) * 0.2)
+        switch direction {
+        case .towardBottom:
+            return afterMidY <= beforeMidY - threshold
+        case .towardTop:
+            return afterMidY >= beforeMidY + threshold
+        }
+    }
+
+    private func analyticsNavigationDirection(
+        targetRelation: AnalyticsViewportRelation,
+        preferredDirection: AnalyticsScrollDirection
+    ) -> AnalyticsScrollDirection {
+        switch targetRelation {
+        case .aboveViewport: .towardTop
+        case .belowViewport: .towardBottom
+        case .insideViewport, .notExposed, .invalidFrame: preferredDirection
+        }
+    }
+
+    @MainActor
+    private func analyticsVisibleProgressWitness(
+        in app: XCUIApplication,
+        scrollView: XCUIElement
+    ) -> (identifier: String, snapshot: AnalyticsViewportSnapshot)? {
+        let exactIdentifiers = [
+            "analytics.coverage",
+            "analytics.metric.total-return",
+            "analytics.metric.drawdown",
+            "analytics.risk-free.disclosure",
+            "analytics.chart.performance.summary",
+            "analytics.performance.table",
+            "analytics.drawdown.summary",
+            "analytics.drawdown.table",
+            "analytics.monthly.table",
+            "analytics.annual.table",
+            "analytics.subperiod.table",
+            "analytics.xirr-flow.table",
+            "analytics.cash-flow.table",
+            "analytics.evidence"
+        ]
+        for identifier in exactIdentifiers {
+            let element = app.descendants(matching: .any)[identifier]
+            let snapshot = analyticsViewportSnapshot(of: element, in: scrollView)
+            if snapshot.relation == .insideViewport {
+                return (element.identifier, snapshot)
+            }
+        }
+        for prefix in [
+            "analytics.performance.row.",
+            "analytics.drawdown.row.",
+            "analytics.month.",
+            "analytics.year.",
+            "analytics.subperiod.row.",
+            "analytics.xirr-flow.row.",
+            "analytics.cash-flow.row."
+        ] {
+            let matches = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+            for element in matches.allElementsBoundByAccessibilityElement {
+                let snapshot = analyticsViewportSnapshot(of: element, in: scrollView)
+                if snapshot.relation == .insideViewport {
+                    return (element.identifier, snapshot)
+                }
+            }
+        }
+        return nil
     }
 
     @MainActor
@@ -1572,18 +1967,26 @@ final class AureusUITests: XCTestCase {
             requireUnique: true,
             labelSatisfies: { label in
                 label.hasPrefix(labelPrefix)
-                    && label.range(of: #": [0-9]+ rows$"#, options: .regularExpression) != nil
+                    && analyticsTableRowCount(from: label).map { $0 > 0 } == true
             }
         )
+    }
+
+    private func analyticsTableRowCount(from label: String) -> Int? {
+        let components = label.split(separator: " ")
+        guard components.count >= 2,
+              components.last == "rows"
+        else { return nil }
+        return Int(components[components.count - 2])
     }
 
     @MainActor
     private func waitForAnalyticsTableRow(
         in app: XCUIApplication,
         identifierPrefix: String,
-        labelContaining expected: String,
         direction: AnalyticsScrollDirection,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        labelSatisfies: @escaping (String) -> Bool
     ) -> Bool {
         waitForAnalyticsElement(
             in: app,
@@ -1591,7 +1994,7 @@ final class AureusUITests: XCTestCase {
             identifierIsPrefix: true,
             direction: direction,
             timeout: timeout,
-            labelSatisfies: { $0.contains(expected) }
+            labelSatisfies: labelSatisfies
         )
     }
 

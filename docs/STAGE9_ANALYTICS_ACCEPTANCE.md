@@ -1,6 +1,6 @@
 # Stage 9 Portfolio Analytics Acceptance
 
-**Status:** Stage 9AAAA PARTIAL — Awaiting Reviewer Gate  
+**Status:** Stage 9AAAAA PARTIAL — Awaiting Reviewer Gate  
 **Implementation date:** 2026-08-28  
 **Authority:** This document records implementation and bounded local/synthetic evidence. It does not decide the Stage 9 Gate, authorize Stage 10, or establish any Provider capability.
 
@@ -347,3 +347,30 @@ Because only `AureusUITests.swift` changed, Stage 9 focused Unit `20/20`, Stage 
 The performance and remaining native table assertions, sparse-Portfolio typed-unavailable flow, and Production isolation were not reached in either current focused execution and remain `NOT VERIFIED`. Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
 
 This is **Stage 9AAAA PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+
+## 25. Stage 9AAAAA viewport-direction calibration
+
+Prompt 9AAAAA preserves both Prompt 9AAAA focused failures as historical evidence. Those executions established that the finite count could complete but recorded only submitted scroll events, not viewport movement. Neither historical failure is rewritten as a current Prompt 9AAAAA result.
+
+The current UI test adds a sanitized viewport relation model (`aboveViewport`, `insideViewport`, `belowViewport`, `notExposed`, `invalidFrame`) and calibrates direction against the existing `analytics.coverage` anchor. It never logs coordinates or exports an AX hierarchy. In both current business executions, a positive relative delta left coverage inside the viewport without observable progress; a negative relative delta moved it from inside to above the viewport and was therefore selected for `towardBottom`, while the positive inverse returned coverage to the top. Navigation re-queries the target and `analytics.detail.scroll` after every operation, treats event delivery and viewport progress as different facts, and stops after two consecutive no-progress observations.
+
+The initial current business execution completed Calculate, coverage, Portfolio title, all seven metrics, the accessible-data toggle, and the risk-free disclosure. The first negative delta toward the independent `analytics.chart.performance.summary` anchor demonstrated progress, but later deltas stalled. The test stopped at the finite stall boundary and failed at that independent summary node.
+
+The one authorized direct test-lifecycle repair added a single semantic-swipe fallback after exactly one verified no-progress delta. The fallback becomes the calibrated driver only if its own anchor evidence proves progress. No Production Swift, Analytics calculation, fixture, identifier, label, table contract, or business assertion changed. A fresh final signed build-for-testing passed. In the final business retry, the first negative delta again progressed; the next delta stalled; the one semantic `swipeUp` fallback also stalled. The test therefore stopped without blind repetition and failed at `analytics.chart.performance.summary`. The focused two-business-execution budget is exhausted.
+
+| Verification | Result bundle | Result |
+|---|---|---|
+| Initial fresh signed build-for-testing | `/private/tmp/Aureus-Stage9AAAAA-EZchHC/BuildForTesting-Final.xcresult` | `PASS` — exit 0; `TEST BUILD SUCCEEDED`; `Info.plist` present; build summary parse exit 0; errors 0 |
+| Stage 9AAAAA focused UI, initial business execution | `/private/tmp/Aureus-Stage9AAAAA-EZchHC/Stage9FocusedUI.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; independent performance summary remained unexposed after finite progress/stall detection |
+| Final fresh signed build-for-testing | `/private/tmp/Aureus-Stage9AAAAA-EZchHC/BuildForTesting-Retry.xcresult` | `PASS` — exit 0; `TEST BUILD SUCCEEDED`; `Info.plist` present; build summary parse exit 0; errors 0 |
+| Stage 9AAAAA focused UI, final business retry | `/private/tmp/Aureus-Stage9AAAAA-EZchHC/Stage9FocusedUI-Final.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; calibrated delta and bounded semantic fallback both stalled before `analytics.chart.performance.summary` |
+| Existing focused UI regression | — | `NOT RUN` — final Stage 9 focused UI did not pass |
+| Full `AureusUITests` | — | `NOT RUN` — Existing focused regression prerequisite did not pass |
+
+Both focused bundles contain `Info.plist`; summary and tests parsing returned exit 0. Both invocations entered the business method, so neither is an infrastructure retry. The second is the single authorized business retry. The performance/chart/table runtime assertions below the missing navigation anchor, sparse-Portfolio typed-unavailable flow, and Production isolation remain `NOT VERIFIED`.
+
+Because only `AureusUITests.swift` changed, Stage 9 focused Unit `20/20`, Stage 6–8 regression `204` definitions / `237` executions, full Unit `254` definitions / `287` executions, Stage 9 performance `3/3`, and Clean Debug arm64 Build are `NOT RUN — INHERITED AFTER EXACT Production/Unit SOURCE-HASH VERIFICATION`. Analytics Production, Domain, FeatureModel, Unit tests, persistence, migrations, Provider routing, entitlements, Package, project, and chart assets remained byte-identical.
+
+Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
+
+This is **Stage 9AAAAA PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
