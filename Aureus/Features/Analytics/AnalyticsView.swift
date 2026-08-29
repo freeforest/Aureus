@@ -1,9 +1,36 @@
 import Charts
 import SwiftUI
 
+private enum AnalyticsReportSection: String, CaseIterable {
+    case overview
+    case performance
+    case drawdown
+    case observedReturns
+    case twrSubperiods
+    case xirrFlows
+    case capitalFlows
+    case calculationEvidence
+
+    var title: String {
+        switch self {
+        case .overview: "Overview"
+        case .performance: "Performance"
+        case .drawdown: "Drawdown"
+        case .observedReturns: "Observed Returns"
+        case .twrSubperiods: "TWR Subperiods"
+        case .xirrFlows: "XIRR Flows"
+        case .capitalFlows: "Capital Flows"
+        case .calculationEvidence: "Calculation Evidence"
+        }
+    }
+
+    var anchorID: String { "analytics.report.section.\(rawValue)" }
+}
+
 struct AnalyticsView: View {
     @State private var model: AnalyticsFeatureModel
     @State private var showsAccessibleData = true
+    @State private var currentReportSection: AnalyticsReportSection = .overview
 
     init(store: WealthStore, mode: AppDataMode) {
         _model = State(initialValue: AnalyticsFeatureModel(store: store, mode: mode))
@@ -21,10 +48,22 @@ struct AnalyticsView: View {
             }
         }
         .navigationTitle("Analytics")
-        .task { await model.start() }
-        .onChange(of: model.selectedPortfolioID) { _, id in model.selectPortfolio(id) }
-        .onChange(of: model.selectedRange) { _, range in model.selectRange(range) }
-        .onChange(of: model.annualRiskFreePercentText) { _, _ in model.riskFreeInputChanged() }
+        .task {
+            currentReportSection = .overview
+            await model.start()
+        }
+        .onChange(of: model.selectedPortfolioID) { _, id in
+            currentReportSection = .overview
+            model.selectPortfolio(id)
+        }
+        .onChange(of: model.selectedRange) { _, range in
+            currentReportSection = .overview
+            model.selectRange(range)
+        }
+        .onChange(of: model.annualRiskFreePercentText) { _, _ in
+            currentReportSection = .overview
+            model.riskFreeInputChanged()
+        }
     }
 
     private var header: some View {
@@ -112,6 +151,8 @@ struct AnalyticsView: View {
                 .accessibilityLabel(statusLabel)
                 .accessibilityIdentifier("analytics.status")
 
+            reportNavigation
+
             Spacer()
             Text(AnalyticsFeatureModel.localOnlyDisclosure)
                 .font(.caption)
@@ -123,37 +164,90 @@ struct AnalyticsView: View {
         .padding(14)
     }
 
-    @ViewBuilder private var detail: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if let error = model.errorDisclosure {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                        .accessibilityIdentifier("analytics.error")
-                }
+    private var reportNavigation: some View {
+        let sections = AnalyticsReportSection.allCases
+        let currentIndex = sections.firstIndex(of: currentReportSection) ?? 0
+        let hasReport = model.report != nil
+        let currentLabel = "Analytics report section: \(currentReportSection.title)"
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Report Navigation")
+                .font(.subheadline.weight(.semibold))
+            Text(verbatim: currentLabel)
+                .font(.caption)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: currentLabel))
+                .accessibilityIdentifier("analytics.navigation.current")
+            HStack {
+                Button("Previous Section") { moveReportSection(by: -1) }
+                    .disabled(!hasReport || currentIndex == sections.startIndex)
+                    .accessibilityIdentifier("analytics.navigation.previous")
+                Button("Next Section") { moveReportSection(by: 1) }
+                    .disabled(!hasReport || currentIndex == sections.index(before: sections.endIndex))
+                    .accessibilityIdentifier("analytics.navigation.next")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("analytics.navigation.group")
+    }
 
-                if let report = model.report {
-                    reportView(report)
-                } else if model.state == .calculating {
-                    ProgressView("Calculating checked Decimal analytics…")
-                        .frame(maxWidth: .infinity, minHeight: 220)
-                        .accessibilityIdentifier("analytics.progress")
-                } else {
-                    ContentUnavailableView(
-                        "Analytics Not Calculated",
-                        systemImage: "function",
-                        description: Text("Choose a local Portfolio and range, then explicitly Calculate. Opening Analytics never starts a Provider request or an automatic analysis.")
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 300)
-                    .accessibilityIdentifier("analytics.not-calculated")
+    private func moveReportSection(by offset: Int) {
+        guard model.report != nil else { return }
+        let sections = AnalyticsReportSection.allCases
+        guard let currentIndex = sections.firstIndex(of: currentReportSection) else {
+            currentReportSection = .overview
+            return
+        }
+        let destination = currentIndex + offset
+        guard sections.indices.contains(destination) else { return }
+        currentReportSection = sections[destination]
+    }
+
+    @ViewBuilder private var detail: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let error = model.errorDisclosure {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .accessibilityIdentifier("analytics.error")
+                    }
+
+                    if let report = model.report {
+                        reportView(report)
+                    } else if model.state == .calculating {
+                        ProgressView("Calculating checked Decimal analytics…")
+                            .frame(maxWidth: .infinity, minHeight: 220)
+                            .accessibilityIdentifier("analytics.progress")
+                    } else {
+                        ContentUnavailableView(
+                            "Analytics Not Calculated",
+                            systemImage: "function",
+                            description: Text("Choose a local Portfolio and range, then explicitly Calculate. Opening Analytics never starts a Provider request or an automatic analysis.")
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                        .accessibilityIdentifier("analytics.not-calculated")
+                    }
+                }
+                .padding(18)
+            }
+            .accessibilityIdentifier("analytics.detail.scroll")
+            .onChange(of: currentReportSection) { _, section in
+                guard model.report != nil else { return }
+                proxy.scrollTo(section.anchorID, anchor: .top)
+            }
+            .onChange(of: model.state) { _, state in
+                currentReportSection = .overview
+                if state == .calculated {
+                    Task { @MainActor in
+                        await Task.yield()
+                        proxy.scrollTo(AnalyticsReportSection.overview.anchorID, anchor: .top)
+                    }
                 }
             }
-            .padding(18)
         }
-        .accessibilityIdentifier("analytics.detail.scroll")
     }
 
     private func reportView(_ report: PortfolioAnalyticsReport) -> some View {
@@ -162,6 +256,7 @@ struct AnalyticsView: View {
             Text(model.selectedPortfolio?.name ?? "Portfolio Analytics")
                 .font(.title2.weight(.semibold))
                 .accessibilityIdentifier("analytics.report.portfolio")
+                .id(AnalyticsReportSection.overview.anchorID)
             Text("\(report.coverage.firstDate.description) – \(report.coverage.lastDate.description) · \(report.coverage.completeSnapshotsUsed) complete snapshots · \(report.coverage.incompleteSnapshotsExcluded) incomplete excluded")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -237,6 +332,7 @@ struct AnalyticsView: View {
                 .accessibilityIdentifier("analytics.chart.performance.summary")
             if showsAccessibleData { nativeIndexTable(report.wealthIndex) }
         }
+        .id(AnalyticsReportSection.performance.anchorID)
     }
 
     private func drawdownChart(_ report: PortfolioAnalyticsReport) -> some View {
@@ -266,6 +362,7 @@ struct AnalyticsView: View {
                 .accessibilityIdentifier("analytics.drawdown.summary")
             if showsAccessibleData { nativeDrawdownTable(report.drawdownSeries) }
         }
+        .id(AnalyticsReportSection.drawdown.anchorID)
     }
 
     private func observedReturns(_ report: PortfolioAnalyticsReport) -> some View {
@@ -280,6 +377,7 @@ struct AnalyticsView: View {
             }
         }
         .accessibilityIdentifier("analytics.observed.tables")
+        .id(AnalyticsReportSection.observedReturns.anchorID)
     }
 
     private func observedMonthlyTable(_ rows: [ObservedMonthlyTWR]) -> some View {
@@ -361,6 +459,7 @@ struct AnalyticsView: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .id(AnalyticsReportSection.capitalFlows.anchorID)
     }
 
     private func subperiodTable(_ rows: [AnalyticsSubperiodReturn]) -> some View {
@@ -386,6 +485,7 @@ struct AnalyticsView: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .id(AnalyticsReportSection.twrSubperiods.anchorID)
     }
 
     private func xirrCashFlowTable(_ rows: [AnalyticsXIRRCashFlow]) -> some View {
@@ -414,6 +514,7 @@ struct AnalyticsView: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .id(AnalyticsReportSection.xirrFlows.anchorID)
     }
 
     private func calculationEvidence(_ report: PortfolioAnalyticsReport) -> some View {
@@ -430,6 +531,7 @@ struct AnalyticsView: View {
         .font(.caption)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analytics.evidence")
+        .id(AnalyticsReportSection.calculationEvidence.anchorID)
     }
 
     private func nativeIndexTable(_ rows: [AnalyticsIndexPoint]) -> some View {
