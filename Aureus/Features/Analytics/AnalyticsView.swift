@@ -385,18 +385,28 @@ struct AnalyticsView: View {
     }
 
     private func observedReturns(_ report: PortfolioAnalyticsReport) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Observed Period Returns").font(.headline)
+        let tablesSummary = "Observed returns tables: \(report.monthlyReturns.count) monthly rows, \(report.annualReturns.count) annual rows"
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Observed Period Returns")
+                .font(.headline)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Observed returns section")
+                .accessibilityIdentifier("analytics.observed.heading")
+                .id(AnalyticsReportSection.observedReturns.anchorID)
             Text(AnalyticsFeatureModel.observedPeriodDisclosure)
                 .font(.caption).foregroundStyle(.secondary)
                 .accessibilityIdentifier("analytics.observed.disclosure")
+            Text(verbatim: tablesSummary)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: tablesSummary))
+                .accessibilityIdentifier("analytics.observed.tables")
             HStack(alignment: .top, spacing: 18) {
                 observedMonthlyTable(report.monthlyReturns)
                 observedAnnualTable(report.annualReturns)
             }
         }
-        .accessibilityIdentifier("analytics.observed.tables")
-        .id(AnalyticsReportSection.observedReturns.anchorID)
     }
 
     private func observedMonthlyTable(_ rows: [ObservedMonthlyTWR]) -> some View {

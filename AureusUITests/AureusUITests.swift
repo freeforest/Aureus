@@ -442,18 +442,65 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(advanceAnalyticsReportSection(
             in: app,
             to: "Observed Returns",
-            anchorIdentifier: "analytics.observed.tables"
+            anchorIdentifier: "analytics.observed.heading"
         ))
-        XCTAssertTrue(waitForAnalyticsDetailElement(
+
+        let observedHeading = analyticsDetailContractEvidence(
+            in: app,
+            identifier: "analytics.observed.heading",
+            timeout: 5,
+            labelSatisfies: { $0 == "Observed returns section" }
+        )
+        XCTAssertEqual(observedHeading.matchCount, 1, "OBSERVED_HEADING_COUNT_MISMATCH")
+        XCTAssertTrue(observedHeading.labelMatched, "OBSERVED_HEADING_LABEL_MISMATCH")
+        XCTAssertEqual(
+            observedHeading.viewportRelation.rawValue,
+            AnalyticsViewportRelation.insideViewport.rawValue,
+            "OBSERVED_HEADING_VIEWPORT_MISMATCH"
+        )
+
+        var observedRowCounts: (monthly: Int, annual: Int)?
+        let observedTables = analyticsDetailContractEvidence(
             in: app,
             identifier: "analytics.observed.tables",
             timeout: 5,
-            requireUnique: true,
-            mustBeInsideViewport: true
-        ))
+            labelSatisfies: { label in
+                guard label.hasPrefix("Observed returns tables:"),
+                      label.contains("monthly rows"),
+                      label.contains("annual rows"),
+                      let rowCounts = observedReturnsTableRowCounts(from: label),
+                      rowCounts.monthly > 0,
+                      rowCounts.annual > 0
+                else { return false }
+                observedRowCounts = rowCounts
+                return true
+            }
+        )
+        XCTAssertEqual(observedTables.matchCount, 1, "OBSERVED_TABLES_COUNT_MISMATCH")
+        XCTAssertTrue(observedTables.labelMatched, "OBSERVED_TABLES_LABEL_MISMATCH")
+        XCTAssertEqual(
+            observedTables.viewportRelation.rawValue,
+            AnalyticsViewportRelation.insideViewport.rawValue,
+            "OBSERVED_TABLES_VIEWPORT_MISMATCH"
+        )
+
         for contract in [
-            ("analytics.monthly.table", "Observed monthly TWR table:", "analytics.month.", "available"),
-            ("analytics.annual.table", "Observed annual TWR table:", "analytics.year.", "available")
+            (
+                "analytics.monthly.table",
+                "Observed monthly TWR table:",
+                "analytics.month.",
+                "available",
+                observedRowCounts?.monthly,
+                "OBSERVED_MONTHLY_RUNTIME_COUNT_MISMATCH"
+            ),
+            (
+                "analytics.annual.table",
+                "Observed annual TWR table:",
+                "analytics.year.",
+                "available",
+                observedRowCounts?.annual,
+                "OBSERVED_ANNUAL_RUNTIME_COUNT_MISMATCH"
+            )
         ] {
             XCTAssertTrue(waitForAnalyticsTableSummary(
                 in: app,
@@ -461,6 +508,15 @@ final class AureusUITests: XCTestCase {
                 labelPrefix: contract.1,
                 timeout: 5
             ))
+            let detailScrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+            let tableSummaries = detailScrollView.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier == %@", contract.0))
+            XCTAssertEqual(tableSummaries.count, 1, contract.5)
+            XCTAssertEqual(
+                analyticsTableRowCount(from: tableSummaries.firstMatch.label),
+                contract.4,
+                contract.5
+            )
             XCTAssertTrue(waitForAnalyticsTableRow(
                 in: app,
                 identifierPrefix: contract.2,
@@ -1788,6 +1844,24 @@ final class AureusUITests: XCTestCase {
               components.last == "rows"
         else { return nil }
         return Int(components[components.count - 2])
+    }
+
+    private func observedReturnsTableRowCounts(
+        from label: String
+    ) -> (monthly: Int, annual: Int)? {
+        let components = label.split(separator: " ")
+        guard components.count == 9,
+              components[0] == "Observed",
+              components[1] == "returns",
+              components[2] == "tables:",
+              components[4] == "monthly",
+              components[5] == "rows,",
+              components[7] == "annual",
+              components[8] == "rows",
+              let monthly = Int(components[3]),
+              let annual = Int(components[6])
+        else { return nil }
+        return (monthly, annual)
     }
 
     @MainActor
