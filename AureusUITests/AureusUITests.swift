@@ -17,6 +17,12 @@ final class AureusUITests: XCTestCase {
         let height: CGFloat?
     }
 
+    private struct AnalyticsDetailContractEvidence {
+        let matchCount: Int
+        let labelMatched: Bool
+        let viewportRelation: AnalyticsViewportRelation
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -321,25 +327,10 @@ final class AureusUITests: XCTestCase {
         ))
         XCTAssertFalse(app.descendants(matching: .any)["analytics.navigation.previous"].isEnabled)
         XCTAssertTrue(app.descendants(matching: .any)["analytics.navigation.next"].isEnabled)
-        XCTAssertTrue(waitForAnalyticsDetailElement(
+        assertAnalyticsOverview(
             in: app,
-            identifier: "analytics.report.portfolio",
-            timeout: 5,
-            requireUnique: true,
-            mustBeInsideViewport: true,
-            labelSatisfies: { $0.contains("Synthetic Local Portfolio") }
-        ))
-        XCTAssertTrue(waitForAnalyticsDetailElement(
-            in: app,
-            identifier: "analytics.coverage",
-            timeout: 5,
-            requireUnique: true,
-            labelSatisfies: {
-                $0.contains("Observation coverage")
-                    && $0.contains("complete snapshots used")
-                    && $0.contains("incomplete snapshots excluded")
-            }
-        ))
+            portfolioName: "Synthetic Local Portfolio"
+        )
 
         for identifier in [
             "analytics.metric.total-return",
@@ -596,14 +587,10 @@ final class AureusUITests: XCTestCase {
         ))
         XCTAssertFalse(app.descendants(matching: .any)["analytics.navigation.previous"].isEnabled)
         XCTAssertTrue(app.descendants(matching: .any)["analytics.navigation.next"].isEnabled)
-        XCTAssertTrue(waitForAnalyticsDetailElement(
+        assertAnalyticsOverview(
             in: app,
-            identifier: "analytics.report.portfolio",
-            timeout: 5,
-            requireUnique: true,
-            mustBeInsideViewport: true,
-            labelSatisfies: { $0.contains("Synthetic Sparse Portfolio") }
-        ))
+            portfolioName: "Synthetic Sparse Portfolio"
+        )
         XCTAssertTrue(waitForAnalyticsDetailElement(
             in: app,
             identifier: "analytics.metric.xirr",
@@ -1559,6 +1546,103 @@ final class AureusUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.05)
         } while Date() < deadline
         return false
+    }
+
+    @MainActor
+    private func assertAnalyticsOverview(
+        in app: XCUIApplication,
+        portfolioName: String
+    ) {
+        let heading = analyticsDetailContractEvidence(
+            in: app,
+            identifier: "analytics.overview.heading",
+            timeout: 5,
+            labelSatisfies: { $0 == "Analytics report overview" }
+        )
+        XCTAssertEqual(heading.matchCount, 1, "OVERVIEW_HEADING_COUNT_MISMATCH")
+        XCTAssertTrue(heading.labelMatched, "OVERVIEW_HEADING_LABEL_MISMATCH")
+        XCTAssertEqual(
+            heading.viewportRelation.rawValue,
+            AnalyticsViewportRelation.insideViewport.rawValue,
+            "OVERVIEW_HEADING_VIEWPORT_MISMATCH"
+        )
+
+        let portfolioTitle = analyticsDetailContractEvidence(
+            in: app,
+            identifier: "analytics.report.portfolio",
+            timeout: 5,
+            labelSatisfies: { $0 == "Portfolio analytics report: \(portfolioName)" }
+        )
+        XCTAssertEqual(portfolioTitle.matchCount, 1, "PORTFOLIO_TITLE_COUNT_MISMATCH")
+        XCTAssertTrue(portfolioTitle.labelMatched, "PORTFOLIO_TITLE_LABEL_MISMATCH")
+        XCTAssertEqual(
+            portfolioTitle.viewportRelation.rawValue,
+            AnalyticsViewportRelation.insideViewport.rawValue,
+            "PORTFOLIO_TITLE_VIEWPORT_MISMATCH"
+        )
+
+        let coverage = analyticsDetailContractEvidence(
+            in: app,
+            identifier: "analytics.coverage",
+            timeout: 5,
+            labelSatisfies: {
+                $0.contains("Observation coverage: range")
+                    && $0.contains(" through ")
+                    && $0.contains("complete snapshots used")
+                    && $0.contains("incomplete snapshots excluded")
+            }
+        )
+        XCTAssertEqual(coverage.matchCount, 1, "COVERAGE_COUNT_MISMATCH")
+        XCTAssertTrue(coverage.labelMatched, "COVERAGE_LABEL_MISMATCH")
+        XCTAssertEqual(
+            coverage.viewportRelation.rawValue,
+            AnalyticsViewportRelation.insideViewport.rawValue,
+            "COVERAGE_VIEWPORT_MISMATCH"
+        )
+    }
+
+    @MainActor
+    private func analyticsDetailContractEvidence(
+        in app: XCUIApplication,
+        identifier: String,
+        timeout: TimeInterval,
+        labelSatisfies: (String) -> Bool
+    ) -> AnalyticsDetailContractEvidence {
+        let deadline = Date().addingTimeInterval(timeout)
+        var evidence = AnalyticsDetailContractEvidence(
+            matchCount: 0,
+            labelMatched: false,
+            viewportRelation: .notExposed
+        )
+
+        repeat {
+            let scrollView = app.descendants(matching: .any)["analytics.detail.scroll"]
+            if scrollView.exists {
+                let matches = scrollView.descendants(matching: .any)
+                    .matching(NSPredicate(format: "identifier == %@", identifier))
+                let matchCount = matches.count
+                let element = matchCount == 1 ? matches.firstMatch : nil
+                evidence = AnalyticsDetailContractEvidence(
+                    matchCount: matchCount,
+                    labelMatched: element.map { labelSatisfies($0.label) } ?? false,
+                    viewportRelation: analyticsViewportSnapshot(
+                        of: element,
+                        in: scrollView
+                    ).relation
+                )
+                if evidence.matchCount == 1,
+                   evidence.labelMatched,
+                   evidence.viewportRelation == .insideViewport {
+                    break
+                }
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+        } while Date() < deadline
+
+        XCTContext.runActivity(
+            named: "Analytics detail evidence: identifier=\(identifier); matchCount=\(evidence.matchCount); labelMatched=\(evidence.labelMatched); viewportRelation=\(evidence.viewportRelation.rawValue)"
+        ) { _ in }
+        return evidence
     }
 
     @MainActor

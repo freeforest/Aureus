@@ -31,6 +31,7 @@ struct AnalyticsView: View {
     @State private var model: AnalyticsFeatureModel
     @State private var showsAccessibleData = true
     @State private var currentReportSection: AnalyticsReportSection = .overview
+    @State private var detailPresentationID = UUID()
 
     init(store: WealthStore, mode: AppDataMode) {
         _model = State(initialValue: AnalyticsFeatureModel(store: store, mode: mode))
@@ -49,20 +50,26 @@ struct AnalyticsView: View {
         }
         .navigationTitle("Analytics")
         .task {
-            currentReportSection = .overview
+            resetDetailPresentation()
             await model.start()
         }
         .onChange(of: model.selectedPortfolioID) { _, id in
-            currentReportSection = .overview
+            resetDetailPresentation()
             model.selectPortfolio(id)
         }
         .onChange(of: model.selectedRange) { _, range in
-            currentReportSection = .overview
+            resetDetailPresentation()
             model.selectRange(range)
         }
         .onChange(of: model.annualRiskFreePercentText) { _, _ in
-            currentReportSection = .overview
+            resetDetailPresentation()
             model.riskFreeInputChanged()
+        }
+        .onChange(of: model.state) { _, _ in
+            resetDetailPresentation()
+        }
+        .onChange(of: model.report != nil) { _, _ in
+            resetDetailPresentation()
         }
     }
 
@@ -134,12 +141,18 @@ struct AnalyticsView: View {
                 .accessibilityIdentifier("analytics.risk-free.disclosure")
 
             HStack {
-                Button("Calculate") { model.calculate() }
+                Button("Calculate") {
+                    resetDetailPresentation()
+                    model.calculate()
+                }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.selectedPortfolio == nil || model.state == .calculating)
                     .accessibilityIdentifier("analytics.calculate")
                 if model.state == .calculating {
-                    Button("Cancel") { model.cancelCalculation() }
+                    Button("Cancel") {
+                        resetDetailPresentation()
+                        model.cancelCalculation()
+                    }
                         .accessibilityIdentifier("analytics.cancel")
                 }
             }
@@ -202,6 +215,11 @@ struct AnalyticsView: View {
         currentReportSection = sections[destination]
     }
 
+    private func resetDetailPresentation() {
+        currentReportSection = .overview
+        detailPresentationID = UUID()
+    }
+
     @ViewBuilder private var detail: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -234,29 +252,30 @@ struct AnalyticsView: View {
                 .padding(18)
             }
             .accessibilityIdentifier("analytics.detail.scroll")
+            .id(detailPresentationID)
             .onChange(of: currentReportSection) { _, section in
                 guard model.report != nil else { return }
                 proxy.scrollTo(section.anchorID, anchor: .top)
-            }
-            .onChange(of: model.state) { _, state in
-                currentReportSection = .overview
-                if state == .calculated {
-                    Task { @MainActor in
-                        await Task.yield()
-                        proxy.scrollTo(AnalyticsReportSection.overview.anchorID, anchor: .top)
-                    }
-                }
             }
         }
     }
 
     private func reportView(_ report: PortfolioAnalyticsReport) -> some View {
         let coverageLabel = "Observation coverage: range \(report.coverage.requestedRange.rawValue), \(report.coverage.firstDate) through \(report.coverage.lastDate), \(report.coverage.completeSnapshotsUsed) complete snapshots used, \(report.coverage.incompleteSnapshotsExcluded) incomplete snapshots excluded"
+        let portfolioName = model.selectedPortfolio?.name ?? "Portfolio Analytics"
+        let portfolioTitleLabel = "Portfolio analytics report: \(portfolioName)"
         return VStack(alignment: .leading, spacing: 18) {
-            Text(model.selectedPortfolio?.name ?? "Portfolio Analytics")
-                .font(.title2.weight(.semibold))
-                .accessibilityIdentifier("analytics.report.portfolio")
+            Text("Overview")
+                .font(.headline)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Analytics report overview")
+                .accessibilityIdentifier("analytics.overview.heading")
                 .id(AnalyticsReportSection.overview.anchorID)
+            Text(verbatim: portfolioName)
+                .font(.title2.weight(.semibold))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: portfolioTitleLabel))
+                .accessibilityIdentifier("analytics.report.portfolio")
             Text("\(report.coverage.firstDate.description) – \(report.coverage.lastDate.description) · \(report.coverage.completeSnapshotsUsed) complete snapshots · \(report.coverage.incompleteSnapshotsExcluded) incomplete excluded")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
