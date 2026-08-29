@@ -499,3 +499,29 @@ The first focused UI invocation used the final signed product but timed out whil
 Overview heading/title/coverage, Performance, Drawdown, remaining native tables, Sparse Portfolio typed-unavailable flow, and Production isolation are all `NOT VERIFIED` for this current UI product because neither invocation entered the business method. Performance is `NOT RUN — INHERITED AFTER EXACT DOMAIN/FEATURE/PERFORMANCE SOURCE-HASH VERIFICATION`; the accepted Stage 9 performance implementation, Domain, FeatureModel, Unit fixtures, and data-preparation path remain byte-identical. Provider requests remain `NOT RUN`; Twelve Data and Frankfurter live operations are 0; Credential and Keychain metadata reads are 0; Market Cache and Analytics persistence mutations are 0; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
 
 This is **Stage 9-OVERVIEW-01 PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+
+## 30. Stage 9-UI-EVIDENCE-01 current-source UI evidence completion
+
+Prompt 9-UI-EVIDENCE-01 is a frozen-source evidence round. Before any build or UI invocation, all authorized Production, Test, Project, Package, Migration, and Entitlement SHA-256 baselines matched exactly. No Swift, Test, Project, Package, Migration, or Entitlement file changed. The two historical Stage 9-OVERVIEW-01 focused bundles remain runner-level `Timed out while enabling automation mode` system failures with `business definitions/executions = 0/0`; they are neither business assertion failures nor current PASS evidence.
+
+The sandbox inventory invocation failed with exit 74 because Xcode could not access its cache or transfer the fixed GRDB checkout. The authorized equivalent read-only inventory in the standard Xcode environment exited 0, using cached GRDB 7.11.1 and confirming one Project, one `Aureus` Scheme, three owned Targets, arm64, Swift 6.0, and macOS deployment target 14.0. The fresh signed build-for-testing used the unchanged resolved package and an isolated temporary root. Its completed result bundle reports `succeeded`, zero errors, and the four existing PortfolioView deprecation warnings; App, Runner, UI Test, and xctestrun all came from that build and were re-hashed before UI execution.
+
+The single current-source focused UI invocation entered the target business method. It formally passed the Synthetic initial state, Calculated Overview section boundary, the independent Overview heading, Portfolio title, and coverage count/label/two-dimensional viewport contracts, all seven metrics, the accessible-data toggle, and fixed risk-free disclosure isolation. It then formally passed Performance summary/chart/table/dynamic-row/representative-row and Drawdown summary/chart/table/dynamic-row/representative-row assertions. After the native Next button updated Current Section to `Observed Returns`, the unchanged transition helper could not expose `analytics.observed.tables` within its finite five-second wait and failed at `AureusUITests.swift:442`. This is a real `BUSINESS ASSERTION FAILURE`; it is not a runner/bootstrap, testmanager, or incomplete-result failure. The round authorizes no business retry, so no source or assertion changed and no further focused invocation occurred.
+
+| Verification | Result bundle | Current result |
+|---|---|---|
+| Stage 9 focused Unit | — | `NOT RUN — INHERITED AFTER EXACT Production/Unit SOURCE-HASH VERIFICATION`; historical current-source evidence `20/20 PASS` |
+| Stage 6–8 regression | — | `NOT RUN — INHERITED AFTER EXACT Production/Unit SOURCE-HASH VERIFICATION`; historical current-source evidence `204` definitions / `237` executions PASS |
+| Full Unit | — | `NOT RUN — INHERITED AFTER EXACT Production/Unit SOURCE-HASH VERIFICATION`; historical current-source evidence `254` definitions / `287` executions PASS |
+| Clean Debug arm64 Build | — | `NOT RUN — INHERITED AFTER EXACT Production SOURCE-HASH VERIFICATION`; historical current-source evidence PASS |
+| Stage 9 Performance | — | `NOT RUN — INHERITED AFTER EXACT DOMAIN/FEATURE/PERFORMANCE SOURCE-HASH VERIFICATION`; historical current-source evidence `3/3 PASS` |
+| Fresh signed build-for-testing | `/private/tmp/Aureus-Stage9-UI-EVIDENCE-01-7Nlo3I/BuildForTesting.xcresult` | `PASS` — status succeeded; errors 0; warnings 4; `Info.plist` present; build-summary parser exit 0 |
+| Stage 9 focused UI | `/private/tmp/Aureus-Stage9-UI-EVIDENCE-01-7Nlo3I/Stage9FocusedUI.xcresult` | `FAIL` — shell exit 65; 1 definition / 1 business execution; 0 passed / 1 failed / 0 skipped; 61.658 seconds; failure at `analytics.observed.tables`; `Info.plist` present; sandbox summary/tests parser exits 64, final read-only parser exits 0 |
+| Existing focused UI regression | — | `NOT RUN` — focused UI did not achieve business `1/1 PASS` |
+| Full `AureusUITests` | — | `NOT RUN` — Existing focused regression prerequisite did not pass |
+
+Overview, all seven metrics, Performance, and Drawdown have current formal runtime evidence through the ordered focused execution. Monthly/Annual, TWR Subperiods, XIRR Flows, Capital Flows, Calculation Evidence, Sparse Portfolio typed-unavailable behavior, stale-state isolation, and Production isolation were not reached and remain `NOT VERIFIED`. The global UI infrastructure-retry budget was not used because the invocation produced a valid business result; business retries are not authorized in this round.
+
+Provider requests remain `NOT RUN`; Twelve Data operations, Frankfurter live operations, and Provider transport attempts are 0; Credential and Keychain metadata reads are 0; Market Cache and Analytics persistence mutations are 0; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
+
+This is **Stage 9-UI-EVIDENCE-01 PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
