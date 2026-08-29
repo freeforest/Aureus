@@ -1831,9 +1831,9 @@ final class AureusUITests: XCTestCase {
         case .negativeDelta:
             scrollView.scroll(byDeltaX: 0, deltaY: -pageDelta)
         case .swipeUp:
-            scrollView.swipeUp(velocity: .fast)
+            scrollView.swipeUp()
         case .swipeDown:
-            scrollView.swipeDown(velocity: .fast)
+            scrollView.swipeDown()
         }
     }
 

@@ -401,3 +401,35 @@ Because only `AureusUITests.swift` changed, Stage 9 focused Unit `20/20`, Stage 
 The Performance summary/chart/table runtime assertions, remaining tables, sparse-Portfolio typed-unavailable flow, and Production isolation remain `NOT VERIFIED`. Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
 
 This is **Stage 9-UI-02 PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+
+## 27. Stage 9-AX-01 native chart Accessibility closure
+
+Prompt 9-AX-01 preserves both Prompt 9-UI-02 focused business failures as historical evidence. The initial historical failure was an offscreen-witness matching lifecycle failure; its final retry proved real right-side detail traversal but left `analytics.chart.performance.summary` unexposed. Neither historical result is rewritten as a current result, and neither replaces the current UI Gate.
+
+The current Production repair is limited to the two homologous native chart regions. The Performance outer layout no longer owns `analytics.chart.performance`; an inner visual group owns that identifier while the existing self-contained `analytics.chart.performance.summary` and `analytics.performance.table` remain independent siblings. Drawdown now has the same structure for `analytics.chart.drawdown`, `analytics.drawdown.summary`, and `analytics.drawdown.table`. Each of the six identifiers occurs exactly once. No `.combine`, duplicate identifier, invisible test node, transparent overlay, calculation change, collection change, or test launch-argument branch was introduced.
+
+Required current-source verification completed in order. Stage 9 focused Unit passed `20/20`. The signed Stage 6–8 host produced a retained infrastructure failure because 84 tests could not create their isolated `/private/tmp/AureusTests/<UUID>` directories; the authorized stable unsigned isolated host then passed the complete `204` definitions / `237` executions. Full Unit passed `254` definitions / `287` executions on the same unsigned isolated-host policy. Clean Debug arm64 Build and both signed build-for-testing products passed with zero errors and four existing PortfolioView deprecation warnings.
+
+The initial focused business execution used the baseline UI test and the repaired Production AX structure. It formally passed the Performance summary, chart container, table summary, dynamic row-count, and representative row assertions, and then passed the corresponding Drawdown summary, chart, table, and representative row assertions. It later failed at `AureusUITests.swift:1834` when the helper's bounded semantic `.fast` `swipeUp` timed out while synthesizing an event during navigation toward `analytics.observed.tables`. This is a direct UI-test lifecycle failure, not evidence of a missing repaired chart node or Analytics arithmetic failure.
+
+The single authorized UI-test-only repair replaced `.fast` semantic swipes with XCTest's default bounded swipes; it did not alter drivers, counts, timeouts, assertions, Production, or financial semantics. A fresh final signed build-for-testing passed. The only authorized final focused business retry again formally passed the Performance and Drawdown runtime contracts, then failed at the same event-synthesis boundary with the default `swipeUp` velocity. No third focused execution is authorized.
+
+| Verification | Result bundle | Result |
+|---|---|---|
+| Stage 9 focused Unit | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/Stage9FocusedUnit.xcresult` | `PASS` — exit 0; 20 definitions / 20 executions; 20 passed / 0 failed / 0 skipped |
+| Stage 6–8 signed regression | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/Stage68FocusedRegression.xcresult` | `INFRASTRUCTURE FAIL` — exit 65; 204 definitions; 120 passed / 84 failed / 0 skipped; failures were temporary-directory permission denials |
+| Stage 6–8 unsigned isolated regression | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/Stage68FocusedRegression-Unsigned.xcresult` | `PASS` by complete test result — shell exit `NOT AVAILABLE` after the unified command handle closed; 204 definitions / 237 executions; 0 failed / 0 skipped |
+| Full Unit, unsigned isolated host | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/FullUnit-Unsigned.xcresult` | `PASS` by complete test result — shell exit `NOT AVAILABLE` after the unified command handle closed; 254 definitions / 287 executions; 0 failed / 0 skipped |
+| Clean Debug arm64 Build | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/CleanDebugBuild.xcresult` | `PASS` by complete build summary — shell exit `NOT AVAILABLE` after the unified command handle closed; errors 0; warnings 4 |
+| Initial signed build-for-testing | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/BuildForTesting.xcresult` | `PASS` by complete build summary — shell exit `NOT AVAILABLE` after the unified command handle closed; `TEST BUILD SUCCEEDED`; errors 0 |
+| Stage 9-AX-01 focused UI, initial business execution | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/Stage9FocusedUI.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; semantic event-synthesis timeout after Performance and Drawdown runtime contracts passed |
+| Final signed build-for-testing | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/BuildForTesting-Final.xcresult` | `PASS` — exit 0; `TEST BUILD SUCCEEDED`; errors 0 |
+| Stage 9-AX-01 focused UI, final business retry | `/private/tmp/Aureus-Stage9-AX-01-bFyiwV/Stage9FocusedUI-Final.xcresult` | `FAIL` — exit 65; 1 executed / 0 passed / 1 failed / 0 skipped; default semantic event-synthesis timeout at the same lifecycle boundary |
+| Existing focused UI regression | — | `NOT RUN` — final Stage 9 focused UI did not pass |
+| Full `AureusUITests` | — | `NOT RUN` — Existing focused regression prerequisite did not pass |
+
+All listed result bundles contain `Info.plist`. Test-result parsing inside the restricted sandbox returned exit 64 because its TestReport cache was not writable; read-only parsing of the same completed result bundles in the standard Xcode permission environment returned exit 0 without rerunning tests. Both focused invocations entered the business method; the second is the single authorized business retry, not an infrastructure retry.
+
+Monthly/Annual and the remaining native table assertions, sparse-Portfolio typed-unavailable flow, and Production isolation were not reached after the final lifecycle failure and remain `NOT VERIFIED`. Performance is `NOT RUN — INHERITED AFTER EXACT DOMAIN/FEATURE/PERFORMANCE SOURCE-HASH VERIFICATION`; the accepted Stage 9 performance implementation did not change. Provider requests remain `NOT RUN`; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
+
+This is **Stage 9-AX-01 PARTIAL — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.

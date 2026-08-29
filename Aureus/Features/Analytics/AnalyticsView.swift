@@ -213,18 +213,22 @@ struct AnalyticsView: View {
 
     private func performanceChart(_ report: PortfolioAnalyticsReport) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Portfolio Wealth Index — Base 100").font(.headline)
-            Chart(AnalyticsDisplay.indexPoints(report.wealthIndex), id: \.date) { point in
-                LineMark(
-                    x: .value("Civil Date", point.date.description),
-                    y: .value("Index", point.value)
-                )
-                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Portfolio Wealth Index — Base 100").font(.headline)
+                Chart(AnalyticsDisplay.indexPoints(report.wealthIndex), id: \.date) { point in
+                    LineMark(
+                        x: .value("Civil Date", point.date.description),
+                        y: .value("Index", point.value)
+                    )
+                    .foregroundStyle(.blue)
+                }
+                .frame(height: 190)
+                .accessibilityHidden(true)
+                Text("Native visual summary; authoritative values remain checked Decimal in Swift.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            .frame(height: 190)
-            .accessibilityHidden(true)
-            Text("Native visual summary; authoritative values remain checked Decimal in Swift.")
-                .font(.caption).foregroundStyle(.secondary)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("analytics.chart.performance")
             let summary = "TWR index chart summary: range \(report.coverage.requestedRange.rawValue), \(report.coverage.firstDate) through \(report.coverage.lastDate), \(report.wealthIndex.count) observations, analytics calculated"
             Text(summary)
                 .font(.caption)
@@ -233,31 +237,35 @@ struct AnalyticsView: View {
                 .accessibilityIdentifier("analytics.chart.performance.summary")
             if showsAccessibleData { nativeIndexTable(report.wealthIndex) }
         }
-        .accessibilityIdentifier("analytics.chart.performance")
     }
 
     private func drawdownChart(_ report: PortfolioAnalyticsReport) -> some View {
         let visualSummary = "Peak \(report.maximumDrawdown.peakDate) · trough \(report.maximumDrawdown.troughDate) · recovery \(report.maximumDrawdown.recoveryDate?.description ?? "Not observed")"
         let accessibilitySummary = "Observed snapshot drawdown summary: range \(report.coverage.requestedRange.rawValue), \(report.coverage.firstDate) through \(report.coverage.lastDate), \(report.drawdownSeries.count) observations, peak \(report.maximumDrawdown.peakDate), trough \(report.maximumDrawdown.troughDate), recovery \(report.maximumDrawdown.recoveryDate?.description ?? "not observed")"
         return VStack(alignment: .leading, spacing: 8) {
-            Text("Drawdown from Running Peak").font(.headline)
-            Chart(AnalyticsDisplay.drawdownPoints(report.drawdownSeries), id: \.date) { point in
-                AreaMark(
-                    x: .value("Civil Date", point.date.description),
-                    y: .value("Drawdown", point.value)
-                )
-                .foregroundStyle(.orange.opacity(0.55))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Drawdown from Running Peak").font(.headline)
+                Chart(AnalyticsDisplay.drawdownPoints(report.drawdownSeries), id: \.date) { point in
+                    AreaMark(
+                        x: .value("Civil Date", point.date.description),
+                        y: .value("Drawdown", point.value)
+                    )
+                    .foregroundStyle(.orange.opacity(0.55))
+                }
+                .frame(height: 150)
+                .accessibilityHidden(true)
+                Text(verbatim: visualSummary)
+                    .font(.caption)
             }
-            .frame(height: 150)
-            .accessibilityHidden(true)
-            Text(verbatim: visualSummary)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("analytics.chart.drawdown")
+            Text(verbatim: accessibilitySummary)
                 .font(.caption)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(verbatim: accessibilitySummary))
                 .accessibilityIdentifier("analytics.drawdown.summary")
             if showsAccessibleData { nativeDrawdownTable(report.drawdownSeries) }
         }
-        .accessibilityIdentifier("analytics.chart.drawdown")
     }
 
     private func observedReturns(_ report: PortfolioAnalyticsReport) -> some View {
