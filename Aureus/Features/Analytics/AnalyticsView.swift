@@ -548,7 +548,12 @@ struct AnalyticsView: View {
 
     private func calculationEvidence(_ report: PortfolioAnalyticsReport) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Calculation Evidence").font(.headline)
+            Text("Calculation Evidence")
+                .font(.headline)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Calculation evidence section")
+                .accessibilityIdentifier("analytics.evidence.heading")
+                .id(AnalyticsReportSection.calculationEvidence.anchorID)
             Text("CNY P&L: \(WealthDisplay.money(report.cashFlowAdjustedPnL))")
             Text("Starting Portfolio NAV Snapshot: \(WealthDisplay.money(report.startingNAV))")
             Text("Ending Portfolio NAV Snapshot: \(WealthDisplay.money(report.endingNAV))")
@@ -556,11 +561,12 @@ struct AnalyticsView: View {
             Text("Flow valuation boundaries: \(report.coverage.flowValuationBoundariesComplete ? "Complete" : "Missing")")
             Text("Daily risk series: \(report.coverage.dailySeriesIsRegular ? "Regular adjacent daily observations" : "Irregular — risk metrics unavailable")")
             Text("No benchmark, Provider value, Market Cache, Credential, or Market session data was read.")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("No benchmark, Provider value, Market Cache, Credential, or Market session data was read.")
+                .accessibilityIdentifier("analytics.evidence")
         }
         .font(.caption)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("analytics.evidence")
-        .id(AnalyticsReportSection.calculationEvidence.anchorID)
     }
 
     private func nativeIndexTable(_ rows: [AnalyticsIndexPoint]) -> some View {

@@ -596,20 +596,64 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(advanceAnalyticsReportSection(
             in: app,
             to: "Calculation Evidence",
-            anchorIdentifier: "analytics.evidence"
+            anchorIdentifier: "analytics.evidence.heading"
         ))
-        XCTAssertTrue(waitForAnalyticsDetailElement(
+
+        let evidenceHeading = analyticsDetailContractEvidence(
+            in: app,
+            identifier: "analytics.evidence.heading",
+            timeout: 5,
+            labelSatisfies: { $0 == "Calculation evidence section" }
+        )
+        XCTAssertEqual(evidenceHeading.matchCount, 1, "EVIDENCE_HEADING_COUNT_MISMATCH")
+        XCTAssertTrue(evidenceHeading.labelMatched, "EVIDENCE_HEADING_LABEL_MISMATCH")
+        XCTAssertEqual(
+            evidenceHeading.viewportRelation.rawValue,
+            AnalyticsViewportRelation.insideViewport.rawValue,
+            "EVIDENCE_HEADING_VIEWPORT_MISMATCH"
+        )
+
+        let evidenceDisclosure = analyticsDetailContractEvidence(
             in: app,
             identifier: "analytics.evidence",
             timeout: 5,
-            requireUnique: true,
-            mustBeInsideViewport: true,
             labelSatisfies: {
-                !$0.isEmpty && $0.contains("No benchmark") && $0.contains("Provider")
+                !$0.isEmpty
+                    && $0.contains("No benchmark")
+                    && $0.contains("Provider")
+                    && $0.contains("Market Cache")
             }
-        ))
-        XCTAssertTrue(app.descendants(matching: .any)["analytics.navigation.previous"].isEnabled)
-        XCTAssertFalse(app.descendants(matching: .any)["analytics.navigation.next"].isEnabled)
+        )
+        XCTAssertEqual(evidenceDisclosure.matchCount, 1, "EVIDENCE_DISCLOSURE_COUNT_MISMATCH")
+        XCTAssertTrue(evidenceDisclosure.labelMatched, "EVIDENCE_DISCLOSURE_LABEL_MISMATCH")
+        XCTAssertEqual(
+            evidenceDisclosure.viewportRelation.rawValue,
+            AnalyticsViewportRelation.insideViewport.rawValue,
+            "EVIDENCE_DISCLOSURE_VIEWPORT_MISMATCH"
+        )
+
+        XCTAssertTrue(waitForAccessibilityLabel(
+            in: app,
+            identifier: "analytics.navigation.current",
+            equals: "Analytics report section: Calculation Evidence",
+            timeout: 5
+        ), "EVIDENCE_CURRENT_SECTION_MISMATCH")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["analytics.navigation.previous"].waitForExistence(timeout: 5),
+            "EVIDENCE_PREVIOUS_NOT_FOUND"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["analytics.navigation.previous"].isEnabled,
+            "EVIDENCE_PREVIOUS_DISABLED"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["analytics.navigation.next"].waitForExistence(timeout: 5),
+            "EVIDENCE_NEXT_NOT_FOUND"
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)["analytics.navigation.next"].isEnabled,
+            "EVIDENCE_NEXT_ENABLED"
+        )
 
         let sparseIdentifier = "analytics.portfolio.00000000-0000-4000-8000-000000009001"
         XCTAssertTrue(app.descendants(matching: .any)[sparseIdentifier].waitForExistence(timeout: 5))
