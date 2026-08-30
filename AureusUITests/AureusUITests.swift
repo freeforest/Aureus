@@ -908,7 +908,7 @@ final class AureusUITests: XCTestCase {
         )
 
         advanceGoalsSection(in: app, to: "Trajectory", anchorIdentifier: "goals.trajectory.heading")
-        assertGoalsElement(in: app, identifier: "goals.chart.trajectory") { !$0.isEmpty }
+        assertGoalsElement(in: app, identifier: "goals.chart.trajectory") { $0 == "Goal trajectory chart" }
         assertGoalsElement(in: app, identifier: "goals.trajectory.summary") {
             $0.contains("points") && $0.contains("2035-12-31") && $0.contains("CNY")
         }
@@ -943,7 +943,7 @@ final class AureusUITests: XCTestCase {
         }
 
         advanceGoalsSection(in: app, to: "Saving Rate", anchorIdentifier: "goals.saving-rate.heading")
-        assertGoalsElement(in: app, identifier: "goals.chart.saving-rate") { !$0.isEmpty }
+        assertGoalsElement(in: app, identifier: "goals.chart.saving-rate") { $0 == "Observed Saving Rate chart" }
         assertGoalsElement(in: app, identifier: "goals.saving-rate.summary") {
             $0.contains("CNY 5,000.00")
                 && $0.contains("CNY 800.00")

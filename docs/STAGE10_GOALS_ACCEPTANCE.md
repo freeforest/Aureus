@@ -2,9 +2,9 @@
 
 ## Status
 
-**Stage 10-GOALS-HEADER-AX-01 PARTIAL — Awaiting Reviewer Gate**
+**Stage 10-GOALS-CHART-AX-01 PARTIAL — Awaiting Reviewer Gate**
 
-The independent Reviewer recorded Stage 9 and the Stage 10 Goals Foundation Gate as `PASS`, while Stage 10 Goals UI remains `PARTIAL`. This document preserves the accepted Foundation and Native Goals Terminal history and appends the current Header Accessibility evidence round; it does not declare Stage 10 `PASS`, V1 Ready, Release Ready, or entry to Stages 11–14.
+The independent Reviewer recorded Stage 9 and the Stage 10 Goals Foundation Gate as `PASS`, while Stage 10 Goals UI remains `PARTIAL`. This document preserves the accepted Foundation, Native Goals Terminal, and Header Accessibility history and appends the current Visual Chart Accessibility evidence round; it does not declare Stage 10 `PASS`, V1 Ready, Release Ready, or entry to Stages 11–14.
 
 Historical Executor status before that review: **Stage 10 Goals Foundation Candidate — Awaiting Reviewer Gate**.
 
@@ -204,3 +204,50 @@ Provider requests are `NOT RUN`. Twelve Data and Frankfurter live operations, Pr
 ### Current candidate
 
 **Stage 10-GOALS-HEADER-AX-01 PARTIAL — Awaiting Reviewer Gate**
+
+## Stage 10-GOALS-CHART-AX-01 — Goals Visual Chart Accessibility
+
+### Current status
+
+**Stage 10-GOALS-CHART-AX-01 PARTIAL — Awaiting Reviewer Gate**
+
+The authorized chart-only repair is complete. The real Trajectory and Saving Rate Swift Chart visual groups now use native child-ignoring Accessibility representations with the explicit labels `Goal trajectory chart` and `Observed Saving Rate chart`. Each chart identifier occurs exactly once. The corresponding summary, table, real rows, and disclosure remain independent siblings; chart marks remain hidden from Accessibility because the native tables and rows carry the complete numeric data. The USD typed-unavailable branch still exposes no fake Trajectory chart, table, or rows.
+
+The focused UI initial invocation failed before the business method entered because the Runner timed out while enabling Automation mode. Its complete result has one Runner system-failure node and business definitions/executions `0/0`. The single authorized infrastructure retry reused byte-identical App, Runner, UI Test executable, and xctestrun artifacts without rebuilding or changing source. The retry entered the business method and formally passed the Synthetic Header, Goal CRUD, Trajectory chart exact-label contract, Trajectory summary/table/real-row/disclosure, FIRE, Saving Rate chart exact-label contract, and Saving Rate summary/table/real-row/disclosure. It then failed at the later `goals.evidence` label assertion at `AureusUITests.swift:1819`. Because both authorized chart contracts had already passed, that Calculation Evidence failure is outside this chart-only repair boundary; no source change or business retry followed.
+
+### Chart contracts
+
+- `goals.chart.trajectory` is owned by the real visible Trajectory chart group, uses `.accessibilityElement(children: .ignore)`, and has the exact label `Goal trajectory chart`.
+- `goals.chart.saving-rate` is owned by the real visible Saving Rate chart group, uses `.accessibilityElement(children: .ignore)`, and has the exact label `Observed Saving Rate chart`.
+- `goals.trajectory.summary`, `goals.trajectory.table`, real `goals.trajectory.row.<month>` nodes, and `goals.trajectory.disclosure` remain independent siblings.
+- `goals.saving-rate.summary`, `goals.saving-rate.table`, real `goals.saving-rate.row.<period>` nodes, and `goals.saving-rate.disclosure` remain independent siblings.
+- Header identifiers and labels are unchanged. No `.combine`, transparent overlay, invisible fake node, dynamic identifier, test-only Production branch, formula, data collection, formatter, or chart-point change was introduced.
+- The Goals focused test now requires count one and exact labels for both visual charts. It retains all summary, dynamic-row-count, real-row, FIRE, Calculation Evidence, USD typed-unavailable, stale-state, Production-isolation, and Provider-zero assertions without added timeout, sleep, gesture, coordinate, or AX dump.
+
+### Current verification evidence
+
+All current artifacts are rooted at `/private/tmp/Aureus-Stage10-GOALS-CHART-AX-01-TGoCBa`.
+
+| Verification | Result | Current evidence |
+|---|---|---|
+| Focused Goals Unit | `NOT RUN — INHERITED` | Exact Domain/Feature/Unit source hashes match; accepted current-source evidence remains `35/35 PASS` |
+| Full `AureusTests` | `NOT RUN — INHERITED` | Exact Domain/Feature/Unit source hashes match; accepted evidence remains `289` definitions / `322` executions PASS |
+| Performance | `NOT RUN — INHERITED` | Foundation and presentation performance sources remain byte-identical |
+| Clean Debug arm64 Build | `PASS` | shell exit `0`; status `succeeded`; errors `0`; four pre-existing PortfolioView deprecation warnings; complete parseable result |
+| Fresh signed arm64 BFT | `PASS` | shell exit `0`; status `succeeded`; errors `0`; four pre-existing warnings; App, Runner, UI Test executable, and xctestrun came from one build and passed strict signature verification |
+| Goals focused — initial | `RUNNER/AUTOMATION BOOTSTRAP FAILURE` | shell exit `65`; Runner timed out while enabling Automation; business definitions/executions `0/0`; complete parseable result; no assertion failure |
+| Goals focused — infrastructure retry | `BUSINESS ASSERTION FAILURE` | `1/1` business definition/execution; `0` passed, `1` failed, `0` skipped; both chart contracts and their siblings passed; later failure at `goals.evidence`, line 1819 |
+| Existing focused regression | `NOT RUN` | Ordered prerequisite Goals focused `1/1 PASS` was not met |
+| Full `AureusUITests` | `NOT RUN` | Ordered prerequisite Existing focused `8/8 PASS` was not met |
+
+### Runtime boundary
+
+Current runtime evidence formally closes both chart count and exact-label contracts, the Trajectory endpoint/table/row disclosure path, FIRE, and the Saving Rate `CNY 5,000.00` income / `CNY 800.00` expense / `CNY 4,200.00` savings / `84%` rate table path. Calculation Evidence did not satisfy its existing label contract. USD typed-unavailable behavior, stale-state isolation, Production Header/isolation, and Provider-zero assertions occur later and are `NOT VERIFIED` in this execution. Static, inherited, or previously accepted evidence does not substitute for those missing current runtime assertions.
+
+### Provider and data status
+
+Provider requests are `NOT RUN`. Twelve Data and Frankfurter live operations, Provider transport attempts, Credential reads, Keychain metadata reads, Market Cache mutations, and planning-assumption persistence writes are `0`. Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`. Dashboard Goals integration is `NOT AUTHORIZED / NOT RUN`, and Stages 11–14 remain `NO-GO`.
+
+### Current candidate
+
+**Stage 10-GOALS-CHART-AX-01 PARTIAL — Awaiting Reviewer Gate**

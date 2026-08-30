@@ -343,7 +343,8 @@ struct GoalsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .accessibilityElement(children: .contain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "Goal trajectory chart"))
                 .accessibilityIdentifier("goals.chart.trajectory")
 
                 let summary = "Trajectory summary: \(report.presentationTrajectory.count) points, as-of \(report.asOfDate), target month \(available.targetDate), initial/current value \(GoalsDisplay.money(report.currentNetWorthCNY)), target-date scenario value \(GoalsDisplay.money(available.targetDateScenario.futureValueCNY))."
@@ -427,7 +428,8 @@ struct GoalsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .accessibilityElement(children: .contain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "Observed Saving Rate chart"))
             .accessibilityIdentifier("goals.chart.saving-rate")
 
             let summary = "Saving Rate summary: range \(saving.range.start) through \(saving.range.end), ordinary income \(GoalsDisplay.money(saving.ordinaryIncomeCNY)), ordinary expense \(GoalsDisplay.money(saving.ordinaryExpenseCNY)), savings \(GoalsDisplay.money(saving.ordinarySavingsCNY)), aggregate rate \(GoalsDisplay.savingRate(saving.aggregateRate)), \(saving.includedEntryCount) included entries, \(saving.observedMonths.count) observed months."
