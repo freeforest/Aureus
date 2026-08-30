@@ -226,23 +226,47 @@ final class AureusUITests: XCTestCase {
         XCTAssertEqual(createdIdentifiers.count, 1)
         let createdPortfolioIdentifier = try XCTUnwrap(createdIdentifiers.first)
         XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio", timeout: 5))
+        XCTAssertTrue(waitForPortfolioOrderStatus(
+            in: app,
+            portfolioName: "Synthetic Second Portfolio",
+            position: 3,
+            total: 3,
+            timeout: 5
+        ))
+
         XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: true, timeout: 5))
-        for _ in 0..<2 {
-            XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: true, timeout: 5))
-            app.descendants(matching: .any)["portfolio.move.up"].click()
-            app.descendants(matching: .any)["sidebar.dashboard"].click()
-            app.descendants(matching: .any)["sidebar.portfolio"].click()
-            XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio", timeout: 5))
-        }
+        app.descendants(matching: .any)["portfolio.move.up"].click()
+        XCTAssertTrue(waitForPortfolioOrderStatus(
+            in: app,
+            portfolioName: "Synthetic Second Portfolio",
+            position: 2,
+            total: 3,
+            timeout: 5
+        ))
+
+        XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: true, timeout: 5))
+        app.descendants(matching: .any)["portfolio.move.up"].click()
+        XCTAssertTrue(waitForPortfolioOrderStatus(
+            in: app,
+            portfolioName: "Synthetic Second Portfolio",
+            position: 1,
+            total: 3,
+            timeout: 5
+        ))
         XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: false, timeout: 5))
 
         // Recreate the feature model against the same temporary Store by
         // navigating away and back. The first persisted row must remain the
         // moved Portfolio, without relying on a List row index.
-        app.descendants(matching: .any)["sidebar.dashboard"].click()
-        app.descendants(matching: .any)["sidebar.portfolio"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 5))
+        reopenPortfolioFromDashboard(in: app)
         XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Second Portfolio", timeout: 5))
+        XCTAssertTrue(waitForPortfolioOrderStatus(
+            in: app,
+            portfolioName: "Synthetic Second Portfolio",
+            position: 1,
+            total: 3,
+            timeout: 5
+        ))
         XCTAssertTrue(waitForControlState(in: app, identifier: "portfolio.move.up", isEnabled: false, timeout: 5))
         XCTAssertTrue(waitForPortfolioRowCount(3, in: app, timeout: 5))
         XCTAssertEqual(portfolioRowIdentifiers(in: app), identifiersAfterCreate)
@@ -259,9 +283,7 @@ final class AureusUITests: XCTestCase {
         // Recreate the Portfolio surface once more after deletion. The exact
         // captured UUID must stay absent while the original UUID and fallback
         // selection remain stable.
-        app.descendants(matching: .any)["sidebar.dashboard"].click()
-        app.descendants(matching: .any)["sidebar.portfolio"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 5))
+        reopenPortfolioFromDashboard(in: app)
         XCTAssertTrue(waitForPortfolioRowCount(2, in: app, timeout: 5))
         XCTAssertTrue(waitForPortfolioSummaryName(in: app, equals: "Synthetic Local Portfolio", timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)[createdPortfolioIdentifier].exists)
@@ -1630,6 +1652,32 @@ final class AureusUITests: XCTestCase {
             equals: "Portfolio name: \(expected)",
             timeout: timeout
         )
+    }
+
+    @MainActor
+    private func waitForPortfolioOrderStatus(
+        in app: XCUIApplication,
+        portfolioName: String,
+        position: Int,
+        total: Int,
+        timeout: TimeInterval
+    ) -> Bool {
+        waitForAccessibilityLabel(
+            in: app,
+            identifier: "portfolio.order.status",
+            equals: "Portfolio order: \(portfolioName), position \(position) of \(total)",
+            timeout: timeout
+        )
+    }
+
+    @MainActor
+    private func reopenPortfolioFromDashboard(in app: XCUIApplication) {
+        XCTAssertTrue(app.descendants(matching: .any)["sidebar.dashboard"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["sidebar.portfolio"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["sidebar.portfolio"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 5))
     }
 
     @MainActor

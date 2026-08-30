@@ -116,6 +116,17 @@ struct PortfolioView: View {
                         .tag(portfolio.id)
                         .accessibilityIdentifier("portfolio.row.\(portfolio.id.uuidString)")
                 }
+                if let selectedPortfolioID = model.selectedPortfolioID,
+                   let selectedIndex = model.portfolios.firstIndex(where: { $0.id == selectedPortfolioID }) {
+                    let selectedPortfolio = model.portfolios[selectedIndex]
+                    let orderStatus = "Portfolio order: \(selectedPortfolio.name), position \(selectedIndex + 1) of \(model.portfolios.count)"
+                    Text(orderStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(orderStatus)
+                        .accessibilityIdentifier("portfolio.order.status")
+                }
                 HStack {
                     Button("Move Up") { Task { await model.moveSelected(offset: -1) } }
                         .disabled(model.selectedPortfolioID == model.portfolios.first?.id)
