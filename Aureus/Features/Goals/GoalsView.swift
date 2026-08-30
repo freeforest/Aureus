@@ -50,7 +50,6 @@ struct GoalsView: View {
             }
         }
         .navigationTitle("Goals")
-        .accessibilityIdentifier("goals.page")
         .sheet(item: $editor) { presentation in
             GoalEditorSheet(presentation: presentation) { goal in
                 Task {
@@ -509,31 +508,33 @@ private struct GoalsModeHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Image(systemName: mode == .syntheticDemo ? "testtube.2" : "externaldrive")
-                Text(mode == .syntheticDemo ? "Synthetic Goals" : "Local Goals")
-                    .font(.subheadline.weight(.semibold))
-                if mode == .syntheticDemo {
-                    Text("Deterministic fictional Goals only")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("goals.mode.synthetic")
-                } else {
-                    Text("Production local Goals")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("goals.mode.production")
-                }
-                Spacer()
-                Text("Stage 10 Goals UI Candidate")
+            Text("Goals")
+                .font(.subheadline.weight(.semibold))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "Goals page"))
+                .accessibilityIdentifier("goals.page")
+
+            if mode == .syntheticDemo {
+                Text("Synthetic Demo")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "Goals mode: Synthetic Demo"))
+                    .accessibilityIdentifier("goals.mode.synthetic")
+            } else {
+                Text("Production Local")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "Goals mode: Production Local"))
+                    .accessibilityIdentifier("goals.mode.production")
             }
-            Text(GoalsFeatureModel.localOnlyDisclosure)
+
+            Text(verbatim: GoalsFeatureModel.localOnlyDisclosure)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(GoalsFeatureModel.localOnlyDisclosure)
+                .accessibilityLabel(Text(verbatim: GoalsFeatureModel.localOnlyDisclosure))
                 .accessibilityIdentifier("goals.disclosure.local-only")
         }
         .padding(.horizontal, 16)

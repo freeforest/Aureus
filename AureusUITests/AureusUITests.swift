@@ -762,16 +762,28 @@ final class AureusUITests: XCTestCase {
     func testStage10GoalsSyntheticCRUDPlanningAccessibilityAndIsolation() throws {
         let cnyGoalIdentifier = "goals.goal.00000000-0000-4000-8000-000000010001"
         let usdGoalIdentifier = "goals.goal.00000000-0000-4000-8000-000000010002"
+        let localOnlyDisclosure = "Goals use permanent local Goals, Wealth, and Ledger records. Planning assumptions are session-only and no Provider, Market Cache, Credential, or Keychain data is read."
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
         launchApp(app)
 
         app.descendants(matching: .any)["sidebar.goals"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.descendants(matching: .any)["goals.mode.synthetic"].waitForExistence(timeout: 5))
-        let disclosure = app.descendants(matching: .any)["goals.disclosure.local-only"]
-        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
-        XCTAssertTrue(disclosure.label.contains("no Provider"))
+        assertGoalsHeaderElement(
+            in: app,
+            identifier: "goals.page",
+            expectedLabel: "Goals page"
+        )
+        assertGoalsHeaderElement(
+            in: app,
+            identifier: "goals.mode.synthetic",
+            expectedLabel: "Goals mode: Synthetic Demo"
+        )
+        assertGoalsHeaderElementAbsent(in: app, identifier: "goals.mode.production")
+        assertGoalsHeaderElement(
+            in: app,
+            identifier: "goals.disclosure.local-only",
+            expectedLabel: localOnlyDisclosure
+        )
         XCTAssertTrue(waitForGoalsStatus(in: app, equals: "Goals status: Ready", timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any)[cnyGoalIdentifier].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)[usdGoalIdentifier].waitForExistence(timeout: 5))
@@ -1005,8 +1017,22 @@ final class AureusUITests: XCTestCase {
         production.launchArguments = uiTestingArguments()
         launchApp(production)
         production.descendants(matching: .any)["sidebar.goals"].click()
-        XCTAssertTrue(production.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
-        XCTAssertTrue(production.descendants(matching: .any)["goals.mode.production"].waitForExistence(timeout: 5))
+        assertGoalsHeaderElement(
+            in: production,
+            identifier: "goals.page",
+            expectedLabel: "Goals page"
+        )
+        assertGoalsHeaderElement(
+            in: production,
+            identifier: "goals.mode.production",
+            expectedLabel: "Goals mode: Production Local"
+        )
+        assertGoalsHeaderElementAbsent(in: production, identifier: "goals.mode.synthetic")
+        assertGoalsHeaderElement(
+            in: production,
+            identifier: "goals.disclosure.local-only",
+            expectedLabel: localOnlyDisclosure
+        )
         XCTAssertTrue(production.descendants(matching: .any)["goals.empty"].waitForExistence(timeout: 8))
         XCTAssertFalse(production.descendants(matching: .any)[cnyGoalIdentifier].exists)
         XCTAssertFalse(production.descendants(matching: .any)[usdGoalIdentifier].exists)
@@ -1022,9 +1048,6 @@ final class AureusUITests: XCTestCase {
         ] {
             XCTAssertTrue(goalsFieldIsBlank(production.descendants(matching: .any)[identifier]))
         }
-        let productionDisclosure = production.descendants(matching: .any)["goals.disclosure.local-only"]
-        XCTAssertTrue(productionDisclosure.exists)
-        XCTAssertTrue(productionDisclosure.label.contains("no Provider"))
         production.terminate()
     }
 
@@ -1638,6 +1661,45 @@ final class AureusUITests: XCTestCase {
             object: app
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func assertGoalsHeaderElement(
+        in app: XCUIApplication,
+        identifier: String,
+        expectedLabel: String
+    ) {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                let matches = app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "identifier == %@", identifier))
+                return matches.count == 1 && matches.firstMatch.exists
+            },
+            object: app
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation], timeout: 5),
+            .completed,
+            "GOALS_HEADER_COUNT_MISMATCH: \(identifier)"
+        )
+        let matches = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", identifier))
+        XCTAssertEqual(matches.count, 1, "GOALS_HEADER_COUNT_MISMATCH: \(identifier)")
+        XCTAssertEqual(
+            matches.firstMatch.label,
+            expectedLabel,
+            "GOALS_HEADER_LABEL_MISMATCH: \(identifier)"
+        )
+    }
+
+    @MainActor
+    private func assertGoalsHeaderElementAbsent(
+        in app: XCUIApplication,
+        identifier: String
+    ) {
+        let matches = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", identifier))
+        XCTAssertEqual(matches.count, 0, "GOALS_HEADER_ALTERNATE_MODE_PRESENT: \(identifier)")
     }
 
     @MainActor

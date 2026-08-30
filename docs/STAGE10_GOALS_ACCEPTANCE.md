@@ -2,9 +2,9 @@
 
 ## Status
 
-**Stage 10-GOALS-UI-01 PARTIAL — Awaiting Reviewer Gate**
+**Stage 10-GOALS-HEADER-AX-01 PARTIAL — Awaiting Reviewer Gate**
 
-The independent Reviewer recorded Stage 9 and the Stage 10 Goals Foundation Gate as `PASS`, then authorized the Native Goals Terminal evidence round. This document preserves the accepted Foundation evidence and appends the current UI implementation and verification evidence; it does not declare Stage 10 `PASS`, V1 Ready, Release Ready, or entry to Stages 11–14.
+The independent Reviewer recorded Stage 9 and the Stage 10 Goals Foundation Gate as `PASS`, while Stage 10 Goals UI remains `PARTIAL`. This document preserves the accepted Foundation and Native Goals Terminal history and appends the current Header Accessibility evidence round; it does not declare Stage 10 `PASS`, V1 Ready, Release Ready, or entry to Stages 11–14.
 
 Historical Executor status before that review: **Stage 10 Goals Foundation Candidate — Awaiting Reviewer Gate**.
 
@@ -157,3 +157,50 @@ Provider requests are `NOT RUN`; Twelve Data and Frankfurter live operations, Pr
 ### Current candidate
 
 **Stage 10-GOALS-UI-01 PARTIAL — Awaiting Reviewer Gate**
+
+## Stage 10-GOALS-HEADER-AX-01 — Goals Header Accessibility
+
+### Current status
+
+**Stage 10-GOALS-HEADER-AX-01 PARTIAL — Awaiting Reviewer Gate**
+
+The authorized Header-only repair is complete. `goals.page`, the Synthetic/Production mode nodes, and `goals.disclosure.local-only` are now separate visible native Text siblings with explicit, self-contained labels. The common layout parent has no business identifier and does not combine or ignore these children. Static uniqueness, Clean Debug arm64 Build, and fresh signed build-for-testing all passed.
+
+The first Goals focused invocation failed before any business method entered because the UI runner timed out while enabling automation mode. Its complete result contains one runner system-failure node and zero business definitions/executions. The single global infrastructure retry reused byte-identical App, Runner, UI Test executable, and xctestrun artifacts without rebuilding or changing source. That retry entered the business method, passed the Synthetic Header count/label and alternate-mode-absence assertions, and continued through Goal CRUD. It then failed at `AureusUITests.swift:1819` because `goals.chart.trajectory` did not satisfy its existing label contract. Header had already passed, so this is a later report-presentation business boundary outside the current authorization; no business repair or retry followed.
+
+### Header contract
+
+- `goals.page` is owned by the visible `Goals` Text and has the explicit label `Goals page`.
+- Synthetic mode uses one visible Text with `goals.mode.synthetic` and `Goals mode: Synthetic Demo`.
+- Production mode uses one visible Text with `goals.mode.production` and `Goals mode: Production Local`.
+- `goals.disclosure.local-only` remains a visible, independent Text with the complete local-only disclosure as its explicit label.
+- The four identifiers each occur exactly once in Production source. No layout ancestor carries them; no `.combine`, transparent overlay, hidden fake node, dynamic identifier, or UI-test-only Production branch was introduced.
+- The focused test separately requires count one plus an exact label for the current page, mode, and disclosure, and count zero for the alternate mode. It re-queries after Production relaunch and does not weaken CRUD, report, USD-unavailable, stale-state, Production-isolation, or Provider-zero assertions.
+
+### Current verification evidence
+
+All new build and UI artifacts are rooted at `/private/tmp/Aureus-Stage10-GOALS-HEADER-AX-01-FU86lS`.
+
+| Verification | Result | Current evidence |
+|---|---|---|
+| Focused Goals Unit | `NOT RUN — INHERITED` | Exact Domain/Feature/Unit source hashes match; accepted current-source evidence remains `35/35 PASS` |
+| Full `AureusTests` | `NOT RUN — INHERITED` | Exact Domain/Feature/Unit source hashes match; accepted evidence remains `289` definitions / `322` executions PASS |
+| Performance | `NOT RUN — INHERITED` | Foundation and presentation performance sources remain byte-identical |
+| Clean Debug arm64 Build | `PASS` | shell exit `0`; status `succeeded`; errors `0`; four pre-existing PortfolioView deprecation warnings; complete parseable result |
+| Fresh signed arm64 BFT | `PASS` | shell exit `0`; status `succeeded`; errors `0`; four pre-existing warnings; App, Runner, UI Test, and xctestrun came from one build |
+| Goals focused — initial | `RUNNER/AUTOMATION BOOTSTRAP FAILURE` | shell exit `65`; runner timed out while enabling automation; business definitions/executions `0/0`; no assertion failure |
+| Goals focused — infrastructure retry | `BUSINESS ASSERTION FAILURE` | `1/1` definition/execution; `0` passed, `1` failed, `0` skipped; Header and CRUD passed; later failure at `goals.chart.trajectory`, line 1819 |
+| Existing focused regression | `NOT RUN` | Ordered prerequisite Goals focused `1/1 PASS` was not met |
+| Full `AureusUITests` | `NOT RUN` | Ordered prerequisite Existing focused `8/8 PASS` was not met |
+
+### Runtime boundary
+
+The current Synthetic execution formally established one `goals.page` with the exact page label, one `goals.mode.synthetic` with the exact Synthetic label, zero `goals.mode.production`, and one exact local-only disclosure node. It also passed the existing Goal load/create/update/reconstruction/delete/reconstruction flow before reaching Trajectory. Production mode, USD typed-unavailable, later report sections, Production isolation, and Provider-zero runtime assertions were not reached in this execution and remain `NOT VERIFIED`; static or inherited evidence does not replace them.
+
+### Provider and data status
+
+Provider requests are `NOT RUN`. Twelve Data and Frankfurter live operations, Provider transport attempts, Credential reads, Keychain metadata reads, Market Cache mutations, and planning-assumption persistence writes are `0`. Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`. Dashboard Goals integration is `NOT AUTHORIZED / NOT RUN`, and Stages 11–14 remain `NO-GO`.
+
+### Current candidate
+
+**Stage 10-GOALS-HEADER-AX-01 PARTIAL — Awaiting Reviewer Gate**
