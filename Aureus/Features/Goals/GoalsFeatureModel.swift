@@ -9,6 +9,73 @@ enum GoalsTerminalState: String, Equatable, Sendable {
     case failed
 }
 
+enum GoalsSessionInputError: Error, Equatable, Sendable {
+    case monthlyContributionRequired
+    case invalidMonthlyContribution
+    case expectedAnnualReturnRequired
+    case invalidExpectedAnnualReturn
+    case annualSpendingRequired
+    case invalidAnnualSpending
+    case withdrawalRateRequired
+    case invalidWithdrawalRate
+    case invalidSavingStartDate
+    case invalidSavingEndDate
+    case invalidAsOfDate
+    case invalidSavingRateRange
+
+    var message: String {
+        switch self {
+        case .monthlyContributionRequired:
+            "Enter a monthly contribution in CNY."
+        case .invalidMonthlyContribution:
+            "Monthly contribution must be a canonical amount greater than or equal to zero."
+        case .expectedAnnualReturnRequired:
+            "Enter an expected annual return percentage."
+        case .invalidExpectedAnnualReturn:
+            "Expected annual return must be a canonical percentage greater than -100%."
+        case .annualSpendingRequired:
+            "Enter annual spending in CNY."
+        case .invalidAnnualSpending:
+            "Annual spending must be a canonical amount greater than zero."
+        case .withdrawalRateRequired:
+            "Enter a withdrawal-rate percentage; no rate is preselected."
+        case .invalidWithdrawalRate:
+            "Withdrawal rate must be a canonical percentage greater than 0% and no more than 100%."
+        case .invalidSavingStartDate:
+            "Saving Rate start date must use canonical YYYY-MM-DD format."
+        case .invalidSavingEndDate:
+            "Saving Rate end date must use canonical YYYY-MM-DD format."
+        case .invalidAsOfDate:
+            "As-of date must use canonical YYYY-MM-DD format."
+        case .invalidSavingRateRange:
+            "Saving Rate start date must not be later than the end date."
+        }
+    }
+}
+
+struct GoalsSessionDraft: Equatable, Sendable {
+    var monthlyContribution = ""
+    var expectedAnnualReturnPercent = ""
+    var annualSpending = ""
+    var withdrawalRatePercent = ""
+    var savingRateStartDate: String
+    var savingRateEndDate: String
+    var asOfDate: String
+
+    init(date: CivilDate) {
+        savingRateStartDate = date.description
+        savingRateEndDate = date.description
+        asOfDate = date.description
+    }
+}
+
+struct GoalTrajectoryPresentationPoint: Identifiable, Equatable, Sendable {
+    let monthIndex: Int
+    let projectedValueCNY: Money
+
+    var id: Int { monthIndex }
+}
+
 struct GoalsCalculationReport: Equatable, Sendable {
     let goal: Goal
     let currentNetWorthCNY: Money
@@ -22,10 +89,11 @@ struct GoalsCalculationReport: Equatable, Sendable {
     let withdrawalRate: Ratio
     let savingRateRange: SavingRateRange
     let asOfDate: CivilDate
+    let presentationTrajectory: [GoalTrajectoryPresentationPoint]
 }
 
-/// Local-only Stage 10 foundation model. It is intentionally not wired into
-/// AppShell and never calculates until `calculate()` is called explicitly.
+/// Local-only Stage 10 model. It never calculates until `calculate()` is
+/// called explicitly and keeps all planning assumptions in this View session.
 @MainActor
 @Observable
 final class GoalsFeatureModel {
@@ -42,7 +110,18 @@ final class GoalsFeatureModel {
     private(set) var currentNetWorthCNY = Money(minorUnits: 0, currency: .cny)
     private(set) var report: GoalsCalculationReport?
     private(set) var errorMessage: String?
+    private(set) var inputError: GoalsSessionInputError?
+    private(set) var inputErrorMessage: String?
     private(set) var calculationCount = 0
+
+    var sessionDraft: GoalsSessionDraft {
+        didSet {
+            guard oldValue != sessionDraft else { return }
+            inputError = nil
+            inputErrorMessage = nil
+            invalidateForInputOrSourceChange()
+        }
+    }
 
     var monthlyContributionCNY = Money(minorUnits: 0, currency: .cny) {
         didSet { if oldValue != monthlyContributionCNY { invalidateForInputOrSourceChange() } }
@@ -70,11 +149,17 @@ final class GoalsFeatureModel {
     private var generation = UUID()
     private var hasLoaded = false
     private var isApplyingSourceUpdate = false
+    private var isApplyingSessionInput = false
 
     init(store: WealthStore, asOfDate: CivilDate) {
         self.store = store
         self.asOfDate = asOfDate
         self.savingRateRange = try! SavingRateRange(start: asOfDate, end: asOfDate)
+        self.sessionDraft = GoalsSessionDraft(date: asOfDate)
+    }
+
+    convenience init(store: WealthStore, clock: any Clock) {
+        self.init(store: store, asOfDate: Self.civilDate(from: clock.now()))
     }
 
     var selectedGoal: Goal? {
@@ -158,6 +243,8 @@ final class GoalsFeatureModel {
         generation = operationGeneration
         report = nil
         errorMessage = nil
+        inputError = nil
+        inputErrorMessage = nil
         state = .calculating
 
         let currentNetWorth = currentNetWorthCNY
@@ -193,6 +280,12 @@ final class GoalsFeatureModel {
                         expectedAnnualReturn: annualReturn
                     ))
                     let saving = try GoalPlanning.savingRate(entries: ledger, range: range)
+                    let presentationTrajectory = try GoalsPresentationTrajectory.make(
+                        trajectory: trajectory,
+                        currentNetWorthCNY: currentNetWorth,
+                        monthlyContributionCNY: contribution,
+                        expectedAnnualReturn: annualReturn
+                    )
                     return GoalsCalculationReport(
                         goal: goal,
                         currentNetWorthCNY: currentNetWorth,
@@ -205,7 +298,8 @@ final class GoalsFeatureModel {
                         annualSpendingCNY: spending,
                         withdrawalRate: rate,
                         savingRateRange: range,
-                        asOfDate: asOf
+                        asOfDate: asOf,
+                        presentationTrajectory: presentationTrajectory
                     )
                 }.value
                 try Task.checkCancellation()
@@ -242,6 +336,101 @@ final class GoalsFeatureModel {
         report = nil
         state = hasLoaded ? .ready : .idle
         errorMessage = nil
+        inputError = nil
+        inputErrorMessage = nil
+    }
+
+    @discardableResult
+    func applySessionDraft() -> Bool {
+        do {
+            let contribution = try Self.money(
+                sessionDraft.monthlyContribution,
+                required: .monthlyContributionRequired,
+                invalid: .invalidMonthlyContribution
+            )
+            guard contribution.minorUnits >= 0 else {
+                throw GoalsSessionInputError.invalidMonthlyContribution
+            }
+
+            let expectedPercent = try Self.decimal(
+                sessionDraft.expectedAnnualReturnPercent,
+                required: .expectedAnnualReturnRequired,
+                invalid: .invalidExpectedAnnualReturn
+            )
+            guard expectedPercent > -100 else {
+                throw GoalsSessionInputError.invalidExpectedAnnualReturn
+            }
+            let expectedReturn: Ratio
+            do { expectedReturn = try Ratio(decimal: expectedPercent / Decimal(100)) }
+            catch { throw GoalsSessionInputError.invalidExpectedAnnualReturn }
+
+            let spending = try Self.money(
+                sessionDraft.annualSpending,
+                required: .annualSpendingRequired,
+                invalid: .invalidAnnualSpending
+            )
+            guard spending.minorUnits > 0 else {
+                throw GoalsSessionInputError.invalidAnnualSpending
+            }
+
+            let withdrawalPercent = try Self.decimal(
+                sessionDraft.withdrawalRatePercent,
+                required: .withdrawalRateRequired,
+                invalid: .invalidWithdrawalRate
+            )
+            guard withdrawalPercent > 0, withdrawalPercent <= 100 else {
+                throw GoalsSessionInputError.invalidWithdrawalRate
+            }
+            let rate: Ratio
+            do { rate = try Ratio(decimal: withdrawalPercent / Decimal(100)) }
+            catch { throw GoalsSessionInputError.invalidWithdrawalRate }
+
+            let start = try Self.date(
+                sessionDraft.savingRateStartDate,
+                error: .invalidSavingStartDate
+            )
+            let end = try Self.date(
+                sessionDraft.savingRateEndDate,
+                error: .invalidSavingEndDate
+            )
+            let asOf = try Self.date(sessionDraft.asOfDate, error: .invalidAsOfDate)
+            let range: SavingRateRange
+            do { range = try SavingRateRange(start: start, end: end) }
+            catch { throw GoalsSessionInputError.invalidSavingRateRange }
+
+            isApplyingSessionInput = true
+            monthlyContributionCNY = contribution
+            expectedAnnualReturn = expectedReturn
+            annualSpendingCNY = spending
+            withdrawalRate = rate
+            savingRateRange = range
+            asOfDate = asOf
+            isApplyingSessionInput = false
+            inputError = nil
+            inputErrorMessage = nil
+            invalidateForInputOrSourceChange()
+            return true
+        } catch let error as GoalsSessionInputError {
+            isApplyingSessionInput = false
+            calculationTask?.cancel()
+            generation = UUID()
+            report = nil
+            errorMessage = nil
+            inputError = error
+            inputErrorMessage = error.message
+            state = hasLoaded ? .ready : .idle
+            return false
+        } catch {
+            isApplyingSessionInput = false
+            calculationTask?.cancel()
+            generation = UUID()
+            report = nil
+            errorMessage = nil
+            inputError = nil
+            inputErrorMessage = "Planning assumptions could not be parsed without changing confirmed inputs."
+            state = hasLoaded ? .ready : .idle
+            return false
+        }
     }
 
     private func reloadAfterMutation(selecting id: UUID?) async {
@@ -255,11 +444,85 @@ final class GoalsFeatureModel {
     }
 
     private func invalidateForInputOrSourceChange() {
-        guard !isApplyingSourceUpdate else { return }
+        guard !isApplyingSourceUpdate, !isApplyingSessionInput else { return }
         calculationTask?.cancel()
         generation = UUID()
         report = nil
         errorMessage = nil
         state = hasLoaded ? .ready : .idle
+    }
+
+    private static func money(
+        _ text: String,
+        required: GoalsSessionInputError,
+        invalid: GoalsSessionInputError
+    ) throws -> Money {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { throw required }
+        do {
+            return try Money(
+                decimal: FixedPointMath.parseCanonical(normalized),
+                currency: .cny
+            )
+        } catch {
+            throw invalid
+        }
+    }
+
+    private static func decimal(
+        _ text: String,
+        required: GoalsSessionInputError,
+        invalid: GoalsSessionInputError
+    ) throws -> Decimal {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { throw required }
+        do { return try FixedPointMath.parseCanonical(normalized) }
+        catch { throw invalid }
+    }
+
+    private static func date(
+        _ text: String,
+        error inputError: GoalsSessionInputError
+    ) throws -> CivilDate {
+        do { return try CivilDate(canonical: text) }
+        catch { throw inputError }
+    }
+
+    private static func civilDate(from instant: UTCInstant) -> CivilDate {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let components = calendar.dateComponents([.year, .month, .day], from: instant.date)
+        return try! CivilDate(
+            year: components.year!,
+            month: components.month!,
+            day: components.day!
+        )
+    }
+}
+
+private enum GoalsPresentationTrajectory {
+    static func make(
+        trajectory: GoalTrajectoryResult,
+        currentNetWorthCNY: Money,
+        monthlyContributionCNY: Money,
+        expectedAnnualReturn: Ratio
+    ) throws -> [GoalTrajectoryPresentationPoint] {
+        guard case let .available(available) = trajectory else { return [] }
+        var points: [GoalTrajectoryPresentationPoint] = []
+        points.reserveCapacity(available.targetMonthCount + 1)
+        for month in 0...available.targetMonthCount {
+            try Task.checkCancellation()
+            let scenario = try GoalPlanning.compound(CompoundPlanningInput(
+                initialCapitalCNY: currentNetWorthCNY,
+                monthlyContributionCNY: monthlyContributionCNY,
+                expectedAnnualReturn: expectedAnnualReturn,
+                months: month
+            ))
+            points.append(GoalTrajectoryPresentationPoint(
+                monthIndex: month,
+                projectedValueCNY: scenario.futureValueCNY
+            ))
+        }
+        return points
     }
 }

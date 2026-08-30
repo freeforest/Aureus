@@ -53,11 +53,18 @@ final class AureusUITests: XCTestCase {
                 else if destination == "portfolio" { expectedIdentifier = "portfolio.page" }
                 else if destination == "settings" { expectedIdentifier = "settings.content" }
                 else if destination == "analytics" { expectedIdentifier = "analytics.page" }
+                else if destination == "goals" { expectedIdentifier = "goals.page" }
                 else { expectedIdentifier = "destination.\(destination)" }
                 XCTAssertTrue(
                     app.descendants(matching: .any)[expectedIdentifier].waitForExistence(timeout: 5),
                     "Missing destination content for \(destination)"
                 )
+                if destination == "goals" {
+                    XCTAssertTrue(
+                        app.descendants(matching: .any)["goals.empty"].waitForExistence(timeout: 5),
+                        "Production Goals destination did not expose its honest empty state"
+                    )
+                }
             }
         }
         app.descendants(matching: .any)["sidebar.wealth"].click()
@@ -752,6 +759,276 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    func testStage10GoalsSyntheticCRUDPlanningAccessibilityAndIsolation() throws {
+        let cnyGoalIdentifier = "goals.goal.00000000-0000-4000-8000-000000010001"
+        let usdGoalIdentifier = "goals.goal.00000000-0000-4000-8000-000000010002"
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+
+        app.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["goals.mode.synthetic"].waitForExistence(timeout: 5))
+        let disclosure = app.descendants(matching: .any)["goals.disclosure.local-only"]
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+        XCTAssertTrue(disclosure.label.contains("no Provider"))
+        XCTAssertTrue(waitForGoalsStatus(in: app, equals: "Goals status: Ready", timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)[cnyGoalIdentifier].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)[usdGoalIdentifier].waitForExistence(timeout: 5))
+        let initialGoalIdentifiers = goalRowIdentifiers(in: app)
+        XCTAssertEqual(initialGoalIdentifiers.count, 2)
+        XCTAssertTrue(waitForGoalsSection(in: app, equals: "Overview", timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["goals.navigation.previous"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["goals.navigation.next"].isEnabled)
+        XCTAssertTrue(app.descendants(matching: .any)["goals.not-calculated"].exists)
+
+        app.descendants(matching: .any)["goals.add"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.editor.name"].waitForExistence(timeout: 5))
+        replaceText(in: app.descendants(matching: .any)["goals.editor.name"], with: "Synthetic UI Goal")
+        replaceText(in: app.descendants(matching: .any)["goals.editor.target"], with: "250000")
+        app.descendants(matching: .any)["goals.editor.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["goals.editor.save"], timeout: 5))
+        XCTAssertTrue(waitForGoalRowCount(3, in: app, timeout: 8))
+        let identifiersAfterCreate = goalRowIdentifiers(in: app)
+        let createdIdentifiers = identifiersAfterCreate.subtracting(initialGoalIdentifiers)
+        XCTAssertEqual(createdIdentifiers.count, 1)
+        let createdIdentifier = try XCTUnwrap(createdIdentifiers.first)
+        XCTAssertTrue(waitForGoalsLabel(
+            in: app,
+            identifier: createdIdentifier,
+            containing: "Synthetic UI Goal",
+            timeout: 5
+        ))
+
+        app.descendants(matching: .any)[createdIdentifier].click()
+        app.descendants(matching: .any)["goals.edit"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.editor.name"].waitForExistence(timeout: 5))
+        replaceText(
+            in: app.descendants(matching: .any)["goals.editor.name"],
+            with: "Synthetic UI Goal Updated"
+        )
+        replaceText(in: app.descendants(matching: .any)["goals.editor.target"], with: "275000")
+        app.descendants(matching: .any)["goals.editor.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["goals.editor.save"], timeout: 5))
+        XCTAssertTrue(waitForGoalsLabel(
+            in: app,
+            identifier: createdIdentifier,
+            containing: "Synthetic UI Goal Updated",
+            timeout: 8
+        ))
+
+        reopenGoalsFromDashboard(in: app)
+        XCTAssertTrue(app.descendants(matching: .any)[createdIdentifier].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForGoalsLabel(
+            in: app,
+            identifier: createdIdentifier,
+            containing: "Synthetic UI Goal Updated",
+            timeout: 5
+        ))
+        app.descendants(matching: .any)[createdIdentifier].click()
+        app.descendants(matching: .any)["goals.delete"].click()
+        let confirmDelete = app.descendants(matching: .any)["goals.delete.confirm"]
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
+        confirmDelete.click()
+        XCTAssertTrue(waitForNonexistence(confirmDelete, timeout: 5))
+        XCTAssertTrue(waitForGoalRowCount(2, in: app, timeout: 8))
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)[createdIdentifier], timeout: 5))
+
+        reopenGoalsFromDashboard(in: app)
+        XCTAssertTrue(waitForGoalRowCount(2, in: app, timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)[createdIdentifier].exists)
+        XCTAssertEqual(goalRowIdentifiers(in: app), initialGoalIdentifiers)
+
+        app.descendants(matching: .any)[cnyGoalIdentifier].click()
+        replaceText(
+            in: app.descendants(matching: .any)["goals.input.monthly-contribution"],
+            with: "2000"
+        )
+        replaceText(
+            in: app.descendants(matching: .any)["goals.input.expected-return"],
+            with: "5"
+        )
+        replaceText(
+            in: app.descendants(matching: .any)["goals.input.annual-spending"],
+            with: "120000"
+        )
+        replaceText(
+            in: app.descendants(matching: .any)["goals.input.withdrawal-rate"],
+            with: "4"
+        )
+        replaceText(
+            in: app.descendants(matching: .any)["goals.input.saving-start"],
+            with: "2026-01-01"
+        )
+        replaceText(
+            in: app.descendants(matching: .any)["goals.input.saving-end"],
+            with: "2026-01-31"
+        )
+        replaceText(
+            in: app.descendants(matching: .any)["goals.input.as-of"],
+            with: "2026-01-15"
+        )
+        XCTAssertTrue(waitForGoalsStatus(in: app, equals: "Goals status: Ready", timeout: 5))
+        app.descendants(matching: .any)["goals.calculate"].click()
+        XCTAssertTrue(waitForGoalsStatus(in: app, equals: "Goals status: Calculated", timeout: 15))
+        XCTAssertTrue(waitForGoalsSection(in: app, equals: "Overview", timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["goals.navigation.previous"].isEnabled)
+        XCTAssertTrue(app.descendants(matching: .any)["goals.navigation.next"].isEnabled)
+        assertGoalsElement(
+            in: app,
+            identifier: "goals.overview.heading",
+            labelSatisfies: { $0 == "Goals report overview" }
+        )
+        assertGoalsElement(
+            in: app,
+            identifier: "goals.overview.goal",
+            labelSatisfies: { $0.contains("Synthetic Freedom Goal") && $0.contains("CNY 500,000.00") }
+        )
+        assertGoalsElement(
+            in: app,
+            identifier: "goals.overview.net-worth",
+            labelSatisfies: { $0.contains("CNY 150,672.06") }
+        )
+        assertGoalsElement(
+            in: app,
+            identifier: "goals.progress.summary",
+            labelSatisfies: { $0.contains("Goal progress") && $0.contains("remaining") }
+        )
+
+        advanceGoalsSection(in: app, to: "Trajectory", anchorIdentifier: "goals.trajectory.heading")
+        assertGoalsElement(in: app, identifier: "goals.chart.trajectory") { !$0.isEmpty }
+        assertGoalsElement(in: app, identifier: "goals.trajectory.summary") {
+            $0.contains("points") && $0.contains("2035-12-31") && $0.contains("CNY")
+        }
+        let trajectoryRows = goalsTableRowCount(
+            in: app,
+            identifier: "goals.trajectory.table",
+            prefix: "Trajectory table:"
+        )
+        XCTAssertGreaterThan(trajectoryRows, 0)
+        XCTAssertEqual(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "goals.trajectory.row."))
+                .count,
+            trajectoryRows
+        )
+        assertGoalsElement(in: app, identifier: "goals.trajectory.row.0") {
+            $0.contains("Month 0") && $0.contains("projected CNY")
+        }
+        assertGoalsElement(in: app, identifier: "goals.trajectory.disclosure") {
+            $0.contains("not a prediction") && $0.contains("recommendation")
+        }
+
+        advanceGoalsSection(in: app, to: "FIRE", anchorIdentifier: "goals.fire.heading")
+        assertGoalsElement(in: app, identifier: "goals.fire.summary") {
+            $0.contains("annual spending")
+                && $0.contains("user-supplied withdrawal rate 4%")
+                && $0.contains("FIRE Number")
+        }
+        assertGoalsElement(in: app, identifier: "goals.fire.reach") { $0.contains("Estimated reach") }
+        assertGoalsElement(in: app, identifier: "goals.fire.disclosure") {
+            $0.contains("no withdrawal rate") && $0.contains("preselected")
+        }
+
+        advanceGoalsSection(in: app, to: "Saving Rate", anchorIdentifier: "goals.saving-rate.heading")
+        assertGoalsElement(in: app, identifier: "goals.chart.saving-rate") { !$0.isEmpty }
+        assertGoalsElement(in: app, identifier: "goals.saving-rate.summary") {
+            $0.contains("CNY 5,000.00")
+                && $0.contains("CNY 800.00")
+                && $0.contains("CNY 4,200.00")
+                && $0.contains("aggregate rate 84%")
+                && $0.contains("1 observed months")
+        }
+        let savingRows = goalsTableRowCount(
+            in: app,
+            identifier: "goals.saving-rate.table",
+            prefix: "Saving Rate table:"
+        )
+        XCTAssertEqual(savingRows, 1)
+        XCTAssertEqual(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "goals.saving-rate.row."))
+                .count,
+            savingRows
+        )
+        assertGoalsElement(in: app, identifier: "goals.saving-rate.row.2026-01") {
+            $0.contains("income CNY 5,000.00")
+                && $0.contains("expense CNY 800.00")
+                && $0.contains("savings CNY 4,200.00")
+                && $0.contains("rate 84%")
+        }
+        assertGoalsElement(in: app, identifier: "goals.saving-rate.disclosure") {
+            $0.contains("transfers") && $0.contains("Stored converted-CNY provenance")
+        }
+
+        advanceGoalsSection(
+            in: app,
+            to: "Calculation Evidence",
+            anchorIdentifier: "goals.evidence.heading"
+        )
+        assertGoalsElement(in: app, identifier: "goals.evidence") {
+            $0.contains("no Provider request")
+                && $0.contains("no automatic FX")
+                && $0.contains("not predictions")
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["goals.navigation.previous"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["goals.navigation.next"].isEnabled)
+
+        app.descendants(matching: .any)[usdGoalIdentifier].click()
+        XCTAssertTrue(waitForGoalsStatus(in: app, equals: "Goals status: Ready", timeout: 5))
+        XCTAssertTrue(waitForGoalsSection(in: app, equals: "Overview", timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["goals.navigation.previous"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["goals.navigation.next"].isEnabled)
+        app.descendants(matching: .any)["goals.calculate"].click()
+        XCTAssertTrue(waitForGoalsStatus(in: app, equals: "Goals status: Calculated", timeout: 15))
+        assertGoalsElement(in: app, identifier: "goals.overview.goal") {
+            $0.contains("Synthetic USD Education Goal") && $0.contains("USD 100,000.00")
+        }
+        assertGoalsElement(in: app, identifier: "goals.progress.unavailable") {
+            $0.contains("target currency unsupported for CNY progress") && !$0.contains("0%")
+        }
+        advanceGoalsSection(in: app, to: "Trajectory", anchorIdentifier: "goals.trajectory.heading")
+        assertGoalsElement(in: app, identifier: "goals.trajectory.unavailable") {
+            $0.contains("target currency unsupported for CNY progress")
+        }
+        XCTAssertFalse(app.descendants(matching: .any)["goals.chart.trajectory"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["goals.trajectory.table"].exists)
+        XCTAssertEqual(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "goals.trajectory.row."))
+                .count,
+            0
+        )
+
+        app.terminate()
+        let production = XCUIApplication()
+        production.launchArguments = uiTestingArguments()
+        launchApp(production)
+        production.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
+        XCTAssertTrue(production.descendants(matching: .any)["goals.mode.production"].waitForExistence(timeout: 5))
+        XCTAssertTrue(production.descendants(matching: .any)["goals.empty"].waitForExistence(timeout: 8))
+        XCTAssertFalse(production.descendants(matching: .any)[cnyGoalIdentifier].exists)
+        XCTAssertFalse(production.descendants(matching: .any)[usdGoalIdentifier].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["goals.overview.heading"].exists)
+        XCTAssertTrue(waitForGoalsSection(in: production, equals: "Overview", timeout: 5))
+        XCTAssertFalse(production.descendants(matching: .any)["goals.navigation.previous"].isEnabled)
+        XCTAssertFalse(production.descendants(matching: .any)["goals.navigation.next"].isEnabled)
+        for identifier in [
+            "goals.input.monthly-contribution",
+            "goals.input.expected-return",
+            "goals.input.annual-spending",
+            "goals.input.withdrawal-rate"
+        ] {
+            XCTAssertTrue(goalsFieldIsBlank(production.descendants(matching: .any)[identifier]))
+        }
+        let productionDisclosure = production.descendants(matching: .any)["goals.disclosure.local-only"]
+        XCTAssertTrue(productionDisclosure.exists)
+        XCTAssertTrue(productionDisclosure.label.contains("no Provider"))
+        production.terminate()
+    }
+
+    @MainActor
     func testDashboardEmptyStoreDoesNotFabricateSnapshot() throws {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments()
@@ -1346,6 +1623,169 @@ final class AureusUITests: XCTestCase {
             ),
             "Picker \(identifier) did not select \(title)"
         )
+    }
+
+    @MainActor
+    private func waitForGoalRowCount(
+        _ expected: Int,
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                self.goalRowIdentifiers(in: app).count == expected
+            },
+            object: app
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func goalRowIdentifiers(in app: XCUIApplication) -> Set<String> {
+        Set(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "goals.goal."))
+                .allElementsBoundByAccessibilityElement
+                .map(\.identifier)
+        )
+    }
+
+    @MainActor
+    private func waitForGoalsStatus(
+        in app: XCUIApplication,
+        equals expected: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        waitForGoalsLabel(
+            in: app,
+            identifier: "goals.status",
+            equals: expected,
+            timeout: timeout
+        )
+    }
+
+    @MainActor
+    private func waitForGoalsSection(
+        in app: XCUIApplication,
+        equals section: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        waitForGoalsLabel(
+            in: app,
+            identifier: "goals.navigation.current",
+            equals: "Goals report section: \(section)",
+            timeout: timeout
+        )
+    }
+
+    @MainActor
+    private func waitForGoalsLabel(
+        in app: XCUIApplication,
+        identifier: String,
+        equals expected: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                let current = app.descendants(matching: .any)[identifier]
+                return current.exists && current.label == expected
+            },
+            object: app
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func waitForGoalsLabel(
+        in app: XCUIApplication,
+        identifier: String,
+        containing expected: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                let current = app.descendants(matching: .any)[identifier]
+                return current.exists && current.label.contains(expected)
+            },
+            object: app
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func reopenGoalsFromDashboard(in app: XCUIApplication) {
+        XCTAssertTrue(app.descendants(matching: .any)["sidebar.dashboard"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["sidebar.goals"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForGoalsStatus(in: app, equals: "Goals status: Ready", timeout: 8))
+    }
+
+    @MainActor
+    private func advanceGoalsSection(
+        in app: XCUIApplication,
+        to section: String,
+        anchorIdentifier: String
+    ) {
+        let next = app.descendants(matching: .any)["goals.navigation.next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 5))
+        XCTAssertTrue(next.isEnabled)
+        app.descendants(matching: .any)["goals.navigation.next"].click()
+        XCTAssertTrue(waitForGoalsSection(in: app, equals: section, timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)[anchorIdentifier].waitForExistence(timeout: 5),
+            "Missing Goals section anchor \(anchorIdentifier)"
+        )
+    }
+
+    @MainActor
+    private func assertGoalsElement(
+        in app: XCUIApplication,
+        identifier: String,
+        labelSatisfies: (String) -> Bool
+    ) {
+        let matches = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", identifier))
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in matches.count == 1 && matches.firstMatch.exists },
+            object: app
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+        XCTAssertEqual(matches.count, 1, "GOALS_ELEMENT_COUNT_MISMATCH: \(identifier)")
+        XCTAssertTrue(
+            labelSatisfies(matches.firstMatch.label),
+            "GOALS_ELEMENT_LABEL_MISMATCH: \(identifier)"
+        )
+    }
+
+    @MainActor
+    private func goalsTableRowCount(
+        in app: XCUIApplication,
+        identifier: String,
+        prefix: String
+    ) -> Int {
+        let table = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(table.waitForExistence(timeout: 5))
+        XCTAssertTrue(table.label.hasPrefix(prefix))
+        let pieces = table.label.split(separator: " ")
+        guard pieces.count >= 2,
+              pieces.last == "rows",
+              let count = Int(pieces[pieces.count - 2]) else {
+            XCTFail("GOALS_TABLE_SUMMARY_NOT_PARSEABLE: \(identifier)")
+            return -1
+        }
+        return count
+    }
+
+    @MainActor
+    private func goalsFieldIsBlank(_ field: XCUIElement) -> Bool {
+        guard field.waitForExistence(timeout: 5) else { return false }
+        let value = String(describing: field.value ?? "")
+        return value.isEmpty || [
+            "Monthly CNY", "Annual return %", "Annual spending", "Withdrawal %"
+        ].contains(value)
     }
 
     @MainActor

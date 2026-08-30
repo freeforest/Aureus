@@ -2,9 +2,11 @@
 
 ## Status
 
-**Stage 10 Goals Foundation Candidate — Awaiting Reviewer Gate**
+**Stage 10-GOALS-UI-01 PARTIAL — Awaiting Reviewer Gate**
 
-The independent Reviewer recorded Stage 9 as `PASS` and authorized only this no-UI Stage 10 foundation. This document records Executor implementation and verification evidence; it does not declare Stage 10 `PASS`, V1 Ready, Release Ready, or entry to Stages 11–14.
+The independent Reviewer recorded Stage 9 and the Stage 10 Goals Foundation Gate as `PASS`, then authorized the Native Goals Terminal evidence round. This document preserves the accepted Foundation evidence and appends the current UI implementation and verification evidence; it does not declare Stage 10 `PASS`, V1 Ready, Release Ready, or entry to Stages 11–14.
+
+Historical Executor status before that review: **Stage 10 Goals Foundation Candidate — Awaiting Reviewer Gate**.
 
 ## Scope
 
@@ -107,4 +109,51 @@ Provider requests are `NOT RUN`. Twelve Data operations, Frankfurter live operat
 
 ## Current candidate
 
-**Stage 10 Goals Foundation Candidate — Awaiting Reviewer Gate**
+The Foundation result above remains accepted historical evidence. The current repository status is recorded in the following independent UI-round section.
+
+## Stage 10-GOALS-UI-01 — Native Goals Terminal
+
+### Current status
+
+**Stage 10-GOALS-UI-01 PARTIAL — Awaiting Reviewer Gate**
+
+The Native Goals Terminal implementation, focused/full Unit suites, Clean Debug arm64 Build, and fresh signed build-for-testing all completed. The Goals focused UI entered the business method twice under the one authorized business-repair budget, but both executions failed at `AureusUITests.swift:771`: `goals.page` was exposed while `goals.mode.synthetic` did not become independently queryable. The final focused UI is therefore `0/1`; Existing focused `8/8` and full UI `14/14` are `NOT RUN` by their ordered prerequisites.
+
+### Implemented boundary
+
+- `GoalsView` is injected only with `WealthStore`, `Clock`, and `AppDataMode`; no Provider, Credential, Keychain, or Market Cache dependency is added.
+- Synthetic Demo mode seeds two fixed validated Goals idempotently through `WealthStore.createGoal`: `Synthetic Freedom Goal` in CNY and `Synthetic USD Education Goal` in USD. Production does not call the seeder.
+- The native terminal provides Goal list selection, add/edit sheets, confirmed deletion, an explicit session-input command, Calculate/Cancel, and five finite report sections: Overview, Trajectory, FIRE, Saving Rate, and Calculation Evidence.
+- Trajectory and Saving Rate use native Swift Charts plus independent self-contained summary and table siblings. Row identifiers are derived from real presentation points or observed months; unavailable USD trajectory renders no fake chart, table, or row.
+- Session financial inputs start blank. Percentages and amounts are parsed with checked Decimal/fixed-point authority, applied atomically only after every field validates, remain session-only, clear stale reports, and never auto-calculate. No withdrawal rate is defaulted or recommended.
+- Presentation trajectories call the accepted `GoalPlanning.compound` engine for each bounded point, use at most 1,201 points, support cancellation/generation isolation, and do not create a second financial formula.
+
+### Current verification evidence
+
+Final-source evidence is rooted at `/private/tmp/Aureus-Stage10-GOALS-UI-01-gtvA2E`.
+
+| Verification | Result | Current evidence |
+|---|---|---|
+| Focused Goal Unit | `PASS` | `35` definitions / `35` executions; `35` passed, `0` failed, `0` skipped; summary/tests parser exits `0/0` |
+| Full `AureusTests` | `PASS` | `289` canonical definitions / `322` dynamic executions; `0` failed, `0` skipped; summary/tests parser exits `0/0` |
+| Foundation performance | `PASS` | Release workload ran inside both final Unit gates; presentation workload also generated the maximum `1,201` points deterministically and read-only, below 10 seconds |
+| Clean Debug arm64 Build | `PASS` | shell exit `0`; status `succeeded`; errors `0`; four pre-existing `PortfolioView` deprecation warnings |
+| Fresh signed arm64 BFT | `PASS` | shell exit `0`; `TEST BUILD SUCCEEDED`; errors `0`; App, Runner, UI Test, and xctestrun came from the same build |
+| Goals focused UI — initial | `BUSINESS ASSERTION FAILURE` | `1/1` definition/execution; `0` passed, `1` failed, `0` skipped; `goals.page` passed, then `goals.mode.synthetic` was not queryable at line 771 |
+| Goals focused UI — final | `BUSINESS ASSERTION FAILURE` | authorized direct AX repair applied and all Unit/Build gates rerun; final `1/1` definition/execution remained `0/1/0` at the same line/identifier |
+| Existing focused regression | `NOT RUN` | Requires current Goals focused UI `1/1 PASS` |
+| Full `AureusUITests` | `NOT RUN` | Requires current Existing focused `8/8 PASS` |
+
+The initial mode implementation attached a ternary identifier to the title Text. The single authorized direct repair replaced it with symmetric, visible Synthetic and Production Text nodes using static identifiers. Static uniqueness, build, and Unit checks passed, but the final runtime query still did not expose the Synthetic mode node. No third Goals business execution is authorized; this remains the current evidence blocker rather than a calculation, persistence, Provider, or automation-bootstrap failure.
+
+### Runtime contracts not reached
+
+Because the focused test stopped at the mode AX assertion, current-source runtime evidence for Goal CRUD/reconstruction/deletion, explicit CNY calculation, Overview, Trajectory, FIRE, Saving Rate `84%`, Calculation Evidence, USD typed-unavailable behavior, and Production isolation is `NOT VERIFIED` in this round. Their source and Unit contracts do not substitute for the missing UI Gate.
+
+### Provider and data status
+
+Provider requests are `NOT RUN`; Twelve Data and Frankfurter live operations, Provider transport attempts, Credential reads, Keychain metadata reads, Market Cache mutations, and planning-assumption persistence writes are `0`. Twelve Data persistent writes remain `Disabled`, retention remains `BLOCKED`, Dashboard Goals integration is `NOT AUTHORIZED / NOT RUN`, and Stages 11–14 remain `NO-GO`.
+
+### Current candidate
+
+**Stage 10-GOALS-UI-01 PARTIAL — Awaiting Reviewer Gate**
