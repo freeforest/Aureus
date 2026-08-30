@@ -468,7 +468,7 @@ struct GoalsView: View {
                 identifier: "goals.evidence.heading"
             )
             accessibleText(
-                "Evidence: local permanent Goals, Wealth, and Ledger records only; planning assumptions are session-only; no Provider request, Market Cache, Credential, Keychain, or automatic FX was used; planning assumptions were not persisted; scenarios are not predictions, guarantees, or recommendations.",
+                "Calculation evidence: local permanent Goals, Wealth, and Ledger records only. Planning assumptions are session-only. No Provider request was made. No Market Cache, Credential, or Keychain data was read. No automatic FX conversion was performed. Planning assumptions were not persisted. Scenarios are not predictions, guarantees, or recommendations.",
                 identifier: "goals.evidence"
             )
         }

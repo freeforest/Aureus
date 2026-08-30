@@ -4,6 +4,64 @@
 
 **Stage 10-GOALS-CHART-AX-01 PARTIAL — Awaiting Reviewer Gate**
 
+## Stage 10-GOALS-EVIDENCE-CONTRACT-01 — Calculation Evidence Disclosure
+
+### Current status
+
+**Stage 10-GOALS-EVIDENCE-CONTRACT-01 PARTIAL — Awaiting Reviewer Gate**
+
+The authorized Calculation Evidence text-contract repair is complete. The visible `goals.evidence` Text and its explicit Accessibility label now use the same full disclosure:
+
+> Calculation evidence: local permanent Goals, Wealth, and Ledger records only. Planning assumptions are session-only. No Provider request was made. No Market Cache, Credential, or Keychain data was read. No automatic FX conversion was performed. Planning assumptions were not persisted. Scenarios are not predictions, guarantees, or recommendations.
+
+`goals.evidence.heading` remains an independent visible sibling with the exact label `Goals calculation evidence section`; `goals.evidence` remains unique and independently queryable. The UI contract now requires the complete disclosure by exact equality and preserves the final section boundary: Current Section is Calculation Evidence, Previous is enabled, and Next is disabled. No Goal formula, FeatureModel, persistence, fixture, chart, table, row, formatter, Project, Package, Migration, Target, Scheme, or Entitlement changed.
+
+### Historical failure classification
+
+The preceding chart-round initial focused invocation was a zero-business Automation bootstrap failure. Its authorized retry reused the identical UI product, entered the business method, and passed Synthetic Header, Goal CRUD, Trajectory, FIRE, and Saving Rate before reaching Calculation Evidence. `goals.evidence.heading` and the unique `goals.evidence` node were present; only the old substring label predicate failed at `AureusUITests.swift:1819`. This was a Production/test wording-contract mismatch, not AX exposure, navigation, calculation, persistence, Provider, or bootstrap failure. Historical results are not counted as this round's UI PASS.
+
+### Current verification evidence
+
+All current build and UI artifacts are rooted at `/private/tmp/Aureus-Stage10-GOALS-EVIDENCE-CONTRACT-01-QkxUDQ`.
+
+| Verification | Result | Current evidence |
+|---|---|---|
+| Focused Goals Unit | `NOT RUN — INHERITED` | Exact Domain/Feature/Unit source hashes match; accepted evidence remains `35/35 PASS` |
+| Full `AureusTests` | `NOT RUN — INHERITED` | Exact Domain/Feature/Unit source hashes match; accepted evidence remains `289` definitions / `322` executions PASS |
+| Performance | `NOT RUN — INHERITED` | Foundation and presentation performance sources remain byte-identical |
+| Final Clean Debug arm64 Build | `PASS` | shell exit `0`; status `succeeded`; errors `0`; four pre-existing PortfolioView deprecation warnings; complete parseable `CleanDebugBuild-Final.xcresult` |
+| Fresh signed arm64 BFT | `PASS` | shell exit `0`; status `succeeded`; errors `0`; warnings `0` for the incremental BFT; App, Runner, UI Test executable, and xctestrun came from one build and passed strict signature verification |
+| Goals focused UI | `PASS` | `1/1` business definition/execution; `1` passed, `0` failed, `0` skipped; complete `GoalsFocusedUI.xcresult`; sandbox parsers exited `64`, and standard-permission read-only parsing of the same bundle exited `0/0` |
+| Existing focused regression | `INCOMPLETE RESULT — NOT PASS` | The serial eight-selector invocation entered multiple real business methods on the same frozen product, but the executor session was externally interrupted during the final Wealth flow. `ExistingFocusedRegression.xcresult` has no `Info.plist`; summary/tests parsers exit `64/64`; no canonical `8/8` result exists. Because this was not a zero-business bootstrap failure, no retry was authorized. |
+| Full `AureusUITests` | `NOT RUN` | Ordered prerequisite Existing focused `8/8 PASS` was not met |
+
+No UI infrastructure retry or UI business retry was used in this round. The incomplete Existing focused execution was not rerun and is not represented as a PASS.
+
+### Exact UI product
+
+Every current UI invocation used the same signed BFT product:
+
+- App executable SHA-256: `2de70a3debbb5d1dce395e338d6a306159164b9a46504f201c91464da34e0bf0`; bundle `com.aureus.wealthterminal`; arm64; ad-hoc Sign to Run Locally.
+- Runner executable SHA-256: `07521e34f7c89e2fd3e59bf8744ee746ba18e750d9c5b6710c07cbd5a323a7d3`; bundle `com.aureus.wealthterminal.uitests.xctrunner`; arm64; ad-hoc Sign to Run Locally.
+- UI Test executable SHA-256: `c7d2158b3d849eb6844a43b5a298fcddcec857a46145eb41f88d8443465d8496`; bundle `com.aureus.wealthterminal.uitests`; arm64; ad-hoc Sign to Run Locally.
+- xctestrun SHA-256: `b3f6360fe5e8101953ef5318592e18a1afaa40dff2d1ec95f6848cab5c3f91cd`.
+
+The four hashes remained unchanged before and after the focused execution and before the Existing focused invocation. App and Runner passed `codesign --verify --deep --strict`.
+
+### Focused runtime boundary
+
+Current focused runtime evidence formally passed the Synthetic Header and Goal CRUD; Trajectory chart/summary/table/row/disclosure; FIRE; Saving Rate chart/summary/table/row/disclosure; Calculation Evidence heading, exact complete disclosure, and final navigation boundary; the USD Goal's original value and typed-unavailable progress/trajectory with no fake zero, chart, table, or rows; stale-report reset; Production Header, absence of Synthetic Goals, Production empty state, blank session inputs, navigation reset; and the no-Provider/data-isolation assertions.
+
+The Existing focused invocation advanced through real selected tests before external interruption, but its incomplete bundle cannot supply canonical definitions, executions, or a combination PASS. Full UI was therefore correctly gated off.
+
+### Provider and data status
+
+Provider requests are `NOT RUN`. Twelve Data and Frankfurter live operations, Provider transport attempts, Credential reads, Keychain metadata reads, Market Cache mutations, and planning-assumption persistence writes are `0`. Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`. Dashboard Goals integration is `NOT AUTHORIZED / NOT RUN`, and Stages 11–14 remain `NO-GO`.
+
+### Current candidate
+
+**Stage 10-GOALS-EVIDENCE-CONTRACT-01 PARTIAL — Awaiting Reviewer Gate**
+
 The independent Reviewer recorded Stage 9 and the Stage 10 Goals Foundation Gate as `PASS`, while Stage 10 Goals UI remains `PARTIAL`. This document preserves the accepted Foundation, Native Goals Terminal, and Header Accessibility history and appends the current Visual Chart Accessibility evidence round; it does not declare Stage 10 `PASS`, V1 Ready, Release Ready, or entry to Stages 11–14.
 
 Historical Executor status before that review: **Stage 10 Goals Foundation Candidate — Awaiting Reviewer Gate**.

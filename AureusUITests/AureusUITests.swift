@@ -763,6 +763,7 @@ final class AureusUITests: XCTestCase {
         let cnyGoalIdentifier = "goals.goal.00000000-0000-4000-8000-000000010001"
         let usdGoalIdentifier = "goals.goal.00000000-0000-4000-8000-000000010002"
         let localOnlyDisclosure = "Goals use permanent local Goals, Wealth, and Ledger records. Planning assumptions are session-only and no Provider, Market Cache, Credential, or Keychain data is read."
+        let calculationEvidenceDisclosure = "Calculation evidence: local permanent Goals, Wealth, and Ledger records only. Planning assumptions are session-only. No Provider request was made. No Market Cache, Credential, or Keychain data was read. No automatic FX conversion was performed. Planning assumptions were not persisted. Scenarios are not predictions, guarantees, or recommendations."
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
         launchApp(app)
@@ -978,10 +979,11 @@ final class AureusUITests: XCTestCase {
             to: "Calculation Evidence",
             anchorIdentifier: "goals.evidence.heading"
         )
+        assertGoalsElement(in: app, identifier: "goals.evidence.heading") {
+            $0 == "Goals calculation evidence section"
+        }
         assertGoalsElement(in: app, identifier: "goals.evidence") {
-            $0.contains("no Provider request")
-                && $0.contains("no automatic FX")
-                && $0.contains("not predictions")
+            $0 == calculationEvidenceDisclosure
         }
         XCTAssertTrue(app.descendants(matching: .any)["goals.navigation.previous"].isEnabled)
         XCTAssertFalse(app.descendants(matching: .any)["goals.navigation.next"].isEnabled)
