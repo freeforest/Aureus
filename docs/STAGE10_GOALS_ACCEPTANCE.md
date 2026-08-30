@@ -2,7 +2,61 @@
 
 ## Status
 
-**Stage 10-GOALS-CHART-AX-01 PARTIAL — Awaiting Reviewer Gate**
+**Stage 10 Goals UI Runtime Candidate — Awaiting Reviewer Gate**
+
+## Stage 10-GOALS-UI-GATE-CLOSURE-01 — Existing Focused and Full UI Evidence
+
+### Current status
+
+**Stage 10 Goals UI Runtime Candidate — Awaiting Reviewer Gate**
+
+This evidence-only round changed no Production Swift, Test Swift, Project, Package, Migration, Entitlement, Target, Scheme, fixture, or Unit test. Exact source-hash verification accepted the current-source Goals focused UI `1/1 PASS`, and every current UI execution reused the same frozen signed arm64 product. The earlier incomplete Existing focused bundle remains historical `INCOMPLETE RESULT — NOT PASS / NOT VERIFIED`; it was not modified, completed, combined with another result, or represented as a business failure.
+
+### Historical evidence classification
+
+- `GoalsFocusedUI.xcresult` from the preceding round contains `Info.plist` and canonically reports `1/1` passed, `0` failed, `0` skipped. It remains accepted current-source focused evidence after exact source and product verification; it was not rerun in this closure round.
+- The preceding `ExistingFocusedRegression.xcresult` contains only incomplete `Data` and `Staging` directories and no `Info.plist`. Its parsers cannot form a canonical test result. Business activity in that directory does not establish any accepted definition, execution, or PASS count.
+- The historical incomplete directory was neither modified nor deleted. New current results use distinct paths under `/private/tmp/Aureus-Stage10-GOALS-UI-GATE-CLOSURE-01-Hnq5uF`.
+
+### Frozen UI product
+
+The following byte-identical signed BFT product was verified before Gate A, before Gate B, and after Gate B:
+
+- App executable: SHA-256 `2de70a3debbb5d1dce395e338d6a306159164b9a46504f201c91464da34e0bf0`; bundle `com.aureus.wealthterminal`; arm64.
+- Runner executable: SHA-256 `07521e34f7c89e2fd3e59bf8744ee746ba18e750d9c5b6710c07cbd5a323a7d3`; bundle `com.aureus.wealthterminal.uitests.xctrunner`; arm64.
+- UI Test executable: SHA-256 `c7d2158b3d849eb6844a43b5a298fcddcec857a46145eb41f88d8443465d8496`; bundle `com.aureus.wealthterminal.uitests`; arm64.
+- xctestrun: SHA-256 `b3f6360fe5e8101953ef5318592e18a1afaa40dff2d1ec95f6848cab5c3f91cd`.
+
+App and Runner passed `/usr/bin/codesign --verify --deep --strict`. Signing is local ad-hoc (`Signature=adhoc`, no TeamIdentifier). No build or signing operation occurred between the two current UI invocations.
+
+### Current verification evidence
+
+| Verification | Result | Current evidence |
+|---|---|---|
+| Goals focused UI | `NOT RUN — ACCEPTED CURRENT-SOURCE PASS` | Exact frozen source/product verification preserves the preceding complete `1/1 PASS`; `1` passed, `0` failed, `0` skipped |
+| Focused Goals Unit | `NOT RUN — INHERITED` | Exact Domain/Feature/Unit hashes match; accepted evidence remains `35/35 PASS` |
+| Full `AureusTests` | `NOT RUN — INHERITED` | Exact Domain/Feature/Unit hashes match; accepted evidence remains `289` definitions / `322` executions PASS |
+| Performance | `NOT RUN — INHERITED` | Exact Foundation/Presentation hashes match |
+| Clean Debug arm64 Build | `NOT RUN — INHERITED` | Exact Production hashes match the accepted successful build source |
+| Existing focused regression | `PASS` | Serial `test-without-building`; `8/8` definitions/business executions; `8` passed, `0` failed, `0` skipped; shell exit `0`; result interval `880.916 s`; complete `ExistingFocusedRegression-Closure.xcresult` with `Info.plist` |
+| Full `AureusUITests` | `PASS` | Serial `test-without-building`; `14/14` definitions/business executions; `14` passed, `0` failed, `0` skipped; shell exit `0`; result interval `1020.594 s`; complete `FullAureusUITests-Closure.xcresult` with `Info.plist` |
+
+Both current bundles first encountered the known sandbox TestReport cache permission boundary (`summary/tests` parser exits `64/64`). Standard-permission read-only parsing of each same, already completed bundle exited `0/0`; no test was rerun for parsing. Existing focused used the eight exact Settings, Wealth, Ledger Dynamic, Native CSV, Markets, Portfolio, Analytics, and Goals selectors. Only its canonical `8/8 PASS` authorized the subsequent full `AureusUITests` invocation. Full UI contains fourteen independent business Test Case nodes, all `Passed`.
+
+### Retry and re-observation accounting
+
+- UI infrastructure retry: `0`.
+- Incomplete-result re-observation: `0`.
+- Business retry: `0`.
+- No partial and complete results were combined. Neither current command session was externally interrupted; each original persistent session remained open until `xcodebuild` exited naturally.
+
+### Provider and data status
+
+Provider requests are `NOT RUN`. Twelve Data and Frankfurter live operations, Provider transport attempts, Credential reads, Keychain metadata reads, Market Cache mutations, and planning-assumption persistence writes are `0`. Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`. Dashboard Goals integration is `NOT AUTHORIZED / NOT RUN`, and Stages 11–14 remain `NO-GO`.
+
+### Current candidate
+
+**Stage 10 Goals UI Runtime Candidate — Awaiting Reviewer Gate**
 
 ## Stage 10-GOALS-EVIDENCE-CONTRACT-01 — Calculation Evidence Disclosure
 
