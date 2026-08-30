@@ -655,3 +655,18 @@ Repository scanning explicitly excluded `.git/**`, `.secrets/**`, and the pre-ex
 Provider requests remain `NOT RUN`; Twelve Data operations, Frankfurter live operations, and Provider transport attempts are 0; Credential and Keychain metadata reads are 0; Market Cache and Analytics persistence mutations are 0; Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stage 10 remains `NO-GO`.
 
 This is **Stage 9 UI Runtime Evidence Candidate — Awaiting Reviewer Gate**. It is not Stage 9 `PASS`, V1 Ready, Release Ready, or Stage 10 authorization.
+
+## 35. Reviewer Gate PASS and Stage 10 entry
+
+The independent Reviewer accepted the Stage 9 current-source UI evidence and recorded **Stage 9 Reviewer Gate: PASS** with **Stage 10 Entry Gate: GO**. The accepted evidence used one unchanged fresh signed arm64 UI product and comprised:
+
+- Stage 8 Portfolio targeted UI: `1/1 PASS`;
+- Stage 9 Analytics focused UI: `1/1 PASS`;
+- Existing focused regression: `7/7 PASS`;
+- full `AureusUITests`: `13/13 PASS`;
+- failures: `0`;
+- skipped: `0`;
+- infrastructure retries: `0`;
+- business retries: `0`.
+
+This Reviewer record does not erase or rewrite any preceding Stage 9 PARTIAL, failed-business, bootstrap, or `NOT RUN` evidence. It authorizes only the separately scoped Stage 10 Goals Foundation round; it does not declare Stage 10 `PASS`, V1 Ready, Release Ready, or entry to Stages 11–14. Provider requests remain `NOT RUN`, Twelve Data persistent writes remain `Disabled`, and retention remains `BLOCKED`.
