@@ -3,6 +3,7 @@ import Foundation
 struct RuntimePaths: Equatable, Sendable {
     let permanentDatabaseURL: URL
     let marketCacheDatabaseURL: URL
+    let internalBackupDirectoryURL: URL
 
     static func production(fileManager: FileManager = .default) throws -> RuntimePaths {
         let applicationSupport = try fileManager.url(
@@ -17,15 +18,28 @@ struct RuntimePaths: Equatable, Sendable {
             appropriateFor: nil,
             create: true
         )
+        return production(
+            applicationSupportDirectory: applicationSupport,
+            cachesDirectory: caches
+        )
+    }
+
+    static func production(
+        applicationSupportDirectory: URL,
+        cachesDirectory: URL
+    ) -> RuntimePaths {
+        let applicationDirectory = applicationSupportDirectory
+            .appendingPathComponent("Aureus", isDirectory: true)
         return RuntimePaths(
-            permanentDatabaseURL: applicationSupport
-                .appendingPathComponent("Aureus", isDirectory: true)
+            permanentDatabaseURL: applicationDirectory
                 .appendingPathComponent("Permanent", isDirectory: true)
                 .appendingPathComponent("aureus.sqlite", isDirectory: false),
-            marketCacheDatabaseURL: caches
+            marketCacheDatabaseURL: cachesDirectory
                 .appendingPathComponent("Aureus", isDirectory: true)
                 .appendingPathComponent("Market", isDirectory: true)
-                .appendingPathComponent("market-cache.sqlite", isDirectory: false)
+                .appendingPathComponent("market-cache.sqlite", isDirectory: false),
+            internalBackupDirectoryURL: applicationDirectory
+                .appendingPathComponent("Backups", isDirectory: true)
         )
     }
 
@@ -36,7 +50,9 @@ struct RuntimePaths: Equatable, Sendable {
                 .appendingPathComponent("aureus.sqlite", isDirectory: false),
             marketCacheDatabaseURL: root
                 .appendingPathComponent("MarketCache", isDirectory: true)
-                .appendingPathComponent("market-cache.sqlite", isDirectory: false)
+                .appendingPathComponent("market-cache.sqlite", isDirectory: false),
+            internalBackupDirectoryURL: root
+                .appendingPathComponent("Backups", isDirectory: true)
         )
     }
 }

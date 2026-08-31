@@ -63,6 +63,7 @@
 		A1000000000000000000003B /* GoalsFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037 /* GoalsFeatureModel.swift */; };
 		A1000000000000000000003C /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000038 /* GoalsView.swift */; };
 		A1000000000000000000003D /* SyntheticGoalsSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000039 /* SyntheticGoalsSeeder.swift */; };
+		A1000000000000000000003E /* PermanentBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003A /* PermanentBackup.swift */; };
 		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
 		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
 		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
@@ -84,6 +85,7 @@
 		A20000000000000000000012 /* PortfolioAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* PortfolioAnalyticsTests.swift */; };
 		A20000000000000000000013 /* GoalsFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* GoalsFoundationTests.swift */; };
 		A20000000000000000000014 /* GoalsTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000014 /* GoalsTerminalTests.swift */; };
+		A20000000000000000000015 /* PermanentBackupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000015 /* PermanentBackupTests.swift */; };
 		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
 		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
 /* End PBXBuildFile section */
@@ -163,6 +165,7 @@
 		B10000000000000000000037 /* GoalsFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsFeatureModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000038 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		B10000000000000000000039 /* SyntheticGoalsSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticGoalsSeeder.swift; sourceTree = "<group>"; };
+		B1000000000000000000003A /* PermanentBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackup.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
@@ -183,6 +186,7 @@
 		B20000000000000000000012 /* PortfolioAnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioAnalyticsTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000013 /* GoalsFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsFoundationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000014 /* GoalsTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsTerminalTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000015 /* PermanentBackupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackupTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
 		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -357,6 +361,7 @@
 				D13100000000000000000001 /* Migrations */,
 				D13200000000000000000001 /* Permanent */,
 				D13300000000000000000001 /* MarketCache */,
+				D13400000000000000000001 /* Backup */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -395,6 +400,14 @@
 				B10000000000000000000010 /* CachePolicyConfiguration.swift */,
 			);
 			path = MarketCache;
+			sourceTree = "<group>";
+		};
+		D13400000000000000000001 /* Backup */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000003A /* PermanentBackup.swift */,
+			);
+			path = Backup;
 			sourceTree = "<group>";
 		};
 		D14000000000000000000001 /* Features */ = {
@@ -531,6 +544,7 @@
 				B20000000000000000000012 /* PortfolioAnalyticsTests.swift */,
 				B20000000000000000000013 /* GoalsFoundationTests.swift */,
 				B20000000000000000000014 /* GoalsTerminalTests.swift */,
+				B20000000000000000000015 /* PermanentBackupTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -693,6 +707,7 @@
 				A1000000000000000000003B /* GoalsFeatureModel.swift in Sources */,
 				A1000000000000000000003C /* GoalsView.swift in Sources */,
 				A1000000000000000000003D /* SyntheticGoalsSeeder.swift in Sources */,
+				A1000000000000000000003E /* PermanentBackup.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -720,6 +735,7 @@
 				A20000000000000000000012 /* PortfolioAnalyticsTests.swift in Sources */,
 				A20000000000000000000013 /* GoalsFoundationTests.swift in Sources */,
 				A20000000000000000000014 /* GoalsTerminalTests.swift in Sources */,
+				A20000000000000000000015 /* PermanentBackupTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
