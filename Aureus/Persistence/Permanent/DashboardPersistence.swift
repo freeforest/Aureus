@@ -15,6 +15,7 @@ struct DashboardSourceRead: Sendable {
     let currentWealthRecords: [WealthContainer]
     let completeSnapshots: [DashboardSnapshot]
     let ledgerEntries: [LedgerEntry]
+    let goals: [Goal]
     let legacyIncompleteSnapshotCount: Int
 }
 
@@ -187,6 +188,7 @@ extension WealthStore {
                     through: civilDate
                 ),
                 ledgerEntries: try Self.fetchLedgerEntries(in: db),
+                goals: try Self.fetchGoals(in: db),
                 legacyIncompleteSnapshotCount: try Self.legacyIncompleteSnapshotCount(in: db)
             )
         }

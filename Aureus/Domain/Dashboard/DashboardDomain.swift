@@ -5,6 +5,7 @@ enum DashboardDomainError: Error, Equatable, Sendable {
     case emptySnapshot
     case invalidItem
     case invalidDateRange
+    case invalidGoalProjection
 }
 
 enum DashboardSnapshotStatus: String, Codable, Equatable, Sendable {
@@ -322,6 +323,23 @@ struct DashboardCashFlowPoint: Identifiable, Equatable, Sendable {
     let netCashFlowCNY: Money
 }
 
+enum DashboardGoalProgressUnavailableReason: Equatable, Sendable {
+    case targetCurrencyUnsupportedForCNYProgress
+    case currentCNYNetWorthUnavailable
+}
+
+enum DashboardGoalProgressState: Equatable, Sendable {
+    case available(GoalProgress)
+    case unavailable(DashboardGoalProgressUnavailableReason)
+}
+
+struct DashboardGoalProjection: Identifiable, Equatable, Sendable {
+    var id: UUID { goal.id }
+
+    let goal: Goal
+    let progress: DashboardGoalProgressState
+}
+
 struct DashboardHeatmapCell: Identifiable, Equatable, Sendable {
     var id: CivilDate { civilDate }
     let civilDate: CivilDate
@@ -337,6 +355,37 @@ enum DashboardCashFlowHeatmapMode: String, CaseIterable, Identifiable, Sendable 
 }
 
 enum DashboardCalculations {
+    static func goalProjections(
+        goals: [Goal],
+        currentNetWorthCNY: Money?
+    ) throws -> [DashboardGoalProjection] {
+        try goals.map { goal in
+            switch goal.target.currency {
+            case .usd:
+                return DashboardGoalProjection(
+                    goal: goal,
+                    progress: .unavailable(.targetCurrencyUnsupportedForCNYProgress)
+                )
+            case .cny:
+                guard let currentNetWorthCNY else {
+                    return DashboardGoalProjection(
+                        goal: goal,
+                        progress: .unavailable(.currentCNYNetWorthUnavailable)
+                    )
+                }
+                switch try GoalPlanning.progress(
+                    goal: goal,
+                    currentNetWorthCNY: currentNetWorthCNY
+                ) {
+                case let .available(progress):
+                    return DashboardGoalProjection(goal: goal, progress: .available(progress))
+                case .unavailable:
+                    throw DashboardDomainError.invalidGoalProjection
+                }
+            }
+        }
+    }
+
     static func history(
         snapshots: [DashboardSnapshot],
         range: DashboardTimeRange,

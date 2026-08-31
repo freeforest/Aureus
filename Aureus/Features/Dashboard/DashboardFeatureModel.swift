@@ -10,6 +10,7 @@ enum DashboardLoadState: Equatable, Sendable {
 
 struct DashboardPayload: Sendable {
     let currentSummary: WealthSummary?
+    let goalProjections: [DashboardGoalProjection]
     let completeSnapshots: [DashboardSnapshot]
     let history: [DashboardHistoryPoint]
     let changeMetrics: DashboardChangeMetrics?
@@ -43,6 +44,7 @@ actor DashboardDataService {
         guard !source.currentWealthRecords.isEmpty
                 || !source.completeSnapshots.isEmpty
                 || !displayableEntries.isEmpty
+                || !source.goals.isEmpty
                 || source.legacyIncompleteSnapshotCount > 0 else {
             return nil
         }
@@ -71,6 +73,10 @@ actor DashboardDataService {
         }
         return try DashboardPayload(
             currentSummary: summary,
+            goalProjections: DashboardCalculations.goalProjections(
+                goals: source.goals,
+                currentNetWorthCNY: summary?.netWorthCNY
+            ),
             completeSnapshots: source.completeSnapshots,
             history: history,
             changeMetrics: changeMetrics,
@@ -117,6 +123,7 @@ actor DashboardDataService {
 final class DashboardFeatureModel {
     private(set) var loadState: DashboardLoadState = .loading
     private(set) var currentSummary: WealthSummary?
+    private(set) var goalProjections: [DashboardGoalProjection] = []
     private(set) var snapshots: [DashboardSnapshot] = []
     private(set) var history: [DashboardHistoryPoint] = []
     private(set) var changeMetrics: DashboardChangeMetrics?
@@ -216,6 +223,7 @@ final class DashboardFeatureModel {
 
     private func apply(_ payload: DashboardPayload) {
         currentSummary = payload.currentSummary
+        goalProjections = payload.goalProjections
         snapshots = payload.completeSnapshots
         history = payload.history
         changeMetrics = payload.changeMetrics
@@ -231,6 +239,7 @@ final class DashboardFeatureModel {
 
     private func clearForEmptyStore() {
         currentSummary = nil
+        goalProjections = []
         snapshots = []
         history = []
         changeMetrics = nil

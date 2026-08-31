@@ -67,19 +67,23 @@ extension WealthStore {
 
     func fetchGoals() throws -> [Goal] {
         try queue.read { db in
-            try GoalPersistenceRow.fetchAll(
-                db,
-                sql: """
-                    SELECT id, name, target_minor, currency_code, target_date
-                    FROM goals
-                    ORDER BY
-                        CASE WHEN target_date IS NULL THEN 1 ELSE 0 END,
-                        target_date,
-                        name COLLATE NOCASE,
-                        id
-                    """
-            ).map { try $0.domain() }
+            try Self.fetchGoals(in: db)
         }
+    }
+
+    static func fetchGoals(in db: Database) throws -> [Goal] {
+        try GoalPersistenceRow.fetchAll(
+            db,
+            sql: """
+                SELECT id, name, target_minor, currency_code, target_date
+                FROM goals
+                ORDER BY
+                    CASE WHEN target_date IS NULL THEN 1 ELSE 0 END,
+                    target_date,
+                    name COLLATE NOCASE,
+                    id
+                """
+        ).map { try $0.domain() }
     }
 
     func fetchGoal(id: UUID) throws -> Goal? {

@@ -241,6 +241,152 @@ struct DashboardDomainTests {
         )
     }
 
+    @Test("Dashboard CNY Goal progress uses current net worth without clamping")
+    func goalProgressUsesCurrentNetWorthWithoutClamping() throws {
+        let goal = try dashboardGoal(
+            suffix: 1,
+            name: "Synthetic Unclamped Goal",
+            targetMinor: 10_000_000,
+            currency: .cny
+        )
+        let aboveTarget = try DashboardCalculations.goalProjections(
+            goals: [goal],
+            currentNetWorthCNY: Money(minorUnits: 15_000_000, currency: .cny)
+        )
+        guard case let .available(above) = try #require(aboveTarget.first).progress else {
+            Issue.record("Expected available CNY progress")
+            return
+        }
+        #expect(above.currentNetWorthCNY.minorUnits == 15_000_000)
+        #expect(above.targetCNY == goal.target)
+        #expect(above.progress.decimal == Decimal(string: "1.5"))
+        #expect(above.remainingCNY.minorUnits == 0)
+
+        let negative = try DashboardCalculations.goalProjections(
+            goals: [goal],
+            currentNetWorthCNY: Money(minorUnits: -2_500_000, currency: .cny)
+        )
+        guard case let .available(belowZero) = try #require(negative.first).progress else {
+            Issue.record("Expected available negative CNY progress")
+            return
+        }
+        #expect(belowZero.progress.decimal == Decimal(string: "-0.25"))
+        #expect(belowZero.remainingCNY.minorUnits == 12_500_000)
+    }
+
+    @Test("Dashboard USD Goal preserves original target and returns typed unavailable")
+    func usdGoalProgressIsUnavailableWithoutFX() throws {
+        let goal = try dashboardGoal(
+            suffix: 2,
+            name: "Synthetic USD Goal",
+            targetMinor: 10_000_000,
+            currency: .usd
+        )
+        let projection = try #require(
+            DashboardCalculations.goalProjections(
+                goals: [goal],
+                currentNetWorthCNY: Money(minorUnits: 15_067_206, currency: .cny)
+            ).first
+        )
+        #expect(projection.goal == goal)
+        #expect(projection.goal.target.currency == .usd)
+        #expect(projection.goal.target.minorUnits == 10_000_000)
+        #expect(
+            projection.progress
+                == .unavailable(.targetCurrencyUnsupportedForCNYProgress)
+        )
+    }
+
+    @Test("Dashboard CNY Goal without current Wealth is typed unavailable rather than zero")
+    func cnyGoalWithoutWealthIsUnavailable() throws {
+        let goal = try dashboardGoal(
+            suffix: 3,
+            name: "Synthetic Missing Wealth Goal",
+            targetMinor: 50_000_000,
+            currency: .cny
+        )
+        let projection = try #require(
+            DashboardCalculations.goalProjections(
+                goals: [goal],
+                currentNetWorthCNY: nil
+            ).first
+        )
+        #expect(projection.goal == goal)
+        #expect(projection.progress == .unavailable(.currentCNYNetWorthUnavailable))
+    }
+
+    @Test("Dashboard Goal projection preserves deterministic source order and equality")
+    func deterministicGoalProjection() throws {
+        let goals = try [
+            dashboardGoal(suffix: 4, name: "Synthetic First", targetMinor: 50_000_000, currency: .cny),
+            dashboardGoal(suffix: 5, name: "Synthetic Second", targetMinor: 10_000_000, currency: .usd),
+            dashboardGoal(suffix: 6, name: "Synthetic Third", targetMinor: 20_000_000, currency: .cny)
+        ]
+        let current = Money(minorUnits: 15_067_206, currency: .cny)
+        let first = try DashboardCalculations.goalProjections(
+            goals: goals,
+            currentNetWorthCNY: current
+        )
+        let second = try DashboardCalculations.goalProjections(
+            goals: goals,
+            currentNetWorthCNY: current
+        )
+        #expect(first == second)
+        #expect(first.map(\.goal) == goals)
+        #expect(first.map(\.id) == goals.map(\.id))
+    }
+
+    @Test("Five thousand Dashboard Goal projections are finite deterministic and read-only")
+    func goalProjectionPerformance() throws {
+        let goals = try (0..<5_000).map { index in
+            try dashboardGoal(
+                suffix: 10_000 + index,
+                name: "Synthetic Performance Goal \(index)",
+                targetMinor: 50_000_000,
+                currency: index.isMultiple(of: 2) ? .cny : .usd
+            )
+        }
+        let confirmedInputs = goals
+        let netWorthCases = [-10_000_000, 25_000_000, 50_000_000, 75_000_000].map {
+            Money(minorUnits: Int64($0), currency: .cny)
+        }
+        let clock = ContinuousClock()
+        let start = clock.now
+        let first = try netWorthCases.map { current in
+            try DashboardCalculations.goalProjections(
+                goals: goals,
+                currentNetWorthCNY: current
+            )
+        }
+        let second = try netWorthCases.map { current in
+            try DashboardCalculations.goalProjections(
+                goals: goals,
+                currentNetWorthCNY: current
+            )
+        }
+        let duration = start.duration(to: clock.now)
+        #expect(first == second)
+        #expect(first.allSatisfy { $0.count == 5_000 })
+        #expect(goals == confirmedInputs)
+        #expect(duration < .seconds(10))
+
+        let cnyCases = try netWorthCases.indices.map { index in
+            let projection = try #require(first[index].first)
+            guard case let .available(progress) = projection.progress else {
+                Issue.record("Expected available CNY performance projection")
+                return Decimal.zero
+            }
+            return progress.progress.decimal
+        }
+        #expect(cnyCases == [
+            Decimal(string: "-0.2"),
+            Decimal(string: "0.5"),
+            Decimal(string: "1"),
+            Decimal(string: "1.5")
+        ])
+        #expect(first[0][1].progress == .unavailable(.targetCurrencyUnsupportedForCNYProgress))
+    }
+
     private func makeSnapshot(date: String, assets: Int64, liabilities: Int64) throws -> DashboardSnapshot {
         let snapshotID = UUID()
         let civilDate = try CivilDate(canonical: date)
@@ -289,6 +435,22 @@ struct DashboardDomainTests {
                 netWorthCNY: Money(minorUnits: assets - liabilities, currency: .cny)
             ),
             items: items
+        )
+    }
+
+    private func dashboardGoal(
+        suffix: Int,
+        name: String,
+        targetMinor: Int64,
+        currency: CurrencyCode
+    ) throws -> Goal {
+        try Goal(
+            id: UUID(
+                uuidString: String(format: "92000000-0000-4000-8000-%012d", suffix)
+            )!,
+            name: name,
+            target: Money(minorUnits: targetMinor, currency: currency),
+            targetDate: try CivilDate(canonical: "2035-12-31")
         )
     }
 

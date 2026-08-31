@@ -2,7 +2,59 @@
 
 ## Status
 
-**Stage 10 Goals UI Runtime Candidate — Awaiting Reviewer Gate**
+**Stage 10 Goals Dashboard Integration Candidate — Awaiting Reviewer Gate**
+
+## Stage 10-GOALS-DASHBOARD-INTEGRATION-01 — Dashboard Goal Progress
+
+### Current status
+
+**Stage 10 Goals Dashboard Integration Candidate — Awaiting Reviewer Gate**
+
+This bounded integration adds no migration, schema, Package, Target, Scheme, Entitlement, Provider path, planning assumption, or new file. The existing Dashboard transaction now reads permanent Goals together with Wealth records, complete Snapshots, and Ledger entries. Its Dashboard-only pure projection preserves each Goal and delegates CNY progress to `GoalPlanning.progress`; USD targets remain original-currency typed unavailable, and a CNY Goal without current Wealth reports typed unavailable rather than fabricated zero. Derived progress is never persisted.
+
+### Dashboard contract
+
+- The permanent `goals` table and schema version 6 remain authoritative. `WealthStore.fetchGoals()` and the Dashboard transaction share one database-scoped decoding and deterministic-order helper; corrupt rows fail explicitly.
+- A Goal-only store produces a ready Dashboard payload without creating a Snapshot. A completely empty store retains `dashboard.empty` and creates no zero Snapshot.
+- Dashboard section order is `Overview`, `Goals`, `History`, `Allocation`, `Cash Flow`, `Heatmaps`.
+- The Goals section exposes independent visible `dashboard.goals.heading`, `dashboard.goals.summary`, stable `dashboard.goal.<lowercased UUID>` rows, `dashboard.goals.empty`, and native `dashboard.goals.open` elements. The AppShell closure selects the existing Goals destination without creating another Store or FeatureModel.
+- Synthetic Demo exposes the existing CNY Freedom Goal at `30.13%` with `CNY 349,327.94` remaining and the existing USD Education Goal as typed unavailable with no automatic FX and no fake `0%`. Production empty mode exposes neither Synthetic row and no fabricated Snapshot.
+
+### Current verification evidence
+
+Final-source artifacts are rooted at `/private/tmp/Aureus-Stage10-GOALS-DASHBOARD-INTEGRATION-01-SWKeil`.
+
+| Verification | Result | Current evidence |
+|---|---|---|
+| Focused Unit | `PASS` | `53` canonical definitions / `64` dynamic executions; `53` passed, `0` failed, `0` skipped; shell exit `0`; complete `FocusedUnit-Final.xcresult`; final summary/tests parser exits `0/0` after retained sandbox exits `64/64` |
+| Full `AureusTests` | `PASS` | `299` definitions / `332` executions; `299` passed, `0` failed, `0` skipped; shell exit `0`; complete `FullAureusTests-Final.xcresult`; final parser exits `0/0` after retained sandbox exits `64/64` |
+| Release projection suite | `PASS` | `15` definitions / `23` executions; `15` passed, `0` failed, `0` skipped; the deterministic 5,000-Goal workload completed in `0.759 s`; complete `DashboardGoalProjectionPerformance-Final.xcresult` |
+| Clean Debug arm64 Build | `PASS` | shell exit `0`; status `succeeded`; errors `0`; four pre-existing `PortfolioView` deprecation warnings; complete `CleanDebugBuild-Final.xcresult` |
+| Fresh signed arm64 BFT | `PASS` | shell exit `0`; status `succeeded`; errors `0`; four pre-existing warnings; complete `BuildForTesting-Final.xcresult` |
+| Dashboard Goals targeted UI | `PASS` | serial `test-without-building`; `1/1` definition/business execution; `1` passed, `0` failed, `0` skipped; shell exit `0`; complete `DashboardGoalsTargetedUI.xcresult`; final summary/tests parser exits `0/0` |
+| Existing focused regression | `PASS` | one externally interrupted invocation remains `INCOMPLETE RESULT — NOT PASS`; the single authorized same-product re-observation passed `9/9`, `0` failed, `0` skipped, shell exit `0`, with complete `ExistingFocusedRegression-Reobservation.xcresult` and final parsers `0/0` |
+| Full `AureusUITests` | `PASS` | serial current inventory `15/15`; `0` failed, `0` skipped; shell exit `0`; complete `FullAureusUITests.xcresult`; final summary/tests parser exits `0/0` |
+
+The focused Unit's initial source candidate produced a complete zero-test compile failure and was corrected before final-source verification. Two preliminary Release invocations were not counted as performance PASS: one failed to build without testability and one completed with zero discovered tests under a method selector. The final Release suite result above is the only performance PASS. No completed business failure was rerun.
+
+### Frozen UI product
+
+Every current UI Gate used the same ad-hoc signed arm64 BFT product without rebuilding or re-signing between invocations:
+
+- App executable SHA-256 `8025617a90c883280c9587895de21eebd5522304ebba1596b3cc993097fdcdfc`; bundle `com.aureus.wealthterminal`.
+- Runner executable SHA-256 `84461792a131641cc0812763bbe3eb96162fec7702f7d48fd9280e3d9c2eae1a`; bundle `com.aureus.wealthterminal.uitests.xctrunner`.
+- UI Test executable SHA-256 `912270c499aa3dd2a078cf67ad10d6eac0f92d3654885d5f0121abb6644163eb`; bundle `com.aureus.wealthterminal.uitests`.
+- xctestrun SHA-256 `b3f6360fe5e8101953ef5318592e18a1afaa40dff2d1ec95f6848cab5c3f91cd`.
+
+App and Runner passed `/usr/bin/codesign --verify --deep --strict`. The single Existing focused re-observation followed an external command-session interruption, used a new result path, and did not modify or combine the incomplete bundle. Infrastructure retry count is `0`; incomplete-result re-observation count is `1`; business retry count is `0`.
+
+### Provider and data status
+
+Provider requests are `NOT RUN`. Twelve Data and Frankfurter live operations, Provider transport attempts, Credential reads, Keychain metadata reads, Market Cache mutations, derived Goal-progress persistence writes, and planning-assumption persistence writes are `0`. Twelve Data persistent writes remain `Disabled`; retention remains `BLOCKED`; Stages 11–14 remain `NO-GO`.
+
+### Current candidate
+
+**Stage 10 Goals Dashboard Integration Candidate — Awaiting Reviewer Gate**
 
 ## Stage 10-GOALS-UI-GATE-CLOSURE-01 — Existing Focused and Full UI Evidence
 

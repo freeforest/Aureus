@@ -113,6 +113,7 @@ struct DashboardPersistenceTests {
         #expect(source.currentWealthRecords.isEmpty)
         #expect(source.completeSnapshots.isEmpty)
         #expect(source.ledgerEntries.isEmpty)
+        #expect(source.goals.isEmpty)
         #expect(source.legacyIncompleteSnapshotCount == 0)
         #expect(try await store.completeDashboardSnapshotCount() == 0)
         let service = DashboardDataService(
@@ -129,6 +130,51 @@ struct DashboardPersistenceTests {
         )
     }
 
+    @Test("Goal-only Store is ready without fabricating a zero Snapshot")
+    func goalOnlyStoreIsReadyWithoutSnapshot() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
+        let goal = try dashboardPersistenceGoal(
+            suffix: 1,
+            name: "Synthetic Goal-only Record",
+            targetMinor: 50_000_000,
+            currency: .cny,
+            targetDate: "2035-12-31"
+        )
+        try await store.createGoal(goal)
+        let today = try CivilDate(canonical: "2026-01-15")
+
+        let source = try await store.readDashboardSource(
+            for: today,
+            createdAt: SyntheticWealthSeeder.demoInstant
+        )
+        #expect(source.currentWealthRecords.isEmpty)
+        #expect(source.completeSnapshots.isEmpty)
+        #expect(source.ledgerEntries.isEmpty)
+        #expect(source.goals == [goal])
+        #expect(try await store.completeDashboardSnapshotCount() == 0)
+
+        let service = DashboardDataService(
+            store: store,
+            timeZone: TimeZone(identifier: "Asia/Shanghai")!
+        )
+        let payload = try #require(try await service.load(
+            today: today,
+            now: SyntheticWealthSeeder.demoInstant,
+            range: .maximum,
+            heatmapMode: .netCashFlow
+        ))
+        #expect(payload.currentSummary == nil)
+        #expect(payload.completeSnapshots.isEmpty)
+        #expect(payload.goalProjections.map(\.goal) == [goal])
+        #expect(
+            payload.goalProjections.first?.progress
+                == .unavailable(.currentCNYNetWorthUnavailable)
+        )
+        #expect(try await store.completeDashboardSnapshotCount() == 0)
+    }
+
     @Test("Dashboard source read captures current Wealth and reads every permanent input in one transaction")
     func consistentSourceReadCapturesCurrentState() async throws {
         let root = try temporaryDirectory()
@@ -136,6 +182,14 @@ struct DashboardPersistenceTests {
         let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
         let record = try SyntheticWealthSeeder.records()[1]
         try await store.createWealthContainer(record)
+        let goal = try dashboardPersistenceGoal(
+            suffix: 2,
+            name: "Synthetic Atomic Dashboard Goal",
+            targetMinor: 50_000_000,
+            currency: .cny,
+            targetDate: "2035-12-31"
+        )
+        try await store.createGoal(goal)
         let today = try CivilDate(canonical: "2026-01-15")
 
         let source = try await store.readDashboardSource(
@@ -153,8 +207,187 @@ struct DashboardPersistenceTests {
         #expect(item.convertedCNY == record.convertedCNYValue)
         #expect(item.fxSource == record.valuation.providerIdentifier)
         #expect(source.ledgerEntries.isEmpty)
+        #expect(source.goals == [goal])
         #expect(source.legacyIncompleteSnapshotCount == 0)
         #expect(try await store.completeDashboardSnapshotCount(on: today) == 1)
+    }
+
+    @Test("Reopen preserves Goal ordering and Dashboard projection inputs")
+    func reopenedGoalOrdering() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("permanent/aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let datedFirst = try dashboardPersistenceGoal(
+            suffix: 10,
+            name: "Zulu",
+            targetMinor: 10_000,
+            currency: .cny,
+            targetDate: "2034-01-01"
+        )
+        let datedAlpha = try dashboardPersistenceGoal(
+            suffix: 11,
+            name: "alpha",
+            targetMinor: 20_000,
+            currency: .usd,
+            targetDate: "2035-01-01"
+        )
+        let datedBeta = try dashboardPersistenceGoal(
+            suffix: 12,
+            name: "Beta",
+            targetMinor: 30_000,
+            currency: .cny,
+            targetDate: "2035-01-01"
+        )
+        let undated = try dashboardPersistenceGoal(
+            suffix: 13,
+            name: "Aardvark",
+            targetMinor: 40_000,
+            currency: .cny,
+            targetDate: nil
+        )
+        for goal in [undated, datedBeta, datedAlpha, datedFirst] {
+            try await store.createGoal(goal)
+        }
+
+        let reopened = try WealthStore(databaseURL: url)
+        let source = try await reopened.readDashboardSource(
+            for: CivilDate(canonical: "2026-01-15"),
+            createdAt: SyntheticWealthSeeder.demoInstant
+        )
+        let expected = [datedFirst, datedAlpha, datedBeta, undated]
+        #expect(source.goals == expected)
+        let service = DashboardDataService(
+            store: reopened,
+            timeZone: TimeZone(identifier: "Asia/Shanghai")!
+        )
+        let payload = try #require(try await service.load(
+            today: CivilDate(canonical: "2026-01-15"),
+            now: SyntheticWealthSeeder.demoInstant,
+            range: .oneMonth,
+            heatmapMode: .netCashFlow
+        ))
+        #expect(payload.goalProjections.map(\.goal) == expected)
+        #expect(try await reopened.completeDashboardSnapshotCount() == 0)
+    }
+
+    @Test("Corrupt persisted Goal fails Dashboard source read explicitly")
+    func corruptGoalFailsDashboardRead() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("permanent/aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let probe = try DatabaseQueueFactory.open(at: url)
+        try await probe.write { db in
+            try db.execute(sql: """
+                INSERT INTO goals (id, name, target_minor, currency_code, target_date)
+                VALUES ('92000000-0000-4000-8000-000000000099', 'Synthetic Corrupt Goal', -1, 'CNY', '2035-12-31')
+                """)
+        }
+
+        do {
+            _ = try await store.readDashboardSource(
+                for: CivilDate(canonical: "2026-01-15"),
+                createdAt: SyntheticWealthSeeder.demoInstant
+            )
+            Issue.record("Corrupt Goal must fail the atomic Dashboard source read")
+        } catch let error as GoalPersistenceError {
+            #expect(error == .corruptRecord)
+        }
+        #expect(try await store.completeDashboardSnapshotCount() == 0)
+    }
+
+    @Test("Dashboard reload removes a deleted Goal without stale projection state")
+    func deletedGoalDoesNotSurviveReload() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
+        let retained = try dashboardPersistenceGoal(
+            suffix: 20,
+            name: "Synthetic Retained Goal",
+            targetMinor: 50_000_000,
+            currency: .cny,
+            targetDate: "2035-12-31"
+        )
+        let deleted = try dashboardPersistenceGoal(
+            suffix: 21,
+            name: "Synthetic Deleted Goal",
+            targetMinor: 10_000_000,
+            currency: .usd,
+            targetDate: "2040-06-30"
+        )
+        try await store.createGoal(retained)
+        try await store.createGoal(deleted)
+        let service = DashboardDataService(
+            store: store,
+            timeZone: TimeZone(identifier: "Asia/Shanghai")!
+        )
+        let before = try #require(try await service.load(
+            today: CivilDate(canonical: "2026-01-15"),
+            now: SyntheticWealthSeeder.demoInstant,
+            range: .maximum,
+            heatmapMode: .netCashFlow
+        ))
+        #expect(Set(before.goalProjections.map(\.id)) == [retained.id, deleted.id])
+
+        try await store.deleteGoal(id: deleted.id)
+        let after = try #require(try await service.load(
+            today: CivilDate(canonical: "2026-01-15"),
+            now: SyntheticWealthSeeder.demoInstant,
+            range: .maximum,
+            heatmapMode: .netCashFlow
+        ))
+        #expect(after.goalProjections.map(\.id) == [retained.id])
+        #expect(!after.goalProjections.contains { $0.id == deleted.id })
+    }
+
+    @Test("Dashboard range heatmap and Snapshot refresh do not mutate Goals or projections")
+    func dashboardControlsDoNotMutateGoals() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("permanent/aureus.sqlite"))
+        try await store.seedSyntheticWealth()
+        let goal = try dashboardPersistenceGoal(
+            suffix: 30,
+            name: "Synthetic Stable Dashboard Goal",
+            targetMinor: 50_000_000,
+            currency: .cny,
+            targetDate: "2035-12-31"
+        )
+        try await store.createGoal(goal)
+        let service = DashboardDataService(
+            store: store,
+            timeZone: TimeZone(identifier: "Asia/Shanghai")!
+        )
+        let today = try CivilDate(canonical: "2026-01-15")
+        let first = try #require(try await service.load(
+            today: today,
+            now: SyntheticWealthSeeder.demoInstant,
+            range: .oneDay,
+            heatmapMode: .income
+        ))
+        let second = try #require(try await service.load(
+            today: today,
+            now: SyntheticWealthSeeder.demoInstant,
+            range: .maximum,
+            heatmapMode: .expense
+        ))
+        #expect(first.goalProjections == second.goalProjections)
+
+        try await service.refresh(
+            today: today,
+            now: UTCInstant(
+                millisecondsSince1970: SyntheticWealthSeeder.demoInstant.millisecondsSince1970 + 1_000
+            )
+        )
+        let third = try #require(try await service.load(
+            today: today,
+            now: SyntheticWealthSeeder.demoInstant,
+            range: .threeMonths,
+            heatmapMode: .netCashFlow
+        ))
+        #expect(third.goalProjections == first.goalProjections)
+        #expect(try await store.fetchGoals() == [goal])
     }
 
     @Test("Historical-only production load keeps complete Snapshot and creates no zero Snapshot")
@@ -451,6 +684,23 @@ struct DashboardPersistenceTests {
                 isManualOverride: false,
                 isStale: false
             )
+        )
+    }
+
+    private func dashboardPersistenceGoal(
+        suffix: Int,
+        name: String,
+        targetMinor: Int64,
+        currency: CurrencyCode,
+        targetDate: String?
+    ) throws -> Goal {
+        try Goal(
+            id: UUID(
+                uuidString: String(format: "92000000-0000-4000-8000-%012d", suffix)
+            )!,
+            name: name,
+            target: Money(minorUnits: targetMinor, currency: currency),
+            targetDate: try targetDate.map(CivilDate.init(canonical:))
         )
     }
 

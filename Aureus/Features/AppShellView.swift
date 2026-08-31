@@ -52,7 +52,8 @@ struct AppShellView: View {
                 DashboardView(
                     store: dependencies.wealthStore,
                     clock: dependencies.clock,
-                    mode: mode
+                    mode: mode,
+                    openGoals: { model.selection = .goals }
                 )
             } else if model.selection == .wealth, let dependencies = model.dependencies {
                 WealthView(

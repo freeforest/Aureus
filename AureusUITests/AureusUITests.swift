@@ -1154,6 +1154,94 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    func testStage10DashboardGoalsProgressAndNavigationIsolation() throws {
+        let freedomIdentifier =
+            "dashboard.goal.00000000-0000-4000-8000-000000010001"
+        let educationIdentifier =
+            "dashboard.goal.00000000-0000-4000-8000-000000010002"
+        let freedomLabel =
+            "Dashboard Goal: Synthetic Freedom Goal, target CNY 500,000.00, target date 2035-12-31, current CNY net worth CNY 150,672.06, progress 30.13%, remaining CNY 349,327.94; progress is not clamped."
+        let educationLabel =
+            "Dashboard Goal: Synthetic USD Education Goal, target USD 100,000.00, target date 2040-06-30, CNY progress unavailable: target currency unsupported for CNY progress; no automatic FX conversion was performed."
+
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 15))
+        let goalsSection = app.radioButtons["Goals"]
+        XCTAssertTrue(goalsSection.waitForExistence(timeout: 5))
+        goalsSection.click()
+
+        let heading = app.descendants(matching: .any)["dashboard.goals.heading"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.descendants(matching: .any)
+                .matching(identifier: "dashboard.goals.heading").count,
+            1
+        )
+        XCTAssertEqual(heading.label, "Dashboard goals progress")
+
+        let summary = app.descendants(matching: .any)["dashboard.goals.summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.descendants(matching: .any)
+                .matching(identifier: "dashboard.goals.summary").count,
+            1
+        )
+        XCTAssertEqual(
+            summary.label,
+            "Dashboard goals summary: 2 goals, current CNY net worth CNY 150,672.06."
+        )
+
+        let freedom = app.descendants(matching: .any)[freedomIdentifier]
+        let education = app.descendants(matching: .any)[educationIdentifier]
+        XCTAssertTrue(freedom.waitForExistence(timeout: 5))
+        XCTAssertTrue(education.waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "dashboard.goal."))
+                .count,
+            2
+        )
+        XCTAssertEqual(freedom.label, freedomLabel)
+        XCTAssertEqual(education.label, educationLabel)
+        XCTAssertFalse(education.label.contains("0%"))
+
+        let openGoals = app.buttons["dashboard.goals.open"]
+        XCTAssertTrue(openGoals.waitForExistence(timeout: 5))
+        XCTAssertTrue(openGoals.isEnabled)
+        XCTAssertEqual(openGoals.label, "Open Goals")
+        openGoals.click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
+        XCTAssertEqual(
+            app.descendants(matching: .any)["goals.mode.synthetic"].label,
+            "Goals mode: Synthetic Demo"
+        )
+
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.radioButtons["Goals"].waitForExistence(timeout: 5))
+        app.radioButtons["Goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)[freedomIdentifier].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)[educationIdentifier].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.descendants(matching: .any)[freedomIdentifier].label, freedomLabel)
+        XCTAssertEqual(app.descendants(matching: .any)[educationIdentifier].label, educationLabel)
+
+        app.terminate()
+        let production = XCUIApplication()
+        production.launchArguments = uiTestingArguments()
+        launchApp(production)
+        XCTAssertTrue(production.descendants(matching: .any)["mode.local"].waitForExistence(timeout: 10))
+        XCTAssertTrue(production.descendants(matching: .any)["dashboard.empty"].waitForExistence(timeout: 10))
+        XCTAssertFalse(production.descendants(matching: .any)[freedomIdentifier].exists)
+        XCTAssertFalse(production.descendants(matching: .any)[educationIdentifier].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["dashboard.snapshot.status"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["dashboard.error"].exists)
+        production.terminate()
+    }
+
+    @MainActor
     func testWealthCNYUSDLiabilityCRUDAndDynamicTotals() throws {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments()

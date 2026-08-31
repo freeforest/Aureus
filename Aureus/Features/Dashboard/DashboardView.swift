@@ -5,10 +5,17 @@ struct DashboardView: View {
     @State private var model: DashboardFeatureModel
     @State private var selectedSection: DashboardSection = .overview
     let mode: AppDataMode
+    let openGoals: () -> Void
 
-    init(store: WealthStore, clock: any Clock, mode: AppDataMode) {
+    init(
+        store: WealthStore,
+        clock: any Clock,
+        mode: AppDataMode,
+        openGoals: @escaping () -> Void
+    ) {
         _model = State(initialValue: DashboardFeatureModel(store: store, clock: clock))
         self.mode = mode
+        self.openGoals = openGoals
     }
 
     var body: some View {
@@ -79,6 +86,12 @@ struct DashboardView: View {
                                 refresh: { Task { await model.refreshTodaySnapshot() } }
                             )
                             .id(DashboardSection.overview)
+                            DashboardGoalsSection(
+                                projections: model.goalProjections,
+                                currentNetWorthCNY: model.currentSummary?.netWorthCNY,
+                                openGoals: openGoals
+                            )
+                            .id(DashboardSection.goals)
                             DashboardRangeSelector(
                                 selection: Binding(
                                     get: { model.selectedRange },
@@ -157,12 +170,72 @@ struct DashboardView: View {
 
 private enum DashboardSection: String, CaseIterable, Identifiable {
     case overview = "Overview"
+    case goals = "Goals"
     case history = "History"
     case allocation = "Allocation"
     case cashFlow = "Cash Flow"
     case heatmaps = "Heatmaps"
 
     var id: Self { self }
+}
+
+private struct DashboardGoalsSection: View {
+    let projections: [DashboardGoalProjection]
+    let currentNetWorthCNY: Money?
+    let openGoals: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Goals Progress")
+                .font(.title2.weight(.semibold))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "Dashboard goals progress"))
+                .accessibilityIdentifier("dashboard.goals.heading")
+
+            let summary = "Dashboard goals summary: \(projections.count) goals, current CNY net worth \(currentNetWorthCNY.map(DashboardDisplay.money) ?? "unavailable")."
+            Text(verbatim: summary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: summary))
+                .accessibilityIdentifier("dashboard.goals.summary")
+
+            if projections.isEmpty {
+                Text("No permanent Goals are available.")
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "No permanent Goals are available."))
+                    .accessibilityIdentifier("dashboard.goals.empty")
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(projections) { projection in
+                        DashboardGoalRow(projection: projection)
+                    }
+                }
+            }
+
+            Button("Open Goals", action: openGoals)
+                .accessibilityLabel(Text(verbatim: "Open Goals"))
+                .accessibilityIdentifier("dashboard.goals.open")
+        }
+        .dashboardPanel()
+    }
+}
+
+private struct DashboardGoalRow: View {
+    let projection: DashboardGoalProjection
+
+    var body: some View {
+        let label = DashboardDisplay.goalLabel(projection)
+        Text(verbatim: label)
+            .font(.callout.monospacedDigit())
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: label))
+            .accessibilityIdentifier("dashboard.goal.\(projection.id.uuidString.lowercased())")
+    }
 }
 
 private struct DashboardModeHeader: View {
@@ -810,6 +883,23 @@ enum DashboardDisplay {
         let value = ratio.decimal * 100
         let prefix = value > 0 ? "+" : ""
         return prefix + WealthDisplay.number(value, fractionDigits: 2) + "%"
+    }
+
+    static func goalPercentage(_ ratio: Ratio) -> String {
+        WealthDisplay.number(ratio.decimal * 100, fractionDigits: 2) + "%"
+    }
+
+    static func goalLabel(_ projection: DashboardGoalProjection) -> String {
+        let goal = projection.goal
+        let prefix = "Dashboard Goal: \(goal.name), target \(money(goal.target)), target date \(goal.targetDate?.description ?? "not set")"
+        switch projection.progress {
+        case let .available(progress):
+            return "\(prefix), current CNY net worth \(money(progress.currentNetWorthCNY)), progress \(goalPercentage(progress.progress)), remaining \(money(progress.remainingCNY)); progress is not clamped."
+        case .unavailable(.targetCurrencyUnsupportedForCNYProgress):
+            return "\(prefix), CNY progress unavailable: target currency unsupported for CNY progress; no automatic FX conversion was performed."
+        case .unavailable(.currentCNYNetWorthUnavailable):
+            return "\(prefix), CNY progress unavailable: current CNY net worth unavailable."
+        }
     }
 
     static func chartValue(_ money: Money) -> Double {
