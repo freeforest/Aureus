@@ -350,3 +350,33 @@ No business retry, business repair, UI infrastructure retry, or incomplete-resul
 ## Current existing UI re-observation status
 
 **Stage 11-EXISTING-UI-REOBSERVATION-01 PARTIAL — Awaiting Reviewer Gate**
+
+## Native CSV standard-permission closure round
+
+Prompt 11-NATIVE-CSV-UI-CLOSURE-01 changed no Product, Unit Test, UI Test, Project, Package, Migration, Entitlement, Target, Scheme, fixture, Backup, Restore, or Migration Safety behavior. The round used the exact frozen signed current-source App, Runner, UI Test executable, and xctestrun. Unlike the preceding sandboxed attempt, the new invocation started directly in the explicitly authorized standard Xcode permission environment.
+
+Current evidence is rooted at `/private/tmp/Aureus-Stage11-NATIVE-CSV-UI-CLOSURE-01-Yey8Vo`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Settings lifecycle targeted UI | `NOT RUN — ACCEPTED CURRENT-SOURCE 1/1 PASS AFTER EXACT SOURCE/PRODUCT VERIFICATION` | Complete historical result remained current after exact source and product verification |
+| Ledger Dynamic independent UI | `NOT RUN — ACCEPTED CURRENT-SOURCE 1/1 PASS AFTER EXACT SOURCE/PRODUCT VERIFICATION` | Complete historical result remained current |
+| Portfolio independent UI | `NOT RUN — ACCEPTED CURRENT-SOURCE 1/1 PASS AFTER EXACT SOURCE/PRODUCT VERIFICATION` | Complete historical result remained current |
+| Focused Unit | `NOT RUN — INHERITED AFTER EXACT MODEL/FOUNDATION/UNIT SOURCE-HASH VERIFICATION` | Accepted `101` definitions / `109` dynamic executions PASS |
+| Full Unit | `NOT RUN — INHERITED AFTER EXACT MODEL/FOUNDATION/UNIT SOURCE-HASH VERIFICATION` | Accepted `394` definitions / `435` dynamic executions PASS |
+| Performance | `NOT RUN — INHERITED AFTER EXACT BACKUP/RESTORE/MIGRATION-SAFETY SOURCE-HASH VERIFICATION` | Frozen authorities remained byte-identical |
+| Clean Build | `NOT RUN — ACCEPTED CURRENT-SOURCE BUILD AFTER EXACT SOURCE/PRODUCT VERIFICATION` | Rebuild was not authorized or performed |
+| Signed BFT | `NOT RUN — REUSED EXACT FROZEN CURRENT-SOURCE PRODUCT` | Rebuild and re-sign were not authorized or performed |
+| Native CSV Gate | `FAIL` | Exact selector `testLedgerNativeCSVImportPreviewConfirmationAndExport`; shell exit `65`; canonical definitions/executions `1/1`; one business execution; passed/failed/skipped `0/1/0`; method duration `64.016 s`; result interval `76.266 s`; complete `NativeCSV-Standard.xcresult`; `Info.plist` present; standard-permission summary/tests parser exits `0/0`; failure source `AureusUITests.swift:2482` |
+| Existing focused regression | `NOT RUN` | Native CSV Gate did not pass; ordered prerequisite was not met |
+| Full `AureusUITests` | `NOT RUN` | Existing focused `10/10` was not run and could not satisfy the prerequisite |
+
+The Native CSV business method successfully entered the existing synthetic file-selection flow, produced and verified the import preview, confirmed the import, verified the imported synthetic expense, invoked export, and opened the native Save Panel. It then produced the complete assertion failure `Save Panel did not expose its current filename field`. This is a canonical business failure rather than a Runner, Automation, testmanagerd, bootstrap, discovery, or parser failure. No business repair, business retry, infrastructure retry, or incomplete-result re-observation was authorized or used.
+
+The preceding sandboxed Native CSV directory remains preserved as `INCOMPLETE RESULT — NOT PASS / NOT VERIFIED`. Its short staging diagnostics identify a pre-business `com.apple.testmanagerd.control` sandbox restriction and Runner PID `0`; it was not modified, completed, deleted, combined, or substituted for the current complete result.
+
+Provider requests remained `NOT RUN`; Twelve Data operations, Frankfurter live operations, Provider transports, Credential reads, Keychain metadata reads, and Market Cache reads/mutations remained `0`. Twelve Data persistent writes remain `Disabled`, Provider retention rights remain `BLOCKED`, external file implementation remains `NOT RUN`, and Stages 12–14 remain `NO-GO`.
+
+## Current Native CSV closure status
+
+**Stage 11-NATIVE-CSV-UI-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**
