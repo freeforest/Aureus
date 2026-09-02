@@ -2,7 +2,53 @@
 
 ## Status
 
-**Stage 11 Migration Safety Candidate — Awaiting Reviewer Gate**
+**Stage 11-SETTINGS-DATA-LIFECYCLE-UI-01 PARTIAL — Awaiting Reviewer Gate**
+
+## Settings internal data-lifecycle UI round
+
+The Reviewer accepted Backup Foundation, Restore Foundation, and Migration Safety as `PASS` before authorizing this bounded Settings round. Their manifest, validation, retention, replacement, rollback, recovery-required, migration, schema-version-6, and Provider-isolation contracts remain byte-identical.
+
+Settings now presents one native internal-only data-lifecycle section driven by a separate `SettingsDataLifecycleModel`. Initial load and reconstruction only inventory validated generations under the injected internal Backup root. `Create Backup` is explicit; selecting a visible valid generation enables `Restore Selected Backup`; Restore requires native confirmation, revalidates the candidate, delegates to the existing Restore foundation, and reloads inventory. Ordinary failures and `recoveryRequired` are finite and independently accessible. Invalid or unknown siblings are counted only as ignored diagnostics and are never selectable or deleted. No arbitrary path, raw SQLite, external import/export, `NSOpenPanel`, security-scoped bookmark, automatic schedule, Provider, Credential, Keychain, or Market Cache dependency was added.
+
+`AppDependencies` and `AppShellView` inject the existing `WealthStore`, the environment-specific internal Backup root, normalized app version, and generation identity dependency. Production and Synthetic/temporary roots remain isolated. The Project adds only the Production membership for `SettingsDataLifecycleModel.swift` and the Unit membership for `SettingsDataLifecycleTests.swift`.
+
+### Settings round verification evidence
+
+Final evidence is rooted at `/private/tmp/Aureus-Stage11-SETTINGS-DATA-LIFECYCLE-UI-01-SbVnOZ`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Focused lifecycle/Backup/Restore/Migration Unit | `PASS` | Exact five suites; `101` definitions / `109` dynamic executions; `109` passed, `0` failed, `0` skipped; final unsigned isolated-host shell exit `0`; complete `FocusedUnit-Unsigned-AfterRepair.xcresult`; summary/tests parser exits `0/0`; signed-host permission failure retained separately |
+| Full `AureusTests` | `PASS` | `394` definitions / `435` dynamic executions; `435` passed, `0` failed, `0` skipped; final unsigned isolated-host shell exit `0`; complete `FullAureusTests-Unsigned-AfterRepair.xcresult`; parser exits `0/0`; signed-host permission failure retained separately |
+| Performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION` | Accepted Backup, Restore, and Migration Safety Release workloads remain unchanged; this is not a current-round execution |
+| Clean Debug arm64 Build | `PASS` | shell exit `0`; status succeeded; errors `0`; four pre-existing `PortfolioView` warnings; complete `CleanDebugBuild-Final.xcresult`; parser exit `0` |
+| Fresh signed arm64 BFT | `PASS` | shell exit `0`; status succeeded; errors `0`; four pre-existing warnings; complete `BuildForTesting-Final.xcresult`; parser exit `0`; App and Runner strict codesign exit `0` |
+| Targeted Settings UI initial | `FAIL` | `1/1` business execution, `0` passed / `1` failed / `0` skipped; complete `Stage11SettingsTargetedUI.xcresult`; the XCTest identifier shortcut rejected the 149-character confirmation text at `AureusUITests.swift:1336` |
+| Targeted Settings UI final | `FAIL` | `1/1` business execution, `0` passed / `1` failed / `0` skipped; complete `Stage11SettingsTargetedUI-Final.xcresult`; Backup creation, Goal probe, inventory reload, selection, and Restore-button lifecycle passed before the exact warning `StaticText` was not found at `AureusUITests.swift:1340` |
+| Existing focused regression | `NOT RUN` | Gate prerequisite failed; no business repair or retry authorized after the final Targeted UI execution |
+| Full `AureusUITests` | `NOT RUN` | Existing focused Gate was not reached |
+
+The first complete targeted business failure authorized one direct UI-test lifecycle repair: the full confirmation warning moved from XCTest's length-limited identifier subscript to an exact `label ==` predicate without weakening its text. The prompt-required focused Unit, full Unit, Clean Build, BFT, and targeted UI sequence was then repeated on final source. The final targeted failure exhausted the two-business-execution budget, so no third run or second repair was performed. Infrastructure retry and incomplete-result re-observation were both `0`.
+
+### Settings round provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter live operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- External Backup/import/export: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Stages 12–14: `NO-GO`
+
+All test records and internal generations were synthetic and isolated under `/private/tmp`. The remaining runtime boundary is the native confirmation dialog's independent exact-label exposure; it is not a Backup, Restore, migration, Persistence, Provider, or test-discovery failure.
+
+## Current Settings UI round status
+
+**Stage 11-SETTINGS-DATA-LIFECYCLE-UI-01 PARTIAL — Awaiting Reviewer Gate**
 
 Stage 10 and the Stage 11 Backup and Restore Foundations have independent Reviewer `PASS` decisions. This document preserves those bounded rounds and records the current no-UI Permanent Migration Safety candidate. It does not declare Stage 11 `PASS`, Restore UI Ready, V1 Ready, Release Ready, or entry to Stages 12–14.
 

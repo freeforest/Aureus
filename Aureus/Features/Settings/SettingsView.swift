@@ -2,9 +2,11 @@ import SwiftUI
 
 struct SettingsView: View {
     @State private var model: SettingsFeatureModel
+    @State private var dataLifecycleModel: SettingsDataLifecycleModel
     @State private var showDisconnectConfirmation = false
     @State private var showDeleteCredentialConfirmation = false
     @State private var showResetConfirmation = false
+    @State private var showRestoreConfirmation = false
     let mode: AppDataMode
 
     init(
@@ -13,6 +15,10 @@ struct SettingsView: View {
         credentialCoordinator: ProviderCredentialCoordinator,
         cache: MarketCacheStore,
         sessionStore: TransientMarketSessionStore,
+        wealthStore: WealthStore,
+        internalBackupDirectoryURL: URL,
+        appVersion: String,
+        dataLifecycleGenerationID: @escaping @Sendable () -> UUID,
         clock: any Clock,
         mode: AppDataMode
     ) {
@@ -24,6 +30,13 @@ struct SettingsView: View {
             sessionStore: sessionStore,
             clock: clock
         ))
+        _dataLifecycleModel = State(initialValue: SettingsDataLifecycleModel(
+            store: wealthStore,
+            backupRoot: internalBackupDirectoryURL,
+            appVersion: appVersion,
+            clock: clock,
+            generationID: dataLifecycleGenerationID
+        ))
         self.mode = mode
     }
 
@@ -32,18 +45,21 @@ struct SettingsView: View {
             settingsBanner
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    dataLifecycleSection
                     providerSection
                     sessionSection
                     cacheSection
                     operationMessages
-                    laterStageSection
                 }
                 .padding(24)
                 .frame(maxWidth: 900, alignment: .leading)
             }
             .accessibilityIdentifier("settings.content")
         }
-        .task { await model.load() }
+        .task {
+            await model.load()
+            await dataLifecycleModel.load()
+        }
         .confirmationDialog(
             "Delete Twelve Data Key?",
             isPresented: $showDeleteCredentialConfirmation,
@@ -79,6 +95,18 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.cache.reset.confirm")
         } message: {
             Text("This closes, deletes, recreates, and migrates only the Market Cache database and sidecars. It cannot access the Permanent Wealth Store.")
+        }
+        .confirmationDialog(
+            "Restore Selected Internal Backup?",
+            isPresented: $showRestoreConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Restore Permanent Store", role: .destructive) {
+                Task { await dataLifecycleModel.restoreSelected(confirmed: true) }
+            }
+            .accessibilityIdentifier("settings.dataLifecycle.restore.confirm")
+        } message: {
+            Text("Current Permanent records will be replaced. Aureus will create and validate a safety Backup before Restore. Backups contain private permanent financial records.")
         }
     }
 
@@ -346,11 +374,127 @@ struct SettingsView: View {
         .accessibilityIdentifier(identifier)
     }
 
-    private var laterStageSection: some View {
-        GroupBox("Data lifecycle") {
-            Text("Backup, Restore, export lifecycle, and broader privacy settings remain Stage 11 work. No capability is implied here.")
-                .foregroundStyle(.secondary)
-                .padding(10)
+    private var dataLifecycleSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Data Lifecycle")
+                    .font(.title3.weight(.semibold))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Settings data lifecycle")
+                    .accessibilityIdentifier("settings.dataLifecycle.heading")
+
+                Text(
+                    "Data lifecycle: \(dataLifecycleModel.validGenerationCount) valid backups, "
+                        + "\(dataLifecycleModel.ignoredEntryCount) ignored entries"
+                )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    "Data lifecycle: \(dataLifecycleModel.validGenerationCount) valid backups, "
+                        + "\(dataLifecycleModel.ignoredEntryCount) ignored entries"
+                )
+                .accessibilityIdentifier("settings.dataLifecycle.summary")
+
+                if dataLifecycleModel.generations.isEmpty {
+                    Text("No valid internal backups")
+                        .foregroundStyle(.secondary)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("No valid internal backups")
+                        .accessibilityIdentifier("settings.dataLifecycle.empty")
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(dataLifecycleModel.generations) { generation in
+                            Button {
+                                dataLifecycleModel.selectGeneration(generation.id)
+                            } label: {
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                    Image(systemName: dataLifecycleModel.selectedGenerationID == generation.id
+                                          ? "checkmark.circle.fill" : "circle")
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(generation.createdAt)
+                                            .font(.body.monospacedDigit())
+                                        Text(
+                                            "App \(generation.appVersion) · Schema \(generation.schemaVersion) · "
+                                                + byteString(generation.databaseByteCount)
+                                        )
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(dataLifecycleModel.isWorking || dataLifecycleModel.isRecoveryRequired)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(
+                                "Internal Backup: \(generation.id), created \(generation.createdAt), "
+                                    + "app \(generation.appVersion), schema \(generation.schemaVersion), "
+                                    + "\(generation.databaseByteCount) bytes, "
+                                    + (dataLifecycleModel.selectedGenerationID == generation.id
+                                       ? "selected" : "not selected")
+                            )
+                            .accessibilityIdentifier(
+                                "settings.dataLifecycle.generation.\(generation.id)"
+                            )
+                        }
+                    }
+                }
+
+                HStack {
+                    Button("Create Backup") {
+                        Task { await dataLifecycleModel.createBackup() }
+                    }
+                    .disabled(!dataLifecycleModel.canCreateBackup)
+                    .accessibilityIdentifier("settings.dataLifecycle.create")
+
+                    Button("Restore Selected Backup", role: .destructive) {
+                        showRestoreConfirmation = true
+                    }
+                    .disabled(!dataLifecycleModel.canRestore)
+                    .accessibilityIdentifier("settings.dataLifecycle.restore")
+
+                    if dataLifecycleModel.isWorking {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+
+                Text(dataLifecycleModel.statusLabel)
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(dataLifecycleModel.statusLabel)
+                    .accessibilityIdentifier("settings.dataLifecycle.status")
+
+                if let error = dataLifecycleModel.errorLabel {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(error)
+                        .accessibilityIdentifier("settings.dataLifecycle.error")
+                }
+
+                if let recovery = dataLifecycleModel.recoveryRequiredLabel {
+                    Text(recovery)
+                        .foregroundStyle(.red)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(recovery)
+                        .accessibilityIdentifier("settings.dataLifecycle.recovery-required")
+                }
+
+                let disclosure = "Backup and Restore use Aureus’s private local Backup directory. Backups contain permanent financial records. Market Cache, Provider payloads, Credentials, Keychain data, and session-only planning assumptions are excluded. Aureus does not add application-layer encryption. Restore creates and validates a safety backup before replacing the Permanent Store."
+                Text(disclosure)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(disclosure)
+                    .accessibilityIdentifier("settings.dataLifecycle.disclosure")
+
+                Text("External import/export, scheduling, cloud Backup, and user-selected file flows are not implemented.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+        } label: {
+            Label("Internal Backup and Restore", systemImage: "externaldrive.badge.timemachine")
         }
     }
 

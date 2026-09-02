@@ -103,6 +103,10 @@ struct AppShellView: View {
                     credentialCoordinator: dependencies.credentialCoordinator,
                     cache: dependencies.marketCacheStore,
                     sessionStore: dependencies.marketSessionStore,
+                    wealthStore: dependencies.wealthStore,
+                    internalBackupDirectoryURL: dependencies.internalBackupDirectoryURL,
+                    appVersion: dependencies.appVersion,
+                    dataLifecycleGenerationID: dependencies.dataLifecycleGenerationID,
                     clock: dependencies.clock,
                     mode: mode
                 )

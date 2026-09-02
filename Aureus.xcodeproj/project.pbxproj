@@ -66,6 +66,7 @@
 		A1000000000000000000003E /* PermanentBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003A /* PermanentBackup.swift */; };
 		A1000000000000000000003F /* PermanentRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003B /* PermanentRestore.swift */; };
 		A10000000000000000000040 /* PermanentMigrationSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* PermanentMigrationSafety.swift */; };
+		A10000000000000000000041 /* SettingsDataLifecycleModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003D /* SettingsDataLifecycleModel.swift */; };
 		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
 		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
 		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
@@ -90,6 +91,7 @@
 		A20000000000000000000015 /* PermanentBackupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000015 /* PermanentBackupTests.swift */; };
 		A20000000000000000000016 /* PermanentRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000016 /* PermanentRestoreTests.swift */; };
 		A20000000000000000000017 /* PermanentMigrationSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */; };
+		A20000000000000000000018 /* SettingsDataLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000018 /* SettingsDataLifecycleTests.swift */; };
 		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
 		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
 /* End PBXBuildFile section */
@@ -172,6 +174,7 @@
 		B1000000000000000000003A /* PermanentBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackup.swift; sourceTree = "<group>"; };
 		B1000000000000000000003B /* PermanentRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentRestore.swift; sourceTree = "<group>"; };
 		B1000000000000000000003C /* PermanentMigrationSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentMigrationSafety.swift; sourceTree = "<group>"; };
+		B1000000000000000000003D /* SettingsDataLifecycleModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDataLifecycleModel.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
@@ -195,6 +198,7 @@
 		B20000000000000000000015 /* PermanentBackupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackupTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000016 /* PermanentRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentRestoreTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentMigrationSafetyTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000018 /* SettingsDataLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDataLifecycleTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
 		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -467,6 +471,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000025 /* SettingsFeatureModel.swift */,
+				B1000000000000000000003D /* SettingsDataLifecycleModel.swift */,
 				B10000000000000000000026 /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -557,6 +562,7 @@
 				B20000000000000000000015 /* PermanentBackupTests.swift */,
 				B20000000000000000000016 /* PermanentRestoreTests.swift */,
 				B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */,
+				B20000000000000000000018 /* SettingsDataLifecycleTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -722,6 +728,7 @@
 				A1000000000000000000003E /* PermanentBackup.swift in Sources */,
 				A1000000000000000000003F /* PermanentRestore.swift in Sources */,
 				A10000000000000000000040 /* PermanentMigrationSafety.swift in Sources */,
+				A10000000000000000000041 /* SettingsDataLifecycleModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -752,6 +759,7 @@
 				A20000000000000000000015 /* PermanentBackupTests.swift in Sources */,
 				A20000000000000000000016 /* PermanentRestoreTests.swift in Sources */,
 				A20000000000000000000017 /* PermanentMigrationSafetyTests.swift in Sources */,
+				A20000000000000000000018 /* SettingsDataLifecycleTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

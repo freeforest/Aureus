@@ -1242,6 +1242,174 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    func testStage11SettingsInternalBackupRestoreLifecycleAndIsolation() throws {
+        let disclosure = "Backup and Restore use Aureus’s private local Backup directory. Backups contain permanent financial records. Market Cache, Provider payloads, Credentials, Keychain data, and session-only planning assumptions are excluded. Aureus does not add application-layer encryption. Restore creates and validates a safety backup before replacing the Permanent Store."
+        let freedomIdentifier = "goals.goal.00000000-0000-4000-8000-000000010001"
+        let educationIdentifier = "goals.goal.00000000-0000-4000-8000-000000010002"
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 10))
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.heading",
+            expectedLabel: "Settings data lifecycle"
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.disclosure",
+            expectedLabel: disclosure
+        )
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 0 valid backups, 0 ignored entries",
+            timeout: 8
+        ))
+        XCTAssertTrue(app.descendants(matching: .any)["settings.dataLifecycle.empty"].exists)
+        XCTAssertEqual(settingsGenerationRows(in: app).count, 0)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.restore"].isEnabled)
+
+        let create = app.descendants(matching: .any)["settings.dataLifecycle.create"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        XCTAssertTrue(create.isEnabled)
+        create.click()
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 1 valid backups, 0 ignored entries",
+            timeout: 10
+        ))
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 8))
+        let originalGeneration = settingsGenerationRows(in: app).firstMatch
+        XCTAssertTrue(originalGeneration.exists)
+        XCTAssertTrue(originalGeneration.label.contains("not selected"))
+
+        app.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
+        let initialGoals = goalRowIdentifiers(in: app)
+        XCTAssertEqual(initialGoals, Set([freedomIdentifier, educationIdentifier]))
+        app.descendants(matching: .any)["goals.add"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.editor.name"].waitForExistence(timeout: 5))
+        replaceText(
+            in: app.descendants(matching: .any)["goals.editor.name"],
+            with: "Synthetic Restore Probe Goal"
+        )
+        replaceText(
+            in: app.descendants(matching: .any)["goals.editor.target"],
+            with: "123456"
+        )
+        app.descendants(matching: .any)["goals.editor.save"].click()
+        XCTAssertTrue(waitForNonexistence(
+            app.descendants(matching: .any)["goals.editor.save"],
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForGoalRowCount(3, in: app, timeout: 8))
+        let probeIdentifiers = goalRowIdentifiers(in: app).subtracting(initialGoals)
+        XCTAssertEqual(probeIdentifiers.count, 1)
+        let probeIdentifier = try XCTUnwrap(probeIdentifiers.first)
+        XCTAssertTrue(waitForSettingsDataLifecycleLabelContaining(
+            in: app,
+            identifier: probeIdentifier,
+            text: "Synthetic Restore Probe Goal",
+            timeout: 5
+        ))
+
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 1 valid backups, 0 ignored entries",
+            timeout: 8
+        ))
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 5))
+        settingsGenerationRows(in: app).firstMatch.click()
+        XCTAssertTrue(waitForSettingsControlEnabled(
+            in: app,
+            identifier: "settings.dataLifecycle.restore",
+            timeout: 5
+        ))
+        app.descendants(matching: .any)["settings.dataLifecycle.restore"].click()
+        let confirmMessage = app.staticTexts.matching(NSPredicate(
+            format: "label == %@",
+            "Current Permanent records will be replaced. Aureus will create and validate a safety Backup before Restore. Backups contain private permanent financial records."
+        )).firstMatch
+        XCTAssertTrue(confirmMessage.waitForExistence(timeout: 5))
+        let confirm = app.descendants(matching: .any)["settings.dataLifecycle.restore.confirm"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.click()
+
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 2 valid backups, 0 ignored entries",
+            timeout: 15
+        ))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.status",
+            equals: "Data lifecycle status: Restore Completed",
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForSettingsGenerationCount(2, in: app, timeout: 8))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+
+        app.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForNonexistence(
+            app.descendants(matching: .any)[probeIdentifier],
+            timeout: 5
+        ))
+        XCTAssertTrue(app.descendants(matching: .any)[freedomIdentifier].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)[educationIdentifier].waitForExistence(timeout: 5))
+        XCTAssertEqual(goalRowIdentifiers(in: app), initialGoals)
+
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForSettingsGenerationCount(2, in: app, timeout: 8))
+        XCTAssertTrue(settingsGenerationRows(in: app).allElementsBoundByAccessibilityElement.allSatisfy {
+            $0.label.contains("not selected")
+        })
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        app.terminate()
+
+        let production = XCUIApplication()
+        production.launchArguments = uiTestingArguments()
+        launchApp(production)
+        XCTAssertTrue(production.descendants(matching: .any)["mode.local"].waitForExistence(timeout: 10))
+        production.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["goals.empty"].waitForExistence(timeout: 8))
+        XCTAssertFalse(production.descendants(matching: .any)[freedomIdentifier].exists)
+        XCTAssertFalse(production.descendants(matching: .any)[educationIdentifier].exists)
+        production.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: production,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 0 valid backups, 0 ignored entries",
+            timeout: 8
+        ))
+        XCTAssertTrue(production.descendants(matching: .any)["settings.dataLifecycle.empty"].exists)
+        XCTAssertEqual(settingsGenerationRows(in: production).count, 0)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.restore"].isEnabled)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.import"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.export"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.status"].exists)
+        XCTAssertTrue(waitForSettingsDataLifecycleLabelContaining(
+            in: production,
+            identifier: "settings.provider.lastValidation",
+            text: "Not verified",
+            timeout: 5
+        ))
+        production.terminate()
+    }
+
+    @MainActor
     func testWealthCNYUSDLiabilityCRUDAndDynamicTotals() throws {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments()
@@ -1736,6 +1904,102 @@ final class AureusUITests: XCTestCase {
             ),
             "Picker \(identifier) did not select \(title)"
         )
+    }
+
+    @MainActor
+    private func assertUniqueSettingsDataLifecycleElement(
+        in app: XCUIApplication,
+        identifier: String,
+        expectedLabel: String
+    ) {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                let matches = app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "identifier == %@", identifier))
+                return matches.count == 1 && matches.firstMatch.label == expectedLabel
+            },
+            object: app
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+        let matches = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", identifier))
+        XCTAssertEqual(matches.count, 1)
+        XCTAssertEqual(matches.firstMatch.label, expectedLabel)
+    }
+
+    @MainActor
+    private func settingsGenerationRows(in app: XCUIApplication) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "settings.dataLifecycle.generation."
+            )
+        )
+    }
+
+    @MainActor
+    private func waitForSettingsGenerationCount(
+        _ expected: Int,
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                self.settingsGenerationRows(in: app).count == expected
+            },
+            object: app
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func waitForSettingsDataLifecycleLabel(
+        in app: XCUIApplication,
+        identifier: String,
+        equals expected: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                let element = app.descendants(matching: .any)[identifier]
+                return element.exists && element.label == expected
+            },
+            object: app
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func waitForSettingsDataLifecycleLabelContaining(
+        in app: XCUIApplication,
+        identifier: String,
+        text: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                let element = app.descendants(matching: .any)[identifier]
+                return element.exists && element.label.contains(text)
+            },
+            object: app
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func waitForSettingsControlEnabled(
+        in app: XCUIApplication,
+        identifier: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                let element = app.descendants(matching: .any)[identifier]
+                return element.exists && element.isEnabled
+            },
+            object: app
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     @MainActor

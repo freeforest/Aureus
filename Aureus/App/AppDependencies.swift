@@ -19,6 +19,9 @@ struct AppDependencies: Sendable {
     let credentialCoordinator: ProviderCredentialCoordinator
     let credentialStoragePolicy: ProductionCredentialStorage
     let clock: any Clock
+    let internalBackupDirectoryURL: URL
+    let appVersion: String
+    let dataLifecycleGenerationID: @Sendable () -> UUID
 
     static func make(
         configuration: LaunchConfiguration,
@@ -144,7 +147,10 @@ struct AppDependencies: Sendable {
             credentialStore: credentialStore,
             credentialCoordinator: credentialCoordinator,
             credentialStoragePolicy: ProductionCredentialPolicy.storage,
-            clock: clock
+            clock: clock,
+            internalBackupDirectoryURL: paths.internalBackupDirectoryURL,
+            appVersion: safetyInputs.appVersion,
+            dataLifecycleGenerationID: safetyInputs.generationID
         )
     }
 
