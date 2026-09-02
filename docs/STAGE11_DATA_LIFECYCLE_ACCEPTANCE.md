@@ -323,3 +323,30 @@ No Restore, Backup, safety, database, DerivedData, or xcresult artifact was writ
 ## Current Restore confirmation round status
 
 **Stage 11-RESTORE-CONFIRMATION-AX-01 PARTIAL — Awaiting Reviewer Gate**
+
+## Existing UI independent re-observation round
+
+Prompt 11-EXISTING-UI-REOBSERVATION-01 made no Product, Test, Project, Package, Migration, Entitlement, Target, Scheme, or fixture change. It reused the exact frozen current-source signed UI product after all required source and product hashes matched. The prior `ExistingFocusedRegression.xcresult` remains preserved and classified as `INCOMPLETE RESULT — NOT PASS / NOT VERIFIED`: it has no `Info.plist`, no canonical definitions/executions, and no canonical passed/failed/skipped aggregate. Its console observations were not combined into a result or used as a business-failure count.
+
+Current evidence is rooted at `/private/tmp/Aureus-Stage11-EXISTING-UI-REOBSERVATION-01-APiInh`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Targeted Settings UI | `NOT RUN — ACCEPTED CURRENT-SOURCE 1/1 PASS AFTER EXACT SOURCE/PRODUCT VERIFICATION` | The accepted complete targeted bundle and the frozen App, Runner, UI Test executable, and xctestrun identities matched |
+| Focused Unit | `NOT RUN — INHERITED AFTER EXACT MODEL/FOUNDATION/UNIT SOURCE-HASH VERIFICATION` | Accepted `101` definitions / `109` dynamic executions PASS |
+| Full Unit | `NOT RUN — INHERITED AFTER EXACT MODEL/FOUNDATION/UNIT SOURCE-HASH VERIFICATION` | Accepted `394` definitions / `435` dynamic executions PASS |
+| Performance | `NOT RUN — INHERITED AFTER EXACT BACKUP/RESTORE/MIGRATION-SAFETY SOURCE-HASH VERIFICATION` | Backup, Restore, and Migration Safety authorities remained byte-identical |
+| Clean Build | `NOT RUN — ACCEPTED CURRENT-SOURCE BUILD AFTER EXACT SOURCE/PRODUCT VERIFICATION` | No rebuild was authorized or performed |
+| BFT | `NOT RUN — REUSED EXACT FROZEN CURRENT-SOURCE PRODUCT` | No rebuild or re-sign was authorized or performed |
+| Ledger Dynamic independent selector | `PASS` | Exact selector `testLedgerDynamicCashFlowTransferInvestmentEditAndDelete`; shell exit `0`; `1/1` definition/execution and one business execution; `1` passed / `0` failed / `0` skipped; complete `LedgerDynamic.xcresult`; `Info.plist` present; initial sandbox parser exits `64/64`, same-bundle standard-permission parser exits `0/0`; method duration `229.752 s`; result interval `248.094 s` |
+| Native CSV independent selector | `INCOMPLETE RESULT — NOT PASS / NOT VERIFIED` | Exact selector `testLedgerNativeCSVImportPreviewConfirmationAndExport`; shell exit `1` during sandboxed Xcode log/destination initialization before the business method; the new `NativeCSV.xcresult` contains only `Data`/`Staging`, has no `Info.plist`, and cannot provide a canonical result; same-bundle summary/tests parser exits were `64/64` because `Info.plist` is absent. It did not satisfy the complete zero-business bootstrap retry condition or the externally interrupted incomplete-result re-observation condition, so it was not rerun. |
+| Portfolio independent selector | `PASS` | Exact selector `testStage8PortfolioSyntheticCRUDHoldingsSnapshotAndIsolation`; shell exit `0`; `1/1` definition/execution and one business execution; `1` passed / `0` failed / `0` skipped; complete `Portfolio.xcresult`; `Info.plist` present; summary/tests parser exits `0/0`; method duration `71.099 s`; result interval `72.300 s` |
+| Diagnostic matrix | `PARTIAL` | Ledger Dynamic and Portfolio independently passed, but Native CSV did not produce a canonical result; independent results were not combined into a false aggregate |
+| Existing focused regression | `NOT RUN` | Gate A did not close; ordered prerequisite was not met |
+| Full `AureusUITests` | `NOT RUN` | Existing focused `10/10` was not run and could not satisfy the prerequisite |
+
+No business retry, business repair, UI infrastructure retry, or incomplete-result re-observation was used. The Native CSV invocation is preserved as an incomplete infrastructure result and is not represented as a business failure or PASS. Provider requests remained `NOT RUN`; Twelve Data operations, Frankfurter live operations, Provider transports, Credential reads, Keychain metadata reads, and Market Cache reads/mutations remained `0`. Twelve Data persistent writes remain `Disabled`, Provider retention rights remain `BLOCKED`, external file implementation remains `NOT RUN`, and Stages 12–14 remain `NO-GO`.
+
+## Current existing UI re-observation status
+
+**Stage 11-EXISTING-UI-REOBSERVATION-01 PARTIAL — Awaiting Reviewer Gate**
