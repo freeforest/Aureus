@@ -96,17 +96,8 @@ struct SettingsView: View {
         } message: {
             Text("This closes, deletes, recreates, and migrates only the Market Cache database and sidecars. It cannot access the Permanent Wealth Store.")
         }
-        .confirmationDialog(
-            "Restore Selected Internal Backup?",
-            isPresented: $showRestoreConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Restore Permanent Store", role: .destructive) {
-                Task { await dataLifecycleModel.restoreSelected(confirmed: true) }
-            }
-            .accessibilityIdentifier("settings.dataLifecycle.restore.confirm")
-        } message: {
-            Text("Current Permanent records will be replaced. Aureus will create and validate a safety Backup before Restore. Backups contain private permanent financial records.")
+        .sheet(isPresented: $showRestoreConfirmation) {
+            restoreConfirmationSheet
         }
     }
 
@@ -496,6 +487,44 @@ struct SettingsView: View {
         } label: {
             Label("Internal Backup and Restore", systemImage: "externaldrive.badge.timemachine")
         }
+    }
+
+    private var restoreConfirmationSheet: some View {
+        let title = "Restore Selected Internal Backup?"
+        let warning = "Current Permanent records will be replaced. Aureus will create and validate a safety Backup before Restore. Backups contain private permanent financial records."
+        return VStack(alignment: .leading, spacing: 18) {
+            Text(title)
+                .font(.title2.weight(.semibold))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityIdentifier("settings.dataLifecycle.restore.dialog.heading")
+
+            Text(warning)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(warning)
+                .accessibilityIdentifier("settings.dataLifecycle.restore.dialog.warning")
+
+            HStack {
+                Spacer()
+
+                Button("Cancel", role: .cancel) {
+                    showRestoreConfirmation = false
+                }
+                .accessibilityLabel("Cancel")
+                .accessibilityIdentifier("settings.dataLifecycle.restore.cancel")
+
+                Button("Restore Permanent Store", role: .destructive) {
+                    showRestoreConfirmation = false
+                    Task { await dataLifecycleModel.restoreSelected(confirmed: true) }
+                }
+                .disabled(!dataLifecycleModel.canRestore)
+                .accessibilityLabel("Restore Permanent Store")
+                .accessibilityIdentifier("settings.dataLifecycle.restore.confirm")
+            }
+        }
+        .padding(24)
+        .frame(width: 560)
     }
 
     @ViewBuilder

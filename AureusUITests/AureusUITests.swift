@@ -1333,14 +1333,88 @@ final class AureusUITests: XCTestCase {
             timeout: 5
         ))
         app.descendants(matching: .any)["settings.dataLifecycle.restore"].click()
-        let confirmMessage = app.staticTexts.matching(NSPredicate(
-            format: "label == %@",
-            "Current Permanent records will be replaced. Aureus will create and validate a safety Backup before Restore. Backups contain private permanent financial records."
-        )).firstMatch
-        XCTAssertTrue(confirmMessage.waitForExistence(timeout: 5))
-        let confirm = app.descendants(matching: .any)["settings.dataLifecycle.restore.confirm"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
-        confirm.click()
+        let restoreTitle = "Restore Selected Internal Backup?"
+        let restoreWarning = "Current Permanent records will be replaced. Aureus will create and validate a safety Backup before Restore. Backups contain private permanent financial records."
+        let restoreSheetIdentifiers = [
+            "settings.dataLifecycle.restore.dialog.heading",
+            "settings.dataLifecycle.restore.dialog.warning",
+            "settings.dataLifecycle.restore.cancel",
+            "settings.dataLifecycle.restore.confirm"
+        ]
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.restore.dialog.heading",
+            expectedLabel: restoreTitle
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.restore.dialog.warning",
+            expectedLabel: restoreWarning
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.restore.cancel",
+            expectedLabel: "Cancel"
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.restore.confirm",
+            expectedLabel: "Restore Permanent Store"
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["settings.dataLifecycle.restore.cancel"].isEnabled)
+        XCTAssertTrue(app.descendants(matching: .any)["settings.dataLifecycle.restore.confirm"].isEnabled)
+        app.descendants(matching: .any)["settings.dataLifecycle.restore.cancel"].click()
+        for identifier in restoreSheetIdentifiers {
+            XCTAssertTrue(waitForNonexistence(
+                app.descendants(matching: .any)[identifier],
+                timeout: 5
+            ))
+        }
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 1 valid backups, 0 ignored entries",
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.status",
+            equals: "Data lifecycle status: Ready",
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 5))
+        XCTAssertFalse(settingsGenerationRows(in: app).firstMatch.label.contains("not selected"))
+        XCTAssertTrue(settingsGenerationRows(in: app).firstMatch.label.contains(", selected"))
+        XCTAssertTrue(waitForSettingsControlEnabled(
+            in: app,
+            identifier: "settings.dataLifecycle.restore",
+            timeout: 5
+        ))
+
+        app.descendants(matching: .any)["settings.dataLifecycle.restore"].click()
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.restore.dialog.heading",
+            expectedLabel: restoreTitle
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.restore.dialog.warning",
+            expectedLabel: restoreWarning
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.restore.cancel",
+            expectedLabel: "Cancel"
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.restore.confirm",
+            expectedLabel: "Restore Permanent Store"
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["settings.dataLifecycle.restore.cancel"].isEnabled)
+        XCTAssertTrue(app.descendants(matching: .any)["settings.dataLifecycle.restore.confirm"].isEnabled)
+        app.descendants(matching: .any)["settings.dataLifecycle.restore.confirm"].click()
 
         XCTAssertTrue(waitForSettingsDataLifecycleLabel(
             in: app,
