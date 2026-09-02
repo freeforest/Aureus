@@ -6,17 +6,33 @@ actor WealthStore {
 
     var queue: DatabaseQueue
     let migrator: DatabaseMigrator
+    let migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration?
+    private(set) var lastMigrationSafetyResult: PermanentMigrationSafetyResult?
     var maintenanceState: PermanentRestoreMaintenanceState = .ready
 
-    init(databaseURL: URL) throws {
+    init(
+        databaseURL: URL,
+        migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration? = nil
+    ) throws {
         self.databaseURL = databaseURL
         self.queue = try DatabaseQueueFactory.open(at: databaseURL)
         self.migrator = DatabaseMigrations.permanentMigrator()
-        try migrator.migrate(queue)
+        self.migrationSafetyConfiguration = migrationSafetyConfiguration
+        self.lastMigrationSafetyResult = try PermanentMigrationSafetyService.migrate(
+            queue,
+            databaseURL: databaseURL,
+            migrator: migrator,
+            configuration: migrationSafetyConfiguration
+        )
     }
 
     func migrate() throws {
-        try migrator.migrate(queue)
+        lastMigrationSafetyResult = try PermanentMigrationSafetyService.migrate(
+            queue,
+            databaseURL: databaseURL,
+            migrator: migrator,
+            configuration: migrationSafetyConfiguration
+        )
     }
 
     func schemaVersion() throws -> Int {

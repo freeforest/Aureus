@@ -102,16 +102,30 @@ struct PortfolioTerminalTests {
 
     @Test("Fresh and v1 through v5 databases migrate to active v6 without REAL authority")
     func migrationForward() async throws {
-        for start in [nil, DatabaseMigrations.permanentV1, DatabaseMigrations.permanentV2,
-                      DatabaseMigrations.permanentV3, DatabaseMigrations.permanentV4,
-                      DatabaseMigrations.permanentV5] {
+        for (index, start) in [nil, DatabaseMigrations.permanentV1, DatabaseMigrations.permanentV2,
+                               DatabaseMigrations.permanentV3, DatabaseMigrations.permanentV4,
+                               DatabaseMigrations.permanentV5].enumerated() {
             let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
             let url = root.appendingPathComponent("portfolio-\(start ?? "fresh").sqlite")
             if let start {
                 let queue = try DatabaseQueueFactory.open(at: url)
                 try DatabaseMigrations.permanentMigrator().migrate(queue, upTo: start)
             }
-            let store = try WealthStore(databaseURL: url)
+            let paths = RuntimePaths.temporary(root: root)
+            let store = try WealthStore(
+                databaseURL: url,
+                migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration(
+                    backupRoot: paths.internalBackupDirectoryURL,
+                    appVersion: "portfolio-migration-test",
+                    createdAt: { UTCInstant(millisecondsSince1970: 1_768_435_200_000) },
+                    generationID: {
+                        UUID(uuidString: String(
+                            format: "00000000-0000-4000-8000-%012d",
+                            index + 1
+                        ))!
+                    }
+                )
+            )
             #expect(try await store.schemaVersion() == 6)
             let queue = try DatabaseQueueFactory.open(at: url)
             let realColumns = try await queue.read { db in

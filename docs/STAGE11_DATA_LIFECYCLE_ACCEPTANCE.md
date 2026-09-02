@@ -2,9 +2,9 @@
 
 ## Status
 
-**Stage 11 Restore Foundation Candidate — Awaiting Reviewer Gate**
+**Stage 11 Migration Safety Candidate — Awaiting Reviewer Gate**
 
-Stage 10 and the Stage 11 Backup Foundation have independent Reviewer `PASS` decisions. This document preserves the first bounded Backup round and records the current no-UI Restore Foundation candidate. It does not declare Stage 11 `PASS`, Restore UI Ready, V1 Ready, Release Ready, or entry to Stages 12–14.
+Stage 10 and the Stage 11 Backup and Restore Foundations have independent Reviewer `PASS` decisions. This document preserves those bounded rounds and records the current no-UI Permanent Migration Safety candidate. It does not declare Stage 11 `PASS`, Restore UI Ready, V1 Ready, Release Ready, or entry to Stages 12–14.
 
 ## Scope
 
@@ -170,4 +170,67 @@ All Restore fixtures and databases are synthetic and isolated below the current 
 
 ## Current candidate
 
-**Stage 11 Restore Foundation Candidate — Awaiting Reviewer Gate**
+The historical Restore candidate above was independently accepted by the Reviewer as `PASS`. Its safety-backup, same-filesystem atomic replacement, forward-migration, validation, rollback, and `recoveryRequired` contracts remain unchanged.
+
+## Migration state classification
+
+Permanent Store startup and explicit `WealthStore.migrate()` now use one migration-safety authority built from canonical `DatabaseMigrator` applied identifiers, their stored order, and `schema_metadata`:
+
+- a genuinely fresh Store has no applied permanent migration and no unexplained business schema, creates no pre-migration Backup, and migrates to schema `6`;
+- a current Store has all six identifiers in order and schema `6`, creates no Backup, and performs an idempotent no-op followed by validation;
+- a recognized legacy Store has a strict non-empty v1...v5 identifier prefix and matching schema `1...5`;
+- unknown identifiers, gaps, reorderings, future schema, metadata/schema mismatch, non-permanent metadata, unexplained schema-zero business state, and unsafe/symlink Store paths are typed rejections before migration.
+
+## Production composition-root wiring
+
+`AppDependencies.make` supplies the real `WealthStore` construction path with the selected `RuntimePaths.internalBackupDirectoryURL`, a normalized application version, UTC creation instant, random generation identity, and the existing permanent migrator. Temporary and Synthetic dependency graphs use their injected temporary Backup root. No `WealthStore` legacy migration path, including explicit `migrate()`, can silently bypass this gate. Restore candidate migration remains inside its already validated safety-rollback flow and is not wrapped in a duplicate pre-migration generation.
+
+## Pre-migration Backup and failure boundaries
+
+Each recognized v1...v5 Store creates exactly one consistent format-version-1 generation before any pending migration. The committed generation is revalidated for manifest, streaming SHA-256, byte count, SQLite integrity, foreign keys, original schema, and the exact original migration prefix. Its original synthetic records remain readable. Only after that gate passes does the unchanged `DatabaseMigrations.permanentMigrator()` run.
+
+Backup creation, commit, validation, unsafe-root, collision, or filesystem failure prevents migrator invocation and leaves the live legacy Store unchanged. A migration transaction failure preserves the valid pre-migration generation and reports a finite availability state; no automatic Restore, alternate-generation selection, or loop is performed. A post-migration validation failure likewise retains the pre-migration generation and does not report the Store ready.
+
+## Shared post-migration validation
+
+Backup, Restore, and Migration Safety share one authoritative permanent-database validator. Current-schema validation requires `PRAGMA quick_check == ok`, zero foreign-key violations, schema version `6`, all six identifiers in order, all required permanent tables, successful reads, and no `REAL` financial-authority column. `DatabaseMigrations.swift`, its six identifiers, schema version `6`, Backup manifest fields and retention semantics, and Restore ordering/rollback/recovery behavior remain unchanged.
+
+## Retention and idempotence
+
+Only fully committed and validated generations participate in valid-only five-generation retention. Invalid or unknown siblings remain uncounted and undeleted. A first legacy open creates one generation; reopening or explicitly migrating the now-current Store creates none. Fresh and repeated current Store operations likewise create none. Concurrent construction is serialized so it cannot create a second pre-migration generation.
+
+## Migration Safety verification evidence
+
+Final current-source evidence is rooted at `/private/tmp/Aureus-Stage11-MIGRATION-SAFETY-01-jSZ2Ys`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Focused migration/Backup/Restore Unit | `PASS` | Exact suites `PermanentMigrationSafetyTests`, `PermanentBackupTests`, `PermanentRestoreTests`, `PersistenceTests`, and `PortfolioTerminalTests`; `108` definitions / `116` dynamic executions; `116` passed, `0` failed, `0` skipped; shell exit `0`; complete `FocusedMigrationBackupRestoreUnit-Final.xcresult`; summary/tests parser exits `0/0`; result interval `17.835 s` |
+| Affected persistence regression | `PASS` | Exact eight suites; `146` definitions / `157` dynamic executions; `157` passed, `0` failed, `0` skipped; shell exit `0`; complete `AffectedPersistenceRegression.xcresult`; parser exits `0/0`; result interval `13.563 s` |
+| Full `AureusTests` | `PASS` | `380` definitions / `421` dynamic executions; `421` passed, `0` failed, `0` skipped; shell exit `0`; complete `FullAureusTests.xcresult`; parser exits `0/0`; result interval `49.070 s` |
+| Release migration-safety suite | `PASS` | `27` definitions / `31` dynamic executions; `31` passed, `0` failed, `0` skipped; shell exit `0`; complete `ReleaseMigrationSafetyPerformance.xcresult`; parser exits `0/0`; the 10,000-row workload emitted `STAGE11_MIGRATION_SAFETY_PERF rows=10000 start_schema=1 backup_migrate_validate_ms=35 provider_requests=0 cache_reads=0 credential_reads=0` |
+| Clean Debug arm64 Build | `PASS` | shell exit `0`; status succeeded; errors `0`; four pre-existing `PortfolioView` deprecation warnings; complete `CleanDebugBuild.xcresult`; build parser exit `0`; result interval `20.253 s` |
+| Fresh signed arm64 BFT | `PASS` | shell exit `0`; `TEST BUILD SUCCEEDED`; errors `0`; four pre-existing warnings; complete `BuildForTesting.xcresult`; build parser exit `0`; result interval `30.446 s`; App and Runner strict codesign verification passed |
+| UI tests | `NOT RUN — NOT AUTHORIZED IN MIGRATION SAFETY ROUND` | BFT is build evidence only; Settings Backup/Restore UI, Existing focused UI, and full `AureusUITests` were not executed |
+
+The initial signed focused Unit result is preserved as an infrastructure failure: its complete bundle discovered all `108` definitions but App Sandbox denied the known `/private/tmp/AureusTests/<UUID>` test roots. The authorized stable unsigned isolated-host route then exposed two direct test-adaptation failures, which were retained; final current source reran the affected Gate and passed. Sandbox TestReport-cache parser attempts returned `64`; the same complete bundles parsed read-only under standard Xcode permissions with exit `0`. No parser recovery reran tests and no failed result was counted as PASS.
+
+## Migration Safety provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter live operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- Settings UI and external file flow: `NOT RUN / NOT AUTHORIZED`
+- Stages 12–14: `NO-GO`
+
+All migration fixtures and databases are synthetic and isolated below the current `/private/tmp` evidence root. No Repository database, Backup generation, migration staging file, Provider payload, Credential, or real financial record was created.
+
+## Current Migration Safety candidate
+
+**Stage 11 Migration Safety Candidate — Awaiting Reviewer Gate**

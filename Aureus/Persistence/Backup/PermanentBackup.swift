@@ -431,26 +431,15 @@ enum PermanentBackupService {
         expectedSchemaVersion: Int
     ) throws {
         do {
-            let reader = try readOnlyQueue(at: databaseURL)
-            defer { try? reader.close() }
-            let result = try reader.read { db -> (quickCheck: [String], foreignKeys: Int, schema: Int?) in
-                let quickCheck = try String.fetchAll(db, sql: "PRAGMA quick_check")
-                let foreignKeys = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").count
-                let schema = try Int.fetchOne(
-                    db,
-                    sql: "SELECT version FROM schema_metadata WHERE store_kind = 'permanent'"
-                )
-                return (quickCheck, foreignKeys, schema)
-            }
-            guard result.quickCheck == ["ok"] else {
-                throw PermanentBackupError.databaseOpenOrIntegrityFailure
-            }
-            guard result.foreignKeys == 0 else {
-                throw PermanentBackupError.foreignKeyFailure
-            }
-            guard result.schema == expectedSchemaVersion else {
-                throw PermanentBackupError.schemaMismatch
-            }
+            _ = try PermanentDatabaseValidation.inspectFile(
+                databaseURL,
+                expectedSchemaVersion: expectedSchemaVersion,
+                requireCurrentApplicationSchema: false
+            )
+        } catch PermanentDatabaseValidationFailure.foreignKeys {
+            throw PermanentBackupError.foreignKeyFailure
+        } catch PermanentDatabaseValidationFailure.schema {
+            throw PermanentBackupError.schemaMismatch
         } catch let error as PermanentBackupError {
             throw error
         } catch {

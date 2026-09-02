@@ -1,5 +1,11 @@
 import Foundation
 
+struct PermanentMigrationSafetyInputs: Sendable {
+    let appVersion: String
+    let createdAt: @Sendable () -> UTCInstant
+    let generationID: @Sendable () -> UUID
+}
+
 struct AppDependencies: Sendable {
     let wealthStore: WealthStore
     let marketCacheStore: MarketCacheStore
@@ -14,7 +20,10 @@ struct AppDependencies: Sendable {
     let credentialStoragePolicy: ProductionCredentialStorage
     let clock: any Clock
 
-    static func make(configuration: LaunchConfiguration) async throws -> AppDependencies {
+    static func make(
+        configuration: LaunchConfiguration,
+        migrationSafetyInputs: PermanentMigrationSafetyInputs? = nil
+    ) async throws -> AppDependencies {
         let paths: RuntimePaths
         if let temporaryRoot = configuration.temporaryRoot {
             paths = .temporary(root: temporaryRoot)
@@ -22,7 +31,24 @@ struct AppDependencies: Sendable {
             paths = try .production()
         }
 
-        let wealthStore = try WealthStore(databaseURL: paths.permanentDatabaseURL)
+        let fixedClock = FixedClock(
+            instant: UTCInstant(millisecondsSince1970: 1_768_435_200_000)
+        )
+        let clock: any Clock = configuration.usesTemporaryStores ? fixedClock : SystemClock()
+        let safetyInputs = migrationSafetyInputs ?? PermanentMigrationSafetyInputs(
+            appVersion: normalizedAppVersion(),
+            createdAt: { clock.now() },
+            generationID: { UUID() }
+        )
+        let wealthStore = try WealthStore(
+            databaseURL: paths.permanentDatabaseURL,
+            migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration(
+                backupRoot: paths.internalBackupDirectoryURL,
+                appVersion: safetyInputs.appVersion,
+                createdAt: safetyInputs.createdAt,
+                generationID: safetyInputs.generationID
+            )
+        )
         let marketCacheStore = try MarketCacheStore(databaseURL: paths.marketCacheDatabaseURL)
         let marketSessionStore = TransientMarketSessionStore()
         let marketPreferencesStore = MarketPreferencesStore(
@@ -33,10 +59,6 @@ struct AppDependencies: Sendable {
             suiteName: nil,
             memoryOnly: configuration.usesTemporaryStores
         )
-        let fixedClock = FixedClock(
-            instant: UTCInstant(millisecondsSince1970: 1_768_435_200_000)
-        )
-        let clock: any Clock = configuration.usesTemporaryStores ? fixedClock : SystemClock()
 
         if configuration.dataMode == .syntheticDemo {
             try await wealthStore.seedSyntheticWealth()
@@ -124,5 +146,13 @@ struct AppDependencies: Sendable {
             credentialStoragePolicy: ProductionCredentialPolicy.storage,
             clock: clock
         )
+    }
+
+    private static func normalizedAppVersion() -> String {
+        let raw = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String
+        let normalized = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return normalized.isEmpty ? "0.1" : normalized
     }
 }

@@ -94,21 +94,7 @@ struct LocalPermanentRestoreFileOperations: PermanentRestoreFileOperations {
     }
 }
 
-private struct PermanentRestoreDatabaseInspection: Equatable {
-    let schemaVersion: Int
-    let migrationIdentifiers: [String]
-    let tableNames: Set<String>
-    let accountIDs: [String]
-}
-
-private enum PermanentRestoreValidationFailure: Error {
-    case databaseOpenOrIntegrity
-    case foreignKeys
-    case schema
-    case migrationMetadata
-    case requiredTables
-    case applicationInvariant
-
+private extension PermanentDatabaseValidationFailure {
     var category: PermanentRestoreFailureCategory {
         switch self {
         case .databaseOpenOrIntegrity: .integrity
@@ -116,6 +102,7 @@ private enum PermanentRestoreValidationFailure: Error {
         case .schema: .schema
         case .migrationMetadata: .migrationMetadata
         case .requiredTables: .requiredTables
+        case .financialAuthority: .applicationInvariant
         case .applicationInvariant: .applicationInvariant
         }
     }
@@ -127,47 +114,7 @@ private enum PermanentRestoreStageKind: String {
 }
 
 private enum PermanentRestoreService {
-    static let currentSchemaVersion = 6
-
-    private static let migrationIdentifiers = [
-        DatabaseMigrations.permanentV1,
-        DatabaseMigrations.permanentV2,
-        DatabaseMigrations.permanentV3,
-        DatabaseMigrations.permanentV4,
-        DatabaseMigrations.permanentV5,
-        DatabaseMigrations.permanentV6
-    ]
-
-    private static let requiredPermanentTables: Set<String> = [
-        "accounts",
-        "asset_containers",
-        "assets",
-        "wealth_transactions",
-        "holdings",
-        "trades",
-        "snapshots",
-        "snapshot_valuations",
-        "market_instrument_references",
-        "portfolios",
-        "goals",
-        "insurance_policies",
-        "categories",
-        "tags",
-        "transaction_tags",
-        "wealth_records",
-        "ledger_transactions",
-        "ledger_postings",
-        "ledger_transaction_tags",
-        "classification_rules",
-        "classification_rule_tags",
-        "ledger_import_batches",
-        "snapshot_items",
-        "portfolio_definitions",
-        "portfolio_security_links",
-        "portfolio_activities",
-        "portfolio_nav_snapshots",
-        "portfolio_nav_snapshot_items"
-    ]
+    static let currentSchemaVersion = PermanentDatabaseValidation.currentSchemaVersion
 
     static func validateLiveDatabaseURL(_ databaseURL: URL) throws {
         guard databaseURL.isFileURL,
@@ -223,7 +170,7 @@ private enum PermanentRestoreService {
         operationID: UUID,
         kind: PermanentRestoreStageKind,
         fileOperations: any PermanentRestoreFileOperations
-    ) throws -> (url: URL, inspection: PermanentRestoreDatabaseInspection) {
+    ) throws -> (url: URL, inspection: PermanentDatabaseInspection) {
         let parentURL = databaseURL.deletingLastPathComponent().standardizedFileURL
         let stagingURL = ownedStageURL(
             parentURL: parentURL,
@@ -286,22 +233,9 @@ private enum PermanentRestoreService {
         _ databaseURL: URL,
         expectedSchemaVersion: Int,
         requireCurrentApplicationSchema: Bool
-    ) throws -> PermanentRestoreDatabaseInspection {
-        let reader: DatabaseQueue
-        do {
-            var configuration = Configuration()
-            configuration.readonly = true
-            configuration.prepareDatabase { db in
-                try db.execute(sql: "PRAGMA query_only = ON")
-                try db.execute(sql: "PRAGMA foreign_keys = ON")
-            }
-            reader = try DatabaseQueue(path: databaseURL.path, configuration: configuration)
-        } catch {
-            throw PermanentRestoreValidationFailure.databaseOpenOrIntegrity
-        }
-        defer { try? reader.close() }
-        return try inspect(
-            reader,
+    ) throws -> PermanentDatabaseInspection {
+        try PermanentDatabaseValidation.inspectFile(
+            databaseURL,
             expectedSchemaVersion: expectedSchemaVersion,
             requireCurrentApplicationSchema: requireCurrentApplicationSchema
         )
@@ -311,66 +245,12 @@ private enum PermanentRestoreService {
         _ queue: DatabaseQueue,
         expectedSchemaVersion: Int,
         requireCurrentApplicationSchema: Bool
-    ) throws -> PermanentRestoreDatabaseInspection {
-        do {
-            let inspection = try queue.read { db -> PermanentRestoreDatabaseInspection in
-                let quickCheck = try String.fetchAll(db, sql: "PRAGMA quick_check")
-                guard quickCheck == ["ok"] else {
-                    throw PermanentRestoreValidationFailure.databaseOpenOrIntegrity
-                }
-                guard try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty else {
-                    throw PermanentRestoreValidationFailure.foreignKeys
-                }
-                guard let schemaVersion = try Int.fetchOne(
-                    db,
-                    sql: "SELECT version FROM schema_metadata WHERE store_kind = 'permanent'"
-                ), schemaVersion == expectedSchemaVersion else {
-                    throw PermanentRestoreValidationFailure.schema
-                }
-                let tables = Set(try String.fetchAll(
-                    db,
-                    sql: "SELECT name FROM sqlite_master WHERE type = 'table'"
-                ))
-                let migrations: [String]
-                if tables.contains("grdb_migrations") {
-                    migrations = try String.fetchAll(
-                        db,
-                        sql: "SELECT identifier FROM grdb_migrations ORDER BY rowid"
-                    )
-                } else {
-                    migrations = []
-                }
-                guard tables.contains("accounts") else {
-                    throw PermanentRestoreValidationFailure.applicationInvariant
-                }
-                let accountIDs = try String.fetchAll(
-                    db,
-                    sql: "SELECT id FROM accounts ORDER BY id"
-                )
-                return PermanentRestoreDatabaseInspection(
-                    schemaVersion: schemaVersion,
-                    migrationIdentifiers: migrations,
-                    tableNames: tables,
-                    accountIDs: accountIDs
-                )
-            }
-            if requireCurrentApplicationSchema {
-                guard inspection.schemaVersion == currentSchemaVersion else {
-                    throw PermanentRestoreValidationFailure.schema
-                }
-                guard inspection.migrationIdentifiers == migrationIdentifiers else {
-                    throw PermanentRestoreValidationFailure.migrationMetadata
-                }
-                guard requiredPermanentTables.isSubset(of: inspection.tableNames) else {
-                    throw PermanentRestoreValidationFailure.requiredTables
-                }
-            }
-            return inspection
-        } catch let error as PermanentRestoreValidationFailure {
-            throw error
-        } catch {
-            throw PermanentRestoreValidationFailure.databaseOpenOrIntegrity
-        }
+    ) throws -> PermanentDatabaseInspection {
+        try PermanentDatabaseValidation.inspect(
+            queue,
+            expectedSchemaVersion: expectedSchemaVersion,
+            requireCurrentApplicationSchema: requireCurrentApplicationSchema
+        )
     }
 
     static func reopenValidatedCurrentDatabase(
@@ -385,7 +265,7 @@ private enum PermanentRestoreService {
                 requireCurrentApplicationSchema: true
             )
             guard inspection.accountIDs == expectedAccountIDs else {
-                throw PermanentRestoreValidationFailure.applicationInvariant
+                throw PermanentDatabaseValidationFailure.applicationInvariant
             }
             return reopened
         } catch {
@@ -516,7 +396,7 @@ extension WealthStore {
             )
             candidateStageURL = stagedCandidate.url
 
-            let currentInspection: PermanentRestoreDatabaseInspection
+            let currentInspection: PermanentDatabaseInspection
             do {
                 currentInspection = try PermanentRestoreService.inspect(
                     queue,
@@ -629,14 +509,14 @@ extension WealthStore {
                 } catch {
                     throw PermanentRestoreActivationFailure(.migration)
                 }
-                let restoredInspection: PermanentRestoreDatabaseInspection
+                let restoredInspection: PermanentDatabaseInspection
                 do {
                     restoredInspection = try PermanentRestoreService.inspect(
                         reopened,
                         expectedSchemaVersion: PermanentRestoreService.currentSchemaVersion,
                         requireCurrentApplicationSchema: true
                     )
-                } catch let error as PermanentRestoreValidationFailure {
+                } catch let error as PermanentDatabaseValidationFailure {
                     throw PermanentRestoreActivationFailure(error.category)
                 } catch {
                     throw PermanentRestoreActivationFailure(.integrity)
@@ -730,7 +610,7 @@ extension WealthStore {
                 requireCurrentApplicationSchema: true
             )
             guard inspection.accountIDs == expectedAccountIDs else {
-                throw PermanentRestoreValidationFailure.applicationInvariant
+                throw PermanentDatabaseValidationFailure.applicationInvariant
             }
             return reopened
         } catch {
