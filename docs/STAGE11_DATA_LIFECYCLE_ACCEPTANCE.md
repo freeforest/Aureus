@@ -280,3 +280,46 @@ All migration fixtures and databases are synthetic and isolated below the curren
 ## Current Migration Safety candidate
 
 **Stage 11 Migration Safety Candidate — Awaiting Reviewer Gate**
+
+## Restore confirmation native Accessibility round
+
+Prompt 11-RESTORE-CONFIRMATION-AX-01 replaced only the Restore-specific system-managed `confirmationDialog` with an application-owned native SwiftUI sheet. The existing Delete Key, Disconnect, and Reset Market Cache confirmation dialogs remain unchanged. The sheet exposes four independent visible nodes: `settings.dataLifecycle.restore.dialog.heading`, `settings.dataLifecycle.restore.dialog.warning`, `settings.dataLifecycle.restore.cancel`, and `settings.dataLifecycle.restore.confirm`. The warning's visible text, Accessibility label, and UI-test exact string are identical. Cancel only dismisses the sheet; Confirm dismisses it and invokes the existing confirmed Restore path exactly once. No Foundation, lifecycle model, App wiring, Project, Package, Migration, Entitlement, external-file flow, or Provider path changed.
+
+### Current-round verification
+
+Current evidence is rooted at `/private/tmp/Aureus-Stage11-RESTORE-CONFIRMATION-AX-01-Gn6kSi`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Focused Unit | `NOT RUN — INHERITED AFTER EXACT MODEL/FOUNDATION/UNIT SOURCE-HASH VERIFICATION` | Accepted current-source evidence remains `101` definitions / `109` dynamic executions PASS |
+| Full Unit | `NOT RUN — INHERITED AFTER EXACT MODEL/FOUNDATION/UNIT SOURCE-HASH VERIFICATION` | Accepted current-source evidence remains `394` definitions / `435` dynamic executions PASS |
+| Performance | `NOT RUN — INHERITED AFTER EXACT BACKUP/RESTORE/MIGRATION-SAFETY SOURCE-HASH VERIFICATION` | Backup, Restore, and Migration Safety authorities remained byte-identical |
+| Clean Debug arm64 Build | `PASS` | Final shell exit `0`; status succeeded; errors `0`; four pre-existing `PortfolioView` warnings and no new warning; complete `CleanDebugBuild-Final.xcresult`; `Info.plist` present; build parser exit `0`; result interval `33.283 s` |
+| Fresh signed arm64 BFT | `PASS` | shell exit `0`; `TEST BUILD SUCCEEDED`; errors `0`; four pre-existing warnings; complete `BuildForTesting.xcresult`; `Info.plist` present; build parser exit `0`; result interval `34.694 s`; App and Runner strict codesign verification passed |
+| Targeted Settings UI | `PASS` | Exact selector `testStage11SettingsInternalBackupRestoreLifecycleAndIsolation`; `1/1` definition/execution and one business execution; `1` passed / `0` failed / `0` skipped; shell exit `0`; complete `Stage11RestoreConfirmationTargetedUI.xcresult`; `Info.plist` present; initial sandbox TestReport parser exits `64/64`, same-bundle standard-permission parser exits `0/0`; method duration `107.337 s` |
+| Existing focused regression | `INCOMPLETE RESULT — NOT PASS` | Exact ten selectors used the same frozen product. The command session was externally interrupted and `ExistingFocusedRegression.xcresult` contains only `Data`/`Staging` without `Info.plist`; before interruption, complete business assertions failed in `testLedgerDynamicCashFlowTransferInvestmentEditAndDelete` at line `1968`, `testLedgerNativeCSVImportPreviewConfirmationAndExport` at line `2439`, and `testStage8PortfolioSyntheticCRUDHoldingsSnapshotAndIsolation` at line `235`. Because completed business failures exist, the result is ineligible for incomplete-result re-observation and is not reported as a canonical aggregate PASS or FAIL count. |
+| Full `AureusUITests` | `NOT RUN` | Existing focused did not pass; ordered Gate prerequisite was not met |
+
+The targeted runtime proved the exact heading and warning, the independently enabled Cancel and Confirm controls, Cancel dismissal of all four sheet nodes with inventory still at one and status still Ready, re-open and fresh element queries, one Confirm click, inventory growth to two valid generations, `Restore Completed`, absence of recovery-required/error state, disappearance of the probe Goal, restoration of both original Synthetic Goals, Settings reconstruction, and Production root isolation. Provider, Credential, Keychain, and Market Cache operations remained zero in the test's tail.
+
+The initial Clean command used conflicting architecture specification and exited `70` before compilation; that configuration artifact is preserved as `CleanDebugBuild.xcresult` and is not counted as PASS. The corrected final Clean and BFT used final source. UI infrastructure retry, targeted business repair/retry, and parser-triggered test retry were all `0`. The externally interrupted Existing focused result consumed no re-observation because its completed business failures make it ineligible under the prompt.
+
+### Current-round provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter live operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- External file flow: `NOT RUN`
+- Stages 12–14: `NO-GO`
+
+No Restore, Backup, safety, database, DerivedData, or xcresult artifact was written into the Repository. The remaining Gate boundary is the incomplete and business-failing Existing focused regression; Full UI is therefore not current-round evidence.
+
+## Current Restore confirmation round status
+
+**Stage 11-RESTORE-CONFIRMATION-AX-01 PARTIAL — Awaiting Reviewer Gate**
