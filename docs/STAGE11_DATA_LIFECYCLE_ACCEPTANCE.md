@@ -2,7 +2,7 @@
 
 ## Status
 
-**Stage 11-SETTINGS-DATA-LIFECYCLE-UI-01 PARTIAL — Awaiting Reviewer Gate**
+**Stage 11 Data Lifecycle UI Runtime Candidate — Awaiting Reviewer Gate**
 
 ## Settings internal data-lifecycle UI round
 
@@ -380,3 +380,30 @@ Provider requests remained `NOT RUN`; Twelve Data operations, Frankfurter live o
 ## Current Native CSV closure status
 
 **Stage 11-NATIVE-CSV-UI-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**
+
+## Native CSV public-default-filename Save Panel round
+
+Prompt 11-NATIVE-CSV-SAVE-PANEL-01 changed only the authorized UI test before formal Gate execution. The repaired Native CSV helper preserves the Product's public `defaultFilename: "Aureus-Ledger-V1"` contract, verifies that `Aureus-Ledger-V1.csv` does not exist before export, follows the existing Go To Folder flow, re-queries the active Save Panel after that sheet closes, requires the current `OKButton` to exist and be enabled, clicks it exactly once, waits for the Save Panel to disappear, and verifies the exact exported file. Product and Test references to Apple's internal `saveAsNameTextField` are now zero. No Product Swift, Unit test, Project, Package, Migration, Entitlement, Target, Scheme, fixture, Backup, Restore, Migration Safety, Settings, Goals, Portfolio, Markets, or Analytics behavior changed.
+
+Current evidence is rooted at `/private/tmp/Aureus-Stage11-NATIVE-CSV-SAVE-PANEL-01-R7vbvB`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Focused Unit | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Domain, Persistence, FeatureModel, and Unit sources remained frozen |
+| Full Unit | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Accepted current-source Unit evidence remained applicable |
+| Performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION` | Backup, Restore, and Migration Safety authorities remained frozen |
+| Clean Debug arm64 Build | `PASS` | Shell exit `0`; result `Succeeded`; errors `0`; four existing `PortfolioView` deprecation warnings; duration `31.783 s`; complete `CleanDebugBuild.xcresult`; `Info.plist` present; final build parser exit `0` |
+| Fresh signed arm64 BFT | `PASS` | Shell exit `0`; `TEST BUILD SUCCEEDED`; errors `0`; four existing warnings; duration `34.641 s`; complete `BuildForTesting.xcresult`; `Info.plist` present; build parser exit `0`; App and Runner strict codesign exit `0` |
+| Native CSV targeted UI | `PASS` | Exact selector `testLedgerNativeCSVImportPreviewConfirmationAndExport`; shell exit `0`; definitions/executions `1/1`; one business execution; passed/failed/skipped `1/0/0`; method duration `55.340 s`; result interval `63.758 s`; complete `NativeCSVTargetedUI.xcresult`; `Info.plist` present; summary/tests parser exits `0/0` |
+| Existing focused regression | `PASS` | Ten exact selectors in one serial invocation; shell exit `0`; definitions/executions `10/10`; ten business executions; passed/failed/skipped `10/0/0`; result interval `1033.251 s`; complete `ExistingFocusedRegression.xcresult`; `Info.plist` present; summary/tests parser exits `0/0` |
+| Full `AureusUITests` | `PASS` | Exact selector `AureusUITests`; shell exit `0`; definitions/executions `16/16`; sixteen business executions; passed/failed/skipped `16/0/0`; all sixteen canonical Test Case nodes `Passed`; method aggregate `1165.334 s`; result interval `1178.296 s`; complete `FullAureusUITests.xcresult`; `Info.plist` present; tests parser exit `0`; summary parser initial concurrent-cache exit `64`, same-bundle sequential read-only reparse exit `0` |
+
+All UI invocations used one frozen signed product with parallel testing disabled and maximum concurrent destination `1`. The final product identities are App `6af5d12fd5c49c2de82c6bc0a09024efae07a4d1c223fa4fb3ffff38bda94d66`, Runner `253d63c1ca59775d09a518862becf045df5decc3d7a8e78034807575aece58b8`, UI Test executable `1c57bd87815675a7bccd14f8af4ff73db9edb293dd7b6022475aae6ec1e6b98c`, and xctestrun `6c48af20976451375d9329674d1ad2dc9b0f0c2051931f1f245bdb7c62dc7c43`. Their hashes remained unchanged across all three UI Gates. The same-bundle parser re-read did not rerun any test.
+
+The preceding complete Native CSV Save Panel assertion failure and the earlier incomplete sandboxed Native CSV result remain historical facts; neither was modified, merged, downgraded, or substituted. This round used exactly one pre-Gate UI-test repair. After formal Gate execution began, business repair, business retry, infrastructure retry, and incomplete-result re-observation were all `0`.
+
+Provider requests remained `NOT RUN`; Twelve Data operations, Frankfurter operations, Provider transports, Credential reads, Keychain metadata reads, and Market Cache reads/mutations remained `0`. Twelve Data persistent writes remain `Disabled`, Provider retention rights remain `BLOCKED`, external file implementation remains `NOT RUN`, and Stages 12–14 remain `NO-GO`.
+
+## Current Data Lifecycle UI runtime status
+
+**Stage 11 Data Lifecycle UI Runtime Candidate — Awaiting Reviewer Gate**

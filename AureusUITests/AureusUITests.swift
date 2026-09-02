@@ -1660,8 +1660,12 @@ final class AureusUITests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let importURL = root.appendingPathComponent("Synthetic-Import.csv")
-        let exportURL = root.appendingPathComponent("Synthetic-Export.csv")
+        let exportURL = root.appendingPathComponent("Aureus-Ledger-V1.csv")
         try syntheticImportCSV(transactionID: UUID()).write(to: importURL, options: .atomic)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: exportURL.path),
+            "Synthetic export destination must not exist before export"
+        )
 
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
@@ -1687,7 +1691,7 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Synthetic CSV Expense"].waitForExistence(timeout: 10))
 
         app.descendants(matching: .any)["ledger.export"].click()
-        saveFile(exportURL.path, in: app)
+        saveFileUsingDefaultFilename(at: exportURL, in: app)
         XCTAssertTrue(waitForNonexistence(app.sheets.firstMatch, timeout: 5))
         XCTAssertFalse(app.alerts["Ledger Error"].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.path))
@@ -2459,7 +2463,11 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
-    private func saveFile(_ path: String, in app: XCUIApplication) {
+    private func saveFileUsingDefaultFilename(at expectedURL: URL, in app: XCUIApplication) {
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: expectedURL.path),
+            "Synthetic export destination must not exist before opening the Save Panel"
+        )
         XCTAssertTrue(
             app.sheets.firstMatch.waitForExistence(timeout: 5)
                 || app.dialogs.firstMatch.waitForExistence(timeout: 5),
@@ -2469,29 +2477,16 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.textFields["PathTextField"].waitForExistence(timeout: 5))
         replaceText(
             in: app.textFields["PathTextField"],
-            with: URL(fileURLWithPath: path).deletingLastPathComponent().path
+            with: expectedURL.deletingLastPathComponent().path
         )
         app.typeKey(.return, modifierFlags: [])
         if !waitForNonexistence(app.sheets["GoToWindow"], timeout: 5) {
             app.typeKey(.return, modifierFlags: [])
         }
         XCTAssertTrue(waitForNonexistence(app.sheets["GoToWindow"], timeout: 5))
-        if FileManager.default.fileExists(atPath: path) {
-            return
-        }
-        XCTAssertTrue(
-            waitForCurrentPanelControl(
-                in: app,
-                identifier: "saveAsNameTextField",
-                elementType: .textField,
-                timeout: 8
-            ),
-            "Save Panel did not expose its current filename field"
-        )
-        replaceText(
-            in: currentNativePanel(in: app)
-                .descendants(matching: .textField)["saveAsNameTextField"],
-            with: URL(fileURLWithPath: path).lastPathComponent
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: expectedURL.path),
+            "Save Panel navigation must not create the synthetic export"
         )
         XCTAssertTrue(
             waitForCurrentPanelControl(
@@ -2507,21 +2502,14 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForEnabled(save, timeout: 5), "Export button never became enabled")
         let currentSave = currentNativePanel(in: app)
             .descendants(matching: .button)["OKButton"].firstMatch
-        if currentSave.isHittable { currentSave.click() }
-        else { app.typeKey(.enter, modifierFlags: []) }
-        if waitForCurrentPanelControl(
-            in: app,
-            identifier: "Replace",
-            elementType: .button,
-            timeout: 1
-        ) {
-            let replace = currentNativePanel(in: app)
-                .descendants(matching: .button)["Replace"].firstMatch
-            XCTAssertTrue(replace.isHittable)
-            replace.click()
-        }
+        XCTAssertTrue(currentSave.isHittable, "Save button is not hittable")
+        currentSave.click()
         XCTAssertTrue(
-            waitForFile(at: path, timeout: 5),
+            waitForNativePanelToDisappear(in: app, timeout: 5),
+            "Save Panel did not dismiss after confirming the synthetic export"
+        )
+        XCTAssertTrue(
+            waitForFile(at: expectedURL.path, timeout: 5),
             "Native Save Panel dismissed but the synthetic export was not created"
         )
     }
