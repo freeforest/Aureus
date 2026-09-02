@@ -4,8 +4,9 @@ import GRDB
 actor WealthStore {
     nonisolated let databaseURL: URL
 
-    let queue: DatabaseQueue
-    private let migrator: DatabaseMigrator
+    var queue: DatabaseQueue
+    let migrator: DatabaseMigrator
+    var maintenanceState: PermanentRestoreMaintenanceState = .ready
 
     init(databaseURL: URL) throws {
         self.databaseURL = databaseURL
