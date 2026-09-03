@@ -2,7 +2,51 @@
 
 ## Status
 
-**Stage 11 Data Lifecycle UI Runtime Candidate — Awaiting Reviewer Gate**
+**Stage 11 External Backup Export Foundation Candidate — Awaiting Reviewer Gate**
+
+## External Backup Export Foundation round
+
+Prompt 11-EXTERNAL-BACKUP-EXPORT-FOUNDATION-01 adds an explicitly invoked, no-UI external export foundation. It accepts only a generation that passes the existing configured internal Backup-root validation, then exports the byte-identical `aureus.sqlite` and `manifest.json` pair into an operation-scoped caller-injected destination. The destination must be an existing writable absolute file directory, must resolve without symbolic links, and must not overlap the Repository, internal Backup root, Permanent database location, or Market Cache location. The service neither stores the destination nor creates a security-scoped bookmark.
+
+Export uses a unique direct-child staging directory, copies only the two generation files, runs the authoritative streaming SHA-256, byte-count, SQLite query-only quick-check, foreign-key, schema, manifest, file-type, symlink, and exact-artifact validation, then commits by same-filesystem atomic move and validates the committed generation again. Collision never overwrites. Failure cleanup is limited to the operation-owned staging directory; unrelated destination siblings and existing external generations remain untouched. External retention/pruning is not implemented or run, while internal five-generation retention and internal Restore's direct-child root restriction remain unchanged.
+
+The exported artifact is not a ZIP, compressed archive, encrypted wrapper, or new manifest format. It contains no third metadata file and makes no application-layer encryption claim. Settings external file UI, `NSOpenPanel`/`NSSavePanel`, security-scoped access/bookmarks, destination persistence, external Restore/import, raw SQLite import, cloud export, scheduled export, and Stages 12–14 remain outside this round.
+
+Current evidence root: `/private/tmp/Aureus-Stage11-EXTERNAL-BACKUP-EXPORT-FOUNDATION-01-1ngtiQ`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Historical UI/build evidence | `NOT RUN — ACCEPTED HISTORICAL CURRENT-SOURCE EVIDENCE` | Read-only canonical parsing confirmed prior Native CSV `1/1`, Existing focused `10/10`, and full `AureusUITests` `16/16` PASS plus successful Clean Build/BFT; these results were not rerun or counted as this round's UI evidence |
+| Initial signed Focused Unit | `INFRASTRUCTURE FAILURE` | Shell exit `65`; complete `FocusedUnit-Signed.xcresult`; `Info.plist` present; summary/tests parser exits `0/0`; `57` definitions / `59` executions; App Sandbox denied the known `/private/tmp/AureusTests/<UUID>` roots, so `0` business tests passed and this result is not a business PASS |
+| Final Focused Unit | `PASS` | Exact suites `PermanentBackupExportTests` and `PermanentBackupTests`; stable unsigned isolated-host route; shell exit `0`; `57` definitions / `59` dynamic executions; `57` passed / `0` failed / `0` skipped; result interval `9.238 s`; complete `FocusedUnit-Unsigned-Final3.xcresult`; `Info.plist` present; summary/tests parser exits `0/0` |
+| Affected regression | `PASS` | Exact suites `PermanentBackupExportTests`, `PermanentBackupTests`, `PermanentRestoreTests`, `PermanentMigrationSafetyTests`, `SettingsDataLifecycleTests`, and `PersistenceTests`; shell exit `0`; `130` definitions / `140` dynamic executions; `130/0/0`; result interval `42.203 s`; complete `AffectedRegression-Unsigned.xcresult`; `Info.plist` present; parser exits `0/0` |
+| Full Unit | `PASS` | Exact selector `AureusTests`; shell exit `0`; `423` definitions / `466` dynamic executions; `423/0/0`; result interval `84.172 s`; complete `FullAureusTests-Unsigned.xcresult`; `Info.plist` present; parser exits `0/0` |
+| Release Export suite | `PASS` | Exact suite `PermanentBackupExportTests`; Release-oriented testability-enabled isolated host; shell exit `0`; `29` definitions / `31` dynamic executions; `29/0/0`; complete `ReleaseExportPerformance-Unsigned.xcresult`; `Info.plist` present; parser exits `0/0`; total result interval `132.010 s`, including build |
+| Release workload | `PASS` | `STAGE11_EXTERNAL_BACKUP_EXPORT_PERF rows=10000 export_validate_ms=25 exported_files=2 provider_requests=0 cache_reads=0 credential_reads=0` |
+| Clean Debug arm64 Build | `PASS` | Shell exit `0`; status succeeded; errors `0`; four existing `PortfolioView` deprecation warnings; duration `29.344 s`; complete `CleanDebugBuild.xcresult`; `Info.plist` present; build parser exit `0` |
+| Fresh signed arm64 BFT | `PASS` | Shell exit `0`; `TEST BUILD SUCCEEDED`; errors `0`; four existing warnings; duration `39.588 s`; complete `BuildForTesting.xcresult`; `Info.plist` present; build parser exit `0`; App and Runner strict codesign exits `0` |
+| UI tests | `NOT RUN — NOT AUTHORIZED IN EXTERNAL BACKUP EXPORT FOUNDATION ROUND` | BFT and the accepted prior `16/16` UI bundle are not this round's UI runtime execution |
+
+The stable unsigned route was authorized only after the complete signed result proved the established App Sandbox test-root policy. Three preserved implementation-diagnostic bundles then exposed, in order, destination canonicalization, staging-name validation, and Market Cache parent protection defects. Each was corrected only in the authorized Export/Backup/Test paths. The final current source was rerun through every required Gate; no failed bundle was merged with a later result or reported as PASS. No parser-triggered test retry occurred.
+
+### External Export provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- Settings external file UI: `NOT RUN`
+- External Restore/import: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Stages 12–14: `NO-GO`
+
+## Current External Backup Export Foundation status
+
+**Stage 11 External Backup Export Foundation Candidate — Awaiting Reviewer Gate**
 
 ## Settings internal data-lifecycle UI round
 

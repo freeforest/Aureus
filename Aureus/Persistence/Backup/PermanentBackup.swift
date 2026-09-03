@@ -187,6 +187,53 @@ enum PermanentBackupService {
         )
     }
 
+    static func validateExternalExportArtifact(
+        _ generationURL: URL,
+        in destinationDirectoryURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> PermanentBackupGeneration {
+        try requireExistingPlainDirectory(
+            destinationDirectoryURL,
+            fileManager: fileManager
+        )
+        return try validateDirectory(
+            generationURL,
+            in: destinationDirectoryURL,
+            acceptedName: isGenerationName,
+            fileManager: fileManager
+        )
+    }
+
+    static func validateExternalExportStagingArtifact(
+        _ generationURL: URL,
+        in destinationDirectoryURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> PermanentBackupGeneration {
+        try requireExistingPlainDirectory(
+            destinationDirectoryURL,
+            fileManager: fileManager
+        )
+        return try validateDirectory(
+            generationURL,
+            in: destinationDirectoryURL,
+            acceptedName: isStagingName,
+            fileManager: fileManager
+        )
+    }
+
+    static func externalExportGenerationName(
+        createdAt: String,
+        operationID: UUID
+    ) throws -> String {
+        guard canonicalCreatedAt(createdAt) != nil else {
+            throw PermanentBackupError.malformedManifest
+        }
+        return generationName(
+            createdAt: createdAt,
+            identity: operationID.uuidString.lowercased()
+        )
+    }
+
     static func inventory(
         in backupRoot: URL,
         fileManager: FileManager = .default
@@ -485,6 +532,25 @@ enum PermanentBackupService {
                 throw PermanentBackupError.fileSystemFailure
             }
         } else {
+            throw PermanentBackupError.unsafePath
+        }
+    }
+
+    private static func requireExistingPlainDirectory(
+        _ directoryURL: URL,
+        fileManager: FileManager
+    ) throws {
+        guard directoryURL.isFileURL,
+              directoryURL.path.hasPrefix("/"),
+              directoryURL.standardizedFileURL.resolvingSymlinksInPath().path
+                == directoryURL.standardizedFileURL.path else {
+            throw PermanentBackupError.unsafePath
+        }
+        let type = try itemType(at: directoryURL, fileManager: fileManager)
+        if type == .typeSymbolicLink {
+            throw PermanentBackupError.symbolicLinkRejected
+        }
+        guard type == .typeDirectory else {
             throw PermanentBackupError.unsafePath
         }
     }
