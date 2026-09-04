@@ -1672,6 +1672,297 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    func testStage11SettingsExternalBackupRestoreFromUserSelectedGenerationAndIsolation() throws {
+        let warning = "External Restore will replace current Permanent records. Aureus will validate the selected two-file Backup and create and validate an internal safety Backup before replacement. External Backups contain private permanent financial records and are not encrypted by Aureus."
+        let freedomIdentifier = "goals.goal.00000000-0000-4000-8000-000000010001"
+        let educationIdentifier = "goals.goal.00000000-0000-4000-8000-000000010002"
+        let testRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AureusSettingsExternalRestoreUITests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let destination = testRoot.appendingPathComponent("SelectedDestination", isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: testRoot) }
+
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 10))
+
+        let create = app.descendants(matching: .any)["settings.dataLifecycle.create"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        XCTAssertTrue(create.isEnabled)
+        create.click()
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 1 valid backups, 0 ignored entries",
+            timeout: 10
+        ))
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 8))
+        settingsGenerationRows(in: app).firstMatch.click()
+        XCTAssertTrue(waitForSettingsControlEnabled(
+            in: app,
+            identifier: "settings.dataLifecycle.export",
+            timeout: 5
+        ))
+        app.descendants(matching: .any)["settings.dataLifecycle.export"].click()
+        chooseDirectory(destination.path, in: app)
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.status",
+            equals: "Data lifecycle status: External Backup Export Completed",
+            timeout: 10
+        ))
+
+        let externalEntries = try FileManager.default.contentsOfDirectory(
+            at: destination,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+        )
+        XCTAssertEqual(externalEntries.count, 1)
+        let externalGeneration = try XCTUnwrap(externalEntries.first)
+        let generationValues = try externalGeneration.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+        )
+        XCTAssertEqual(generationValues.isDirectory, true)
+        XCTAssertNotEqual(generationValues.isSymbolicLink, true)
+        let artifactURLs = try FileManager.default.contentsOfDirectory(
+            at: externalGeneration,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+        )
+        XCTAssertEqual(Set(artifactURLs.map(\.lastPathComponent)), Set(["aureus.sqlite", "manifest.json"]))
+        for artifact in artifactURLs {
+            let values = try artifact.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            XCTAssertEqual(values.isRegularFile, true)
+            XCTAssertNotEqual(values.isSymbolicLink, true)
+        }
+        let databaseURL = externalGeneration.appendingPathComponent("aureus.sqlite")
+        let manifestURL = externalGeneration.appendingPathComponent("manifest.json")
+        let databaseBytes = try XCTUnwrap(
+            (try FileManager.default.attributesOfItem(atPath: databaseURL.path)[.size] as? NSNumber)?.int64Value
+        )
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
+        )
+        XCTAssertEqual((manifest["backupFormatVersion"] as? NSNumber)?.intValue, 1)
+        XCTAssertEqual((manifest["schemaVersion"] as? NSNumber)?.intValue, 6)
+        XCTAssertEqual((manifest["databaseByteCount"] as? NSNumber)?.int64Value, databaseBytes)
+        let externalSnapshot = try externalExportSnapshot(at: destination)
+
+        app.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
+        let originalGoals = goalRowIdentifiers(in: app)
+        XCTAssertEqual(originalGoals, Set([freedomIdentifier, educationIdentifier]))
+        app.descendants(matching: .any)["goals.add"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.editor.name"].waitForExistence(timeout: 5))
+        replaceText(
+            in: app.descendants(matching: .any)["goals.editor.name"],
+            with: "Synthetic External Restore Probe Goal"
+        )
+        replaceText(in: app.descendants(matching: .any)["goals.editor.target"], with: "123456")
+        app.descendants(matching: .any)["goals.editor.save"].click()
+        XCTAssertTrue(waitForNonexistence(
+            app.descendants(matching: .any)["goals.editor.save"],
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForGoalRowCount(3, in: app, timeout: 8))
+        let probeIdentifiers = goalRowIdentifiers(in: app).subtracting(originalGoals)
+        XCTAssertEqual(probeIdentifiers.count, 1)
+        let probeIdentifier = try XCTUnwrap(probeIdentifiers.first)
+        XCTAssertTrue(waitForSettingsDataLifecycleLabelContaining(
+            in: app,
+            identifier: probeIdentifier,
+            text: "Synthetic External Restore Probe Goal",
+            timeout: 5
+        ))
+
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore.heading",
+            expectedLabel: "External Backup Restore"
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore.warning",
+            expectedLabel: warning
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore",
+            expectedLabel: "Restore External Backup…"
+        )
+        XCTAssertTrue(waitForSettingsControlEnabled(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore",
+            timeout: 5
+        ))
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 5))
+
+        app.descendants(matching: .any)["settings.dataLifecycle.externalRestore"].click()
+        XCTAssertTrue(
+            app.sheets.firstMatch.waitForExistence(timeout: 5)
+                || app.dialogs.firstMatch.waitForExistence(timeout: 5),
+            "Native External Restore directory-selection panel did not appear"
+        )
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(waitForNativePanelToDisappear(in: app, timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)[
+            "settings.dataLifecycle.externalRestore.dialog.heading"
+        ].exists)
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 5))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.status",
+            equals: "Data lifecycle status: Ready",
+            timeout: 5
+        ))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.externalRestore.result"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
+        XCTAssertEqual(try externalExportSnapshot(at: destination), externalSnapshot)
+        app.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)[probeIdentifier].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForGoalRowCount(3, in: app, timeout: 5))
+
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        let confirmationIdentifiers = [
+            "settings.dataLifecycle.externalRestore.dialog.heading",
+            "settings.dataLifecycle.externalRestore.dialog.warning",
+            "settings.dataLifecycle.externalRestore.cancel",
+            "settings.dataLifecycle.externalRestore.confirm"
+        ]
+        app.descendants(matching: .any)["settings.dataLifecycle.externalRestore"].click()
+        chooseDirectory(externalGeneration.path, in: app)
+        assertExternalRestoreConfirmation(in: app, warning: warning)
+        XCTAssertTrue(app.descendants(matching: .any)[
+            "settings.dataLifecycle.externalRestore.cancel"
+        ].isEnabled)
+        XCTAssertTrue(app.descendants(matching: .any)[
+            "settings.dataLifecycle.externalRestore.confirm"
+        ].isEnabled)
+        app.descendants(matching: .any)["settings.dataLifecycle.externalRestore.cancel"].click()
+        for identifier in confirmationIdentifiers {
+            XCTAssertTrue(waitForNonexistence(
+                app.descendants(matching: .any)[identifier],
+                timeout: 5
+            ))
+        }
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 5))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.status",
+            equals: "Data lifecycle status: Ready",
+            timeout: 5
+        ))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.externalRestore.result"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
+        XCTAssertEqual(try externalExportSnapshot(at: destination), externalSnapshot)
+        app.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)[probeIdentifier].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForGoalRowCount(3, in: app, timeout: 5))
+
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForSettingsControlEnabled(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore",
+            timeout: 5
+        ))
+        app.descendants(matching: .any)["settings.dataLifecycle.externalRestore"].click()
+        chooseDirectory(externalGeneration.path, in: app)
+        assertExternalRestoreConfirmation(in: app, warning: warning)
+        app.descendants(matching: .any)["settings.dataLifecycle.externalRestore.confirm"].click()
+
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.status",
+            equals: "Data lifecycle status: External Backup Restore Completed",
+            timeout: 15
+        ))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 2 valid backups, 0 ignored entries",
+            timeout: 8
+        ))
+        XCTAssertTrue(waitForSettingsGenerationCount(2, in: app, timeout: 8))
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore.result",
+            expectedLabel: "External Backup Restore completed: source schema 6, final schema 6, \(databaseBytes) bytes."
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.import"].exists)
+        XCTAssertEqual(try externalExportSnapshot(at: destination), externalSnapshot)
+
+        app.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["goals.page"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)[probeIdentifier], timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)[freedomIdentifier].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)[educationIdentifier].waitForExistence(timeout: 5))
+        XCTAssertEqual(goalRowIdentifiers(in: app), originalGoals)
+
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForSettingsGenerationCount(2, in: app, timeout: 8))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.externalRestore.result"].exists)
+        XCTAssertFalse(app.sheets.firstMatch.exists)
+        XCTAssertFalse(app.dialogs.firstMatch.exists)
+        XCTAssertTrue(waitForSettingsControlEnabled(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore",
+            timeout: 5
+        ))
+        XCTAssertEqual(try externalExportSnapshot(at: destination), externalSnapshot)
+        app.terminate()
+
+        let production = XCUIApplication()
+        production.launchArguments = uiTestingArguments()
+        launchApp(production)
+        XCTAssertTrue(production.descendants(matching: .any)["mode.local"].waitForExistence(timeout: 10))
+        production.descendants(matching: .any)["sidebar.goals"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["goals.empty"].waitForExistence(timeout: 8))
+        XCTAssertFalse(production.descendants(matching: .any)[freedomIdentifier].exists)
+        XCTAssertFalse(production.descendants(matching: .any)[educationIdentifier].exists)
+        XCTAssertFalse(production.descendants(matching: .any)[probeIdentifier].exists)
+        production.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: production,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 0 valid backups, 0 ignored entries",
+            timeout: 8
+        ))
+        XCTAssertEqual(settingsGenerationRows(in: production).count, 0)
+        let productionExternalRestore = production.descendants(matching: .any)[
+            "settings.dataLifecycle.externalRestore"
+        ]
+        XCTAssertTrue(productionExternalRestore.waitForExistence(timeout: 5))
+        XCTAssertTrue(productionExternalRestore.isEnabled)
+        XCTAssertFalse(production.descendants(matching: .any)[
+            "settings.dataLifecycle.externalRestore.result"
+        ].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.import"].exists)
+        XCTAssertFalse(production.sheets.firstMatch.exists)
+        XCTAssertFalse(production.dialogs.firstMatch.exists)
+        XCTAssertTrue(waitForSettingsDataLifecycleLabelContaining(
+            in: production,
+            identifier: "settings.provider.lastValidation",
+            text: "Not verified",
+            timeout: 5
+        ))
+        XCTAssertEqual(try externalExportSnapshot(at: destination), externalSnapshot)
+        production.terminate()
+    }
+
+    @MainActor
     func testWealthCNYUSDLiabilityCRUDAndDynamicTotals() throws {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments()
@@ -2191,6 +2482,33 @@ final class AureusUITests: XCTestCase {
             .matching(NSPredicate(format: "identifier == %@", identifier))
         XCTAssertEqual(matches.count, 1)
         XCTAssertEqual(matches.firstMatch.label, expectedLabel)
+    }
+
+    @MainActor
+    private func assertExternalRestoreConfirmation(
+        in app: XCUIApplication,
+        warning: String
+    ) {
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore.dialog.heading",
+            expectedLabel: "Restore Selected External Backup?"
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore.dialog.warning",
+            expectedLabel: warning
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore.cancel",
+            expectedLabel: "Cancel"
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalRestore.confirm",
+            expectedLabel: "Restore External Backup"
+        )
     }
 
     @MainActor

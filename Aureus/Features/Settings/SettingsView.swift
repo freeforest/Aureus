@@ -8,7 +8,10 @@ struct SettingsView: View {
     @State private var showDeleteCredentialConfirmation = false
     @State private var showResetConfirmation = false
     @State private var showRestoreConfirmation = false
-    @State private var showExternalExportImporter = false
+    @State private var showDataLifecycleDirectoryImporter = false
+    @State private var directoryImporterPurpose: SettingsDataLifecycleDirectoryOperation?
+    @State private var showExternalRestoreConfirmation = false
+    @State private var externalRestoreLease: SettingsExternalRestoreSecurityLease?
     let mode: AppDataMode
 
     init(
@@ -20,6 +23,7 @@ struct SettingsView: View {
         wealthStore: WealthStore,
         internalBackupDirectoryURL: URL,
         permanentBackupExportConfiguration: PermanentBackupExportConfiguration,
+        permanentExternalRestoreConfiguration: PermanentExternalRestoreConfiguration,
         appVersion: String,
         dataLifecycleGenerationID: @escaping @Sendable () -> UUID,
         clock: any Clock,
@@ -39,7 +43,11 @@ struct SettingsView: View {
             appVersion: appVersion,
             clock: clock,
             generationID: dataLifecycleGenerationID,
-            exportClient: .live(configuration: permanentBackupExportConfiguration)
+            exportClient: .live(configuration: permanentBackupExportConfiguration),
+            externalRestoreClient: .live(
+                store: wealthStore,
+                configuration: permanentExternalRestoreConfiguration
+            )
         ))
         self.mode = mode
     }
@@ -103,12 +111,21 @@ struct SettingsView: View {
         .sheet(isPresented: $showRestoreConfirmation) {
             restoreConfirmationSheet
         }
+        .sheet(
+            isPresented: $showExternalRestoreConfirmation,
+            onDismiss: releaseExternalRestoreSelectionIfIdle
+        ) {
+            externalRestoreConfirmationSheet
+        }
         .fileImporter(
-            isPresented: $showExternalExportImporter,
+            isPresented: $showDataLifecycleDirectoryImporter,
             allowedContentTypes: [.folder],
             allowsMultipleSelection: false,
-            onCompletion: handleExternalExportSelection
+            onCompletion: handleDataLifecycleDirectorySelection
         )
+        .onDisappear {
+            releaseExternalRestoreSelectionIfIdle()
+        }
     }
 
     private var settingsBanner: some View {
@@ -476,12 +493,13 @@ struct SettingsView: View {
                         .accessibilityLabel(externalExportWarning)
                         .accessibilityIdentifier("settings.dataLifecycle.externalExport.warning")
 
-                    Text("Aureus creates one two-file Backup generation folder in the selected directory. The destination is not remembered. External Restore/import, scheduling, and cloud export are not implemented.")
+                    Text("Aureus creates one two-file Backup generation folder in the selected directory. The destination is not remembered. Raw SQLite/general import, scheduling, cloud export, and external retention are not implemented.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     Button("Export Selected Backup…") {
-                        showExternalExportImporter = true
+                        directoryImporterPurpose = .externalExport
+                        showDataLifecycleDirectoryImporter = true
                     }
                     .disabled(!dataLifecycleModel.canExport)
                     .accessibilityLabel("Export Selected Backup…")
@@ -493,6 +511,44 @@ struct SettingsView: View {
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel(result)
                             .accessibilityIdentifier("settings.dataLifecycle.externalExport.result")
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("External Backup Restore")
+                        .font(.headline)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("External Backup Restore")
+                        .accessibilityIdentifier("settings.dataLifecycle.externalRestore.heading")
+
+                    Text(externalRestoreWarning)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(externalRestoreWarning)
+                        .accessibilityIdentifier("settings.dataLifecycle.externalRestore.warning")
+
+                    Text("Choose a complete Aureus two-file Backup generation folder. The selection and access permission are used only for this explicit operation and are not remembered. Raw SQLite/general import, automatic or scheduled Restore, cloud Restore, and external retention are not implemented.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button("Restore External Backup…", role: .destructive) {
+                        directoryImporterPurpose = .externalRestore
+                        showDataLifecycleDirectoryImporter = true
+                    }
+                    .disabled(!dataLifecycleModel.canRestoreExternal)
+                    .accessibilityLabel("Restore External Backup…")
+                    .accessibilityIdentifier("settings.dataLifecycle.externalRestore")
+
+                    if let result = dataLifecycleModel.externalRestoreResultLabel {
+                        Text(result)
+                            .foregroundStyle(.secondary)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(result)
+                            .accessibilityIdentifier("settings.dataLifecycle.externalRestore.result")
                     }
                 }
 
@@ -526,7 +582,7 @@ struct SettingsView: View {
                     .accessibilityLabel(disclosure)
                     .accessibilityIdentifier("settings.dataLifecycle.disclosure")
 
-                Text("External Backup Export is available as an explicit user-selected directory flow. External Restore/import, scheduling, and cloud Backup are not implemented.")
+                Text("External Backup Export and validated External Backup Restore are explicit user-selected directory flows. Raw SQLite/general import, scheduling, cloud Backup/Restore, and external retention are not implemented.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -578,6 +634,47 @@ struct SettingsView: View {
         "External Backups contain private permanent financial records and are not encrypted by Aureus. Choose a private encrypted storage location you control. Do not choose a source-code repository or public/shared folder."
     }
 
+    private var externalRestoreWarning: String {
+        "External Restore will replace current Permanent records. Aureus will validate the selected two-file Backup and create and validate an internal safety Backup before replacement. External Backups contain private permanent financial records and are not encrypted by Aureus."
+    }
+
+    private var externalRestoreConfirmationSheet: some View {
+        let title = "Restore Selected External Backup?"
+        return VStack(alignment: .leading, spacing: 18) {
+            Text(title)
+                .font(.title2.weight(.semibold))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityIdentifier("settings.dataLifecycle.externalRestore.dialog.heading")
+
+            Text(externalRestoreWarning)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(externalRestoreWarning)
+                .accessibilityIdentifier("settings.dataLifecycle.externalRestore.dialog.warning")
+
+            HStack {
+                Spacer()
+
+                Button("Cancel", role: .cancel) {
+                    showExternalRestoreConfirmation = false
+                    releaseExternalRestoreSelectionIfIdle()
+                }
+                .accessibilityLabel("Cancel")
+                .accessibilityIdentifier("settings.dataLifecycle.externalRestore.cancel")
+
+                Button("Restore External Backup", role: .destructive) {
+                    confirmExternalRestore()
+                }
+                .disabled(!dataLifecycleModel.canRestoreExternal)
+                .accessibilityLabel("Restore External Backup")
+                .accessibilityIdentifier("settings.dataLifecycle.externalRestore.confirm")
+            }
+        }
+        .padding(24)
+        .frame(width: 620)
+    }
+
     private func handleExternalExportSelection(_ selection: Result<[URL], Error>) {
         switch selection {
         case let .success(urls):
@@ -603,6 +700,60 @@ struct SettingsView: View {
         }
     }
 
+    private func handleDataLifecycleDirectorySelection(_ selection: Result<[URL], Error>) {
+        let purpose = directoryImporterPurpose
+        directoryImporterPurpose = nil
+        switch purpose {
+        case .externalExport:
+            handleExternalExportSelection(selection)
+        case .externalRestore:
+            handleExternalRestoreSelection(selection)
+        case nil:
+            return
+        }
+    }
+
+    private func handleExternalRestoreSelection(_ selection: Result<[URL], Error>) {
+        switch selection {
+        case let .success(urls):
+            guard dataLifecycleModel.canRestoreExternal,
+                  let generationURL = urls.first else {
+                dataLifecycleModel.externalSourceSelectionFailed()
+                return
+            }
+            releaseExternalRestoreSelectionIfIdle()
+            externalRestoreLease = SettingsExternalRestoreSecurityLease(url: generationURL)
+            showExternalRestoreConfirmation = true
+        case let .failure(error):
+            if error is CancellationError
+                || (error as? CocoaError)?.code == .userCancelled {
+                return
+            }
+            dataLifecycleModel.externalSourceSelectionFailed()
+        }
+    }
+
+    private func confirmExternalRestore() {
+        guard dataLifecycleModel.canRestoreExternal,
+              let lease = externalRestoreLease,
+              lease.beginOperation() else { return }
+        showExternalRestoreConfirmation = false
+        Task {
+            _ = await dataLifecycleModel.restoreExternal(from: lease.url)
+            lease.finishOperation()
+            if externalRestoreLease === lease {
+                externalRestoreLease = nil
+            }
+        }
+    }
+
+    private func releaseExternalRestoreSelectionIfIdle() {
+        externalRestoreLease?.releaseIfIdle()
+        if externalRestoreLease?.isReleased == true {
+            externalRestoreLease = nil
+        }
+    }
+
     @ViewBuilder
     private var operationMessages: some View {
         if let status = model.statusMessage {
@@ -620,4 +771,46 @@ struct SettingsView: View {
     private func byteString(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .binary)
     }
+}
+
+@MainActor
+private final class SettingsExternalRestoreSecurityLease {
+    let url: URL
+    private let didStartAccess: Bool
+    private(set) var isReleased = false
+    private var operationIsInFlight = false
+
+    init(url: URL) {
+        self.url = url
+        didStartAccess = url.startAccessingSecurityScopedResource()
+    }
+
+    func beginOperation() -> Bool {
+        guard !isReleased, !operationIsInFlight else { return false }
+        operationIsInFlight = true
+        return true
+    }
+
+    func finishOperation() {
+        operationIsInFlight = false
+        release()
+    }
+
+    func releaseIfIdle() {
+        guard !operationIsInFlight else { return }
+        release()
+    }
+
+    private func release() {
+        guard !isReleased else { return }
+        if didStartAccess {
+            url.stopAccessingSecurityScopedResource()
+        }
+        isReleased = true
+    }
+}
+
+private enum SettingsDataLifecycleDirectoryOperation {
+    case externalExport
+    case externalRestore
 }

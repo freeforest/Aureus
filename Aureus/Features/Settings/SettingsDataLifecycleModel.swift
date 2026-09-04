@@ -8,6 +8,7 @@ enum SettingsDataLifecycleState: Equatable, Sendable {
     case creatingBackup
     case restoring
     case exportingBackup
+    case restoringExternalBackup
     case failed(SettingsDataLifecycleFailure)
     case recoveryRequired
 }
@@ -19,6 +20,8 @@ enum SettingsDataLifecycleFailure: Equatable, Sendable {
     case restoreFailed
     case restoreRolledBack
     case exportFailed
+    case externalRestoreFailed
+    case externalRestoreRolledBack
 }
 
 struct SettingsBackupGeneration: Identifiable, Equatable, Sendable {
@@ -33,6 +36,14 @@ struct SettingsExternalBackupExportPresentation: Equatable, Sendable {
     let schemaVersion: Int
     let databaseByteCount: Int64
     let operationCategory: PermanentBackupExportOperationCategory
+}
+
+struct SettingsExternalBackupRestorePresentation: Equatable, Sendable {
+    let sourceSchemaVersion: Int
+    let finalSchemaVersion: Int
+    let migrationRan: Bool
+    let databaseByteCount: Int64
+    let operationCategory: PermanentRestoreOperationCategory
 }
 
 struct SettingsDataLifecycleExportClient: Sendable {
@@ -54,6 +65,37 @@ struct SettingsDataLifecycleExportClient: Sendable {
     }
 }
 
+struct SettingsDataLifecycleExternalRestoreClient: Sendable {
+    let restore: @Sendable (
+        URL,
+        String,
+        UTCInstant,
+        UUID,
+        UUID
+    ) async throws -> PermanentExternalRestoreResult
+
+    static func live(
+        store: WealthStore,
+        configuration: PermanentExternalRestoreConfiguration
+    ) -> SettingsDataLifecycleExternalRestoreClient {
+        SettingsDataLifecycleExternalRestoreClient {
+            generationURL,
+            appVersion,
+            createdAt,
+            operationID,
+            safetyGenerationID in
+            try await store.restoreExternalPermanentBackup(
+                generationURL,
+                configuration: configuration,
+                appVersion: appVersion,
+                createdAt: createdAt,
+                operationID: operationID,
+                safetyGenerationID: safetyGenerationID
+            )
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class SettingsDataLifecycleModel {
@@ -64,6 +106,7 @@ final class SettingsDataLifecycleModel {
     private(set) var selectedGenerationID: String?
     private(set) var operationMessage: String?
     private(set) var externalExportResult: SettingsExternalBackupExportPresentation?
+    private(set) var externalRestoreResult: SettingsExternalBackupRestorePresentation?
 
     @ObservationIgnored private let store: WealthStore
     @ObservationIgnored private let backupRoot: URL
@@ -72,6 +115,7 @@ final class SettingsDataLifecycleModel {
     @ObservationIgnored private let generationID: @Sendable () -> UUID
     @ObservationIgnored private let restoreFileOperations: any PermanentRestoreFileOperations
     @ObservationIgnored private let exportClient: SettingsDataLifecycleExportClient
+    @ObservationIgnored private let externalRestoreClient: SettingsDataLifecycleExternalRestoreClient
     @ObservationIgnored private var generationURLs: [String: URL] = [:]
     @ObservationIgnored private var revision = 0
 
@@ -82,7 +126,8 @@ final class SettingsDataLifecycleModel {
         clock: any Clock,
         generationID: @escaping @Sendable () -> UUID = { UUID() },
         restoreFileOperations: any PermanentRestoreFileOperations = LocalPermanentRestoreFileOperations(),
-        exportClient: SettingsDataLifecycleExportClient
+        exportClient: SettingsDataLifecycleExportClient,
+        externalRestoreClient: SettingsDataLifecycleExternalRestoreClient
     ) {
         self.store = store
         self.backupRoot = backupRoot
@@ -91,6 +136,7 @@ final class SettingsDataLifecycleModel {
         self.generationID = generationID
         self.restoreFileOperations = restoreFileOperations
         self.exportClient = exportClient
+        self.externalRestoreClient = externalRestoreClient
     }
 
     var validGenerationCount: Int { generations.count }
@@ -104,6 +150,7 @@ final class SettingsDataLifecycleModel {
             || state == .creatingBackup
             || state == .restoring
             || state == .exportingBackup
+            || state == .restoringExternalBackup
     }
 
     var isRecoveryRequired: Bool { state == .recoveryRequired }
@@ -124,6 +171,10 @@ final class SettingsDataLifecycleModel {
             && selectedGenerationID.flatMap { generationURLs[$0] } != nil
     }
 
+    var canRestoreExternal: Bool {
+        !isWorking && !isRecoveryRequired
+    }
+
     var statusLabel: String {
         switch state {
         case .idle: "Data lifecycle status: Idle"
@@ -133,6 +184,7 @@ final class SettingsDataLifecycleModel {
         case .creatingBackup: "Data lifecycle status: Creating Backup"
         case .restoring: "Data lifecycle status: Restoring"
         case .exportingBackup: "Data lifecycle status: Exporting Backup"
+        case .restoringExternalBackup: "Data lifecycle status: Restoring External Backup"
         case .failed: "Data lifecycle status: Failed"
         case .recoveryRequired: "Data lifecycle status: Recovery Required"
         }
@@ -153,6 +205,10 @@ final class SettingsDataLifecycleModel {
             "Data lifecycle error: Restore failed and the prior Permanent Store was recovered from the safety Backup."
         case .exportFailed:
             "Data lifecycle error: The selected internal Backup could not be exported and verified."
+        case .externalRestoreFailed:
+            "Data lifecycle error: The selected External Backup could not be restored safely."
+        case .externalRestoreRolledBack:
+            "Data lifecycle error: External Restore failed and the prior Permanent Store was recovered from the safety Backup."
         }
     }
 
@@ -160,6 +216,12 @@ final class SettingsDataLifecycleModel {
         guard let result = externalExportResult else { return nil }
         return "External Backup export completed: schema \(result.schemaVersion), "
             + "\(result.databaseByteCount) bytes."
+    }
+
+    var externalRestoreResultLabel: String? {
+        guard let result = externalRestoreResult else { return nil }
+        return "External Backup Restore completed: source schema \(result.sourceSchemaVersion), "
+            + "final schema \(result.finalSchemaVersion), \(result.databaseByteCount) bytes."
     }
 
     var recoveryRequiredLabel: String? {
@@ -176,6 +238,7 @@ final class SettingsDataLifecycleModel {
             publish(inventory, clearingSelection: true)
             operationMessage = nil
             externalExportResult = nil
+            externalRestoreResult = nil
             state = .ready
         } catch {
             guard token == revision else { return }
@@ -217,6 +280,7 @@ final class SettingsDataLifecycleModel {
         selectedGenerationID = identity
         operationMessage = nil
         externalExportResult = nil
+        externalRestoreResult = nil
         if case .failed = state { state = .ready }
         return true
     }
@@ -319,10 +383,66 @@ final class SettingsDataLifecycleModel {
         state = .failed(.exportFailed)
     }
 
+    func externalSourceSelectionFailed() {
+        guard !isWorking, !isRecoveryRequired else { return }
+        externalRestoreResult = nil
+        operationMessage = nil
+        state = .failed(.externalRestoreFailed)
+    }
+
+    @discardableResult
+    func restoreExternal(from generationURL: URL) async -> Bool {
+        guard canRestoreExternal else { return false }
+
+        let token = begin(.restoringExternalBackup)
+        do {
+            let result = try await externalRestoreClient.restore(
+                generationURL,
+                appVersion,
+                clock.now(),
+                generationID(),
+                generationID()
+            )
+            let inventory = try await store.permanentBackupInventory(in: backupRoot)
+            guard token == revision else { return false }
+            publish(inventory, clearingSelection: true)
+            externalRestoreResult = SettingsExternalBackupRestorePresentation(
+                sourceSchemaVersion: result.candidateSchemaVersion,
+                finalSchemaVersion: result.finalSchemaVersion,
+                migrationRan: result.migrationRan,
+                databaseByteCount: result.databaseByteCount,
+                operationCategory: result.operationCategory
+            )
+            operationMessage = "External Backup Restore Completed"
+            state = .ready
+            return true
+        } catch let error as PermanentExternalRestoreError {
+            guard token == revision else { return false }
+            selectedGenerationID = nil
+            externalRestoreResult = nil
+            switch error {
+            case .rollbackFailed:
+                state = .recoveryRequired
+            case .restoreFailedRollbackSucceeded:
+                state = .failed(.externalRestoreRolledBack)
+            default:
+                state = .failed(.externalRestoreFailed)
+            }
+            return false
+        } catch {
+            guard token == revision else { return false }
+            selectedGenerationID = nil
+            externalRestoreResult = nil
+            state = .failed(.externalRestoreFailed)
+            return false
+        }
+    }
+
     private func begin(_ nextState: SettingsDataLifecycleState) -> Int {
         revision += 1
         operationMessage = nil
         externalExportResult = nil
+        externalRestoreResult = nil
         state = nextState
         return revision
     }
@@ -360,5 +480,6 @@ final class SettingsDataLifecycleModel {
         selectedGenerationID = nil
         operationMessage = nil
         externalExportResult = nil
+        externalRestoreResult = nil
     }
 }

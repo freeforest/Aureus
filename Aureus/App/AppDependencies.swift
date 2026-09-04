@@ -21,6 +21,7 @@ struct AppDependencies: Sendable {
     let clock: any Clock
     let internalBackupDirectoryURL: URL
     let permanentBackupExportConfiguration: PermanentBackupExportConfiguration
+    let permanentExternalRestoreConfiguration: PermanentExternalRestoreConfiguration
     let appVersion: String
     let dataLifecycleGenerationID: @Sendable () -> UUID
 
@@ -58,6 +59,12 @@ struct AppDependencies: Sendable {
             permanentDatabaseURL: paths.permanentDatabaseURL,
             marketCacheDatabaseURL: paths.marketCacheDatabaseURL,
             additionalProtectedDestinationRoots: []
+        )
+        let permanentExternalRestoreConfiguration = PermanentExternalRestoreConfiguration(
+            internalBackupRootURL: paths.internalBackupDirectoryURL,
+            permanentDatabaseURL: paths.permanentDatabaseURL,
+            marketCacheDatabaseURL: paths.marketCacheDatabaseURL,
+            additionalProtectedSourceRoots: []
         )
         let marketCacheStore = try MarketCacheStore(databaseURL: paths.marketCacheDatabaseURL)
         let marketSessionStore = TransientMarketSessionStore()
@@ -157,6 +164,7 @@ struct AppDependencies: Sendable {
             clock: clock,
             internalBackupDirectoryURL: paths.internalBackupDirectoryURL,
             permanentBackupExportConfiguration: permanentBackupExportConfiguration,
+            permanentExternalRestoreConfiguration: permanentExternalRestoreConfiguration,
             appVersion: safetyInputs.appVersion,
             dataLifecycleGenerationID: safetyInputs.generationID
         )

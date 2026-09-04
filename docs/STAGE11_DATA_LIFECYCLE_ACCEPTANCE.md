@@ -2,7 +2,7 @@
 
 ## Status
 
-**Stage 11 External Backup Restore Foundation Candidate — Awaiting Reviewer Gate**
+**Stage 11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01 PARTIAL — Awaiting Reviewer Gate**
 
 ## External Backup Export Foundation round
 
@@ -689,3 +689,56 @@ Current evidence root: `/private/tmp/Aureus-Stage11-EXTERNAL-BACKUP-RESTORE-VALI
 **Stage 11 External Backup Restore Foundation Candidate — Awaiting Reviewer Gate**
 
 This remains Executor candidate evidence. The Reviewer still owns the Stage 11 Gate; this status does not declare Stage 11 `PASS`, V1 Ready, Release Ready, Settings External Restore UI readiness, or Stage 12 authorization.
+
+## Settings External Backup Restore UI round
+
+Prompt 11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01 adds the authorized Settings runtime surface over the accepted External Restore Foundation. Production composition injects `PermanentExternalRestoreConfiguration` from the same `RuntimePaths` and reuses the existing actor-owned `WealthStore`. The model exposes a finite `restoringExternalBackup` state, an External Restore capability independent of internal generation selection, one explicit client invocation with independent operation/safety identities, sanitized success/failure presentation, post-success inventory reload, and `recoveryRequired` blocking. Reconstruction clears the transient result and never persists the selected URL, filename, bookmark, history, or security scope.
+
+The Settings view exposes a distinct External Restore heading, exact private-data warning, and `Restore External Backup…` control. One shared SwiftUI `.fileImporter(.folder)` dispatches External Export and External Restore selections without widening either business contract. A transient security-scoped lease starts once for a selected generation, remains held through confirmation and any asynchronous Restore, and releases only on Cancel, completion/failure, or idle view disappearance. The app-owned sheet exposes four independent heading, warning, Cancel, and Confirm Accessibility nodes; Confirm is the only path to the formal External Restore API. No raw SQLite import, bookmark persistence, automatic/startup Restore, external retention, scheduling, cloud Restore, Provider access, or Stage 12 work was added.
+
+Current evidence root: `/private/tmp/Aureus-Stage11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01-A9c0OF`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Historical Foundation/UI evidence | `NOT RUN — READ-ONLY CLASSIFICATION` | Canonical read-only parsing confirmed the accepted External Restore Foundation Unit/Performance/Build evidence, External Export targeted `1/1 PASS`, and preceding Existing focused `11/11` plus Full UI `17/17`; Production/Test source changed in this round, so none was substituted for current-source UI evidence |
+| Gate C Focused Unit final | `PASS` | Exact selectors `SettingsDataLifecycleTests`, `PermanentExternalRestoreTests`, `PermanentRestoreTests`, `PermanentBackupExportTests`, `PermanentBackupTests`, and `PersistenceTests`; shell exit `0`; `134` definitions / `168` dynamic executions; business outcomes `134/0/0`; result interval `51.442 s`; complete `FocusedUnit-Final.xcresult`; `Info.plist` present; summary/tests parser exits `0/0`; no retry |
+| Gate D Affected Regression final | `PASS` | Exact affected Settings/External Restore/Restore/Backup/Export/Migration/Persistence suites; shell exit `0`; `167` definitions / `205` dynamic executions; `167/0/0`; result interval `54.326 s`; complete `AffectedRegression-Final.xcresult`; `Info.plist` present; parsers `0/0`; no retry |
+| Gate E Full Unit final | `PASS` | Exact selector `AureusTests`; shell exit `0`; `460` definitions / `531` dynamic executions; `460/0/0`; result interval `99.309 s`; complete `FullAureusTests-Final.xcresult`; `Info.plist` present; parsers `0/0`; no retry |
+| External Restore performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION` | Accepted `25` definitions / `49` executions PASS; real 10,000-row validate/safety/Restore workload `43 ms` |
+| External Export performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION` | Accepted `29` definitions / `31` executions PASS; real 10,000-row export/validate workload `26 ms` |
+| Gate F Clean Debug arm64 Build final | `PASS` | Exact category `clean build`, Scheme `Aureus`, Debug arm64; shell exit `0`; canonical status `succeeded`; errors `0`; warnings `4`, all pre-existing `PortfolioView.swift` deprecation warnings; new warnings `0`; duration `29.519 s`; complete `CleanDebugBuild-Final.xcresult`; `Info.plist` present; parser exit `0`; no retry |
+| Gate G fresh signed BFT final | `PASS` | Exact category `build-for-testing`, Scheme `Aureus`, Debug arm64, fresh DerivedData; shell exit `0`; `TEST BUILD SUCCEEDED`; errors `0`; four existing warnings and zero new warnings; duration `36.003 s`; complete `BuildForTesting-Final.xcresult`; `Info.plist` present; parser exit `0`; App/Runner strict codesign exits `0`; no retry |
+| Gate H Targeted UI initial | `FAIL` | Exact selector `testStage11SettingsExternalBackupRestoreFromUserSelectedGenerationAndIsolation`; complete business execution `1`; definitions/executions `1/1`; `0/1/0`; failure at the first External Export panel presentation because two sibling folder importers competed; retained complete bundle; one authorized direct repair followed |
+| Gate H Targeted UI final | `FAIL` | Same exact selector and final frozen product; business execution `1`; definitions/executions `1/1`; canonical `0/1/0`; result `Failed`; method duration `45.083 s`, result interval `56.888 s`; complete `TargetedExternalRestoreUI-Final.xcresult`; `Info.plist` present; summary/tests parser exits `0/0`; `AureusUITests.swift:3042` reported `Directory panel did not expose its Choose control` after the Export panel and Go To Folder path succeeded |
+| Gate I Existing focused | `NOT RUN` | Gate H did not produce the required `1/1 PASS`; exact `12/12` aggregate was not invoked |
+| Gate J Full `AureusUITests` | `NOT RUN` | Gate I was not run/passed; expected current inventory `18/18` was not invoked |
+
+The first complete Targeted failure authorized exactly one direct repair. The view now owns a single folder importer with an explicit transient operation purpose, and final source reran Gates C–G in order before freezing a fresh signed product. The second and final Targeted business execution proved that the shared importer opens and reaches the External Export Go To Folder lifecycle, then exposed a later public Choose-control query failure. Because the two-business-execution and one-repair budgets were exhausted, no third Targeted run, second repair, infrastructure retry, or incomplete-result re-observation occurred. The failure occurs before the External Restore candidate is selected, so native-panel Cancel, confirmation Cancel, Confirm/Restore, External artifact immutability across Restore, safety generation, Goals reconstruction, navigation reconstruction, and Production-isolation runtime tails are `NOT VERIFIED` in this round and are not inferred from Unit or historical UI evidence.
+
+### Final frozen UI product
+
+- App: `/private/tmp/Aureus-Stage11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01-A9c0OF/BuildForTestingFinalDerivedData/Build/Products/Debug/Aureus.app/Contents/MacOS/Aureus`; SHA-256 `8bf1a5a2aa0ac6c612d17c73192384e1184709ccd2d79d57e534ebdc3b7353f1`; Bundle ID `com.aureus.wealthterminal`; `arm64`; local ad hoc / Sign to Run Locally; strict codesign exit `0`.
+- Runner: `/private/tmp/Aureus-Stage11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01-A9c0OF/BuildForTestingFinalDerivedData/Build/Products/Debug/AureusUITests-Runner.app/Contents/MacOS/AureusUITests-Runner`; SHA-256 `85dbef33f54690a9e7c54a78ec2e4ae2eb4bf1d7fc86e84cf82450249cda899b`; Bundle ID `com.aureus.wealthterminal.uitests.xctrunner`; `arm64`; local ad hoc / Sign to Run Locally; strict codesign exit `0`.
+- UI Test executable: `/private/tmp/Aureus-Stage11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01-A9c0OF/BuildForTestingFinalDerivedData/Build/Products/Debug/AureusUITests-Runner.app/Contents/PlugIns/AureusUITests.xctest/Contents/MacOS/AureusUITests`; SHA-256 `39c22c15e676a7710590803bd95e2f3ddb44ba23caa916a03cb035d8332d08fd`; Bundle ID `com.aureus.wealthterminal.uitests`; `arm64`.
+- xctestrun: `/private/tmp/Aureus-Stage11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01-A9c0OF/BuildForTestingFinalDerivedData/Build/Products/Aureus_Aureus_macosx26.5-arm64.xctestrun`; SHA-256 `42afdb1426fad2040448289fe62f26597fe2508e8a8920711331eb400bf4d226`.
+
+### Settings External Restore UI provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter live operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- External artifact creation through the targeted Restore test: `NOT VERIFIED`
+- External retention, scheduling, cloud Restore, raw SQLite import, and automatic/startup Restore: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Stages 12–14: `NO-GO`
+
+## Current Settings External Backup Restore UI status
+
+**Stage 11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01 PARTIAL — Awaiting Reviewer Gate**
+
+This is Executor evidence only. The Reviewer still owns the Stage 11 Gate; it does not declare Stage 11 `PASS`, V1 Ready, Release Ready, or Stage 12 authorization.

@@ -84,7 +84,8 @@ struct SettingsDataLifecycleTests {
             backupRoot: context.root.appendingPathComponent("NotBackups"),
             appVersion: lifecycleAppVersion,
             clock: lifecycleClock,
-            exportClient: context.exportClient
+            exportClient: context.exportClient,
+            externalRestoreClient: context.externalRestoreClient
         )
         #expect(!(await model.createBackup()))
         #expect(model.state == .failed(.createFailed))
@@ -105,6 +106,7 @@ struct SettingsDataLifecycleTests {
         #expect(model.selectedGenerationID == nil)
         #expect(!model.canRestore)
         #expect(!model.canExport)
+        #expect(model.canRestoreExternal)
     }
 
     @Test("Export requires a currently valid selection")
@@ -233,6 +235,7 @@ struct SettingsDataLifecycleTests {
         #expect(!model.canCreateBackup)
         #expect(!model.canRestore)
         #expect(!model.canExport)
+        #expect(!model.canRestoreExternal)
         #expect(!(await model.createBackup()))
         #expect(!(await model.restoreSelected(confirmed: true)))
         #expect(!(await model.exportSelected(to: context.destination)))
@@ -287,6 +290,204 @@ struct SettingsDataLifecycleTests {
         #expect(!(await model.exportSelected(to: context.destination)))
         #expect(model.state == .failed(.exportFailed))
         #expect(try String(decoding: Data(contentsOf: sentinel), as: UTF8.self) == "preserve")
+    }
+
+    @Test("External Restore capability is independent of internal selection and uses distinct identities")
+    @MainActor
+    func externalRestoreCapabilityAndInvocation() async throws {
+        let operationID = lifecycleUUID(33)
+        let safetyID = lifecycleUUID(34)
+        let context = try lifecycleContext(ids: [operationID, safetyID])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let recorder = RecordingLifecycleExternalRestoreClient(
+            result: lifecycleExternalRestoreResult(candidateSchema: 3, migrationRan: true)
+        )
+        let model = context.model(externalRestoreClient: recorder.client)
+        await model.load()
+
+        #expect(recorder.invocationCount == 0)
+        #expect(model.selectedGenerationID == nil)
+        #expect(model.canRestoreExternal)
+        #expect(await model.restoreExternal(from: context.destination))
+        #expect(recorder.invocationCount == 1)
+        #expect(recorder.operationIDs == [operationID])
+        #expect(recorder.safetyGenerationIDs == [safetyID])
+        #expect(operationID != safetyID)
+        #expect(model.operationMessage == "External Backup Restore Completed")
+        #expect(model.externalRestoreResult?.sourceSchemaVersion == 3)
+        #expect(model.externalRestoreResult?.finalSchemaVersion == 6)
+        #expect(model.externalRestoreResult?.migrationRan == true)
+        #expect(model.externalRestoreResult?.operationCategory == .externalGenerationRestore)
+        #expect(model.externalRestoreResultLabel == "External Backup Restore completed: source schema 3, final schema 6, 4096 bytes.")
+    }
+
+    @Test("External Restore migration presentation covers every supported legacy schema", arguments: [1, 2, 3, 4, 5])
+    @MainActor
+    func externalRestoreLegacyPresentation(schemaVersion: Int) async throws {
+        let context = try lifecycleContext(ids: [lifecycleUUID(133), lifecycleUUID(134)])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let recorder = RecordingLifecycleExternalRestoreClient(
+            result: lifecycleExternalRestoreResult(
+                candidateSchema: schemaVersion,
+                migrationRan: true
+            )
+        )
+        let model = context.model(externalRestoreClient: recorder.client)
+        await model.load()
+        #expect(await model.restoreExternal(from: context.destination))
+        #expect(model.externalRestoreResult?.sourceSchemaVersion == schemaVersion)
+        #expect(model.externalRestoreResult?.finalSchemaVersion == 6)
+        #expect(model.externalRestoreResult?.migrationRan == true)
+        #expect(model.externalRestoreResult?.operationCategory == .externalGenerationRestore)
+        #expect(model.externalRestoreResultLabel == "External Backup Restore completed: source schema \(schemaVersion), final schema 6, 4096 bytes.")
+    }
+
+    @Test("Live External Restore retains the source and publishes only the internal safety generation")
+    @MainActor
+    func liveExternalRestoreLifecycle() async throws {
+        let context = try lifecycleContext(ids: [
+            lifecycleUUID(35), lifecycleUUID(36), lifecycleUUID(37), lifecycleUUID(38)
+        ])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        try await context.store.insertIsolationSentinel(
+            id: "settings-external-original",
+            name: "Synthetic Settings External Original"
+        )
+        let model = context.model()
+        await model.load()
+        #expect(await model.createBackup())
+        let internalIdentity = try #require(model.generations.first?.id)
+        #expect(model.selectGeneration(internalIdentity))
+        #expect(await model.exportSelected(to: context.destination))
+        let externalGeneration = try #require(
+            FileManager.default.contentsOfDirectory(
+                at: context.destination,
+                includingPropertiesForKeys: nil
+            ).first
+        )
+        let externalDatabase = externalGeneration.appendingPathComponent(
+            PermanentBackupService.databaseFileName
+        )
+        let externalManifest = externalGeneration.appendingPathComponent(
+            PermanentBackupService.manifestFileName
+        )
+        let databaseBefore = try PermanentBackupService.streamingDigest(of: externalDatabase)
+        let manifestBefore = try Data(contentsOf: externalManifest)
+
+        try await context.store.insertIsolationSentinel(
+            id: "settings-external-current",
+            name: "Synthetic Settings External Current"
+        )
+        #expect(await model.restoreExternal(from: externalGeneration))
+        #expect(model.state == .ready)
+        #expect(model.selectedGenerationID == nil)
+        #expect(model.validGenerationCount == 2)
+        #expect(model.generations.contains { $0.id == internalIdentity })
+        #expect(!model.generations.contains { $0.id == externalGeneration.lastPathComponent })
+        #expect(try await context.store.isolationSentinels() == ["Synthetic Settings External Original"])
+        #expect(try PermanentBackupService.streamingDigest(of: externalDatabase) == databaseBefore)
+        #expect(try Data(contentsOf: externalManifest) == manifestBefore)
+
+        let inventory = try await context.store.permanentBackupInventory(
+            in: context.paths.internalBackupDirectoryURL
+        )
+        let safety = try #require(inventory.validGenerations.first {
+            $0.directoryURL.lastPathComponent != internalIdentity
+        })
+        #expect(try lifecycleAccountNames(in: safety).contains("Synthetic Settings External Current"))
+        #expect(model.externalRestoreResult?.sourceSchemaVersion == 6)
+        #expect(model.externalRestoreResult?.finalSchemaVersion == 6)
+        #expect(model.externalRestoreResult?.migrationRan == false)
+        #expect(model.externalRestoreResult?.operationCategory == .externalGenerationRestore)
+
+        let reconstructed = context.model()
+        await reconstructed.load()
+        #expect(reconstructed.externalRestoreResult == nil)
+        #expect(reconstructed.selectedGenerationID == nil)
+        #expect(reconstructed.canRestoreExternal)
+    }
+
+    @Test("Invalid External candidate is a finite sanitized failure before safety Backup")
+    @MainActor
+    func invalidExternalRestorePresentation() async throws {
+        let context = try lifecycleContext(ids: [lifecycleUUID(39), lifecycleUUID(40)])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let model = context.model()
+        await model.load()
+        #expect(!(await model.restoreExternal(from: context.destination)))
+        #expect(model.state == .failed(.externalRestoreFailed))
+        #expect(model.errorLabel == "Data lifecycle error: The selected External Backup could not be restored safely.")
+        #expect(!model.isRecoveryRequired)
+        #expect(try await context.store.permanentBackupInventory(
+            in: context.paths.internalBackupDirectoryURL
+        ).validGenerations.isEmpty)
+        #expect(await context.store.maintenanceState == .ready)
+    }
+
+    @Test("External Restore rollback success and failure have bounded states")
+    @MainActor
+    func externalRestoreRecoveryPresentation() async throws {
+        let context = try lifecycleContext(ids: [
+            lifecycleUUID(43), lifecycleUUID(44), lifecycleUUID(45), lifecycleUUID(46)
+        ])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let rolledBack = SettingsDataLifecycleExternalRestoreClient { _, _, _, _, _ in
+            throw PermanentExternalRestoreError.restoreFailedRollbackSucceeded(.migration)
+        }
+        let finite = context.model(externalRestoreClient: rolledBack)
+        await finite.load()
+        #expect(!(await finite.restoreExternal(from: context.destination)))
+        #expect(finite.state == .failed(.externalRestoreRolledBack))
+        #expect(finite.errorLabel == "Data lifecycle error: External Restore failed and the prior Permanent Store was recovered from the safety Backup.")
+        #expect(!finite.isRecoveryRequired)
+
+        let failedRollback = SettingsDataLifecycleExternalRestoreClient { _, _, _, _, _ in
+            throw PermanentExternalRestoreError.rollbackFailed
+        }
+        let recovery = context.model(externalRestoreClient: failedRollback)
+        await recovery.load()
+        #expect(!(await recovery.restoreExternal(from: context.destination)))
+        #expect(recovery.state == .recoveryRequired)
+        #expect(recovery.recoveryRequiredLabel != nil)
+        #expect(!recovery.canCreateBackup)
+        #expect(!recovery.canRestore)
+        #expect(!recovery.canExport)
+        #expect(!recovery.canRestoreExternal)
+        #expect(!(await recovery.restoreExternal(from: context.destination)))
+    }
+
+    @Test("External Restore blocks every concurrent data lifecycle mutation")
+    @MainActor
+    func externalRestoreBlocksConcurrentOperations() async throws {
+        let context = try lifecycleContext(ids: [
+            lifecycleUUID(47), lifecycleUUID(48), lifecycleUUID(49)
+        ])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let blocker = BlockingLifecycleExternalRestoreClient()
+        let model = context.model(externalRestoreClient: blocker.client)
+        await model.load()
+        #expect(await model.createBackup())
+        let identity = try #require(model.generations.first?.id)
+        #expect(model.selectGeneration(identity))
+
+        let restore = Task { await model.restoreExternal(from: context.destination) }
+        for _ in 0..<1_000 where !blocker.hasStarted {
+            await Task.yield()
+        }
+        #expect(blocker.hasStarted)
+        #expect(model.state == .restoringExternalBackup)
+        #expect(!model.canCreateBackup)
+        #expect(!model.canRestore)
+        #expect(!model.canExport)
+        #expect(!model.canRestoreExternal)
+        #expect(!(await model.createBackup()))
+        #expect(!(await model.restoreSelected(confirmed: true)))
+        #expect(!(await model.exportSelected(to: context.destination)))
+        #expect(!(await model.restoreExternal(from: context.destination)))
+        #expect(!model.selectGeneration(identity))
+        blocker.finish()
+        #expect(await restore.value)
+        #expect(model.state == .ready)
     }
 
     @Test("Unconfirmed Restore has zero side effects")
@@ -391,8 +592,10 @@ struct SettingsDataLifecycleTests {
         #expect(!model.canCreateBackup)
         #expect(!model.canRestore)
         #expect(!model.canExport)
+        #expect(!model.canRestoreExternal)
         #expect(!(await model.createBackup()))
         #expect(!(await model.exportSelected(to: context.destination)))
+        #expect(!(await model.restoreExternal(from: context.destination)))
         #expect(!model.selectGeneration(identity))
     }
 
@@ -471,6 +674,15 @@ struct SettingsDataLifecycleTests {
                     additionalProtectedDestinationRoots: []
                 )
         )
+        #expect(
+            dependencies.permanentExternalRestoreConfiguration
+                == PermanentExternalRestoreConfiguration(
+                    internalBackupRootURL: RuntimePaths.temporary(root: root).internalBackupDirectoryURL,
+                    permanentDatabaseURL: RuntimePaths.temporary(root: root).permanentDatabaseURL,
+                    marketCacheDatabaseURL: RuntimePaths.temporary(root: root).marketCacheDatabaseURL,
+                    additionalProtectedSourceRoots: []
+                )
+        )
     }
 
     @Test("Inventory presentation remains bounded by Foundation retention")
@@ -533,9 +745,23 @@ private struct LifecycleContext {
         .live(configuration: exportConfiguration)
     }
 
+    var externalRestoreConfiguration: PermanentExternalRestoreConfiguration {
+        PermanentExternalRestoreConfiguration(
+            internalBackupRootURL: paths.internalBackupDirectoryURL,
+            permanentDatabaseURL: paths.permanentDatabaseURL,
+            marketCacheDatabaseURL: paths.marketCacheDatabaseURL,
+            additionalProtectedSourceRoots: []
+        )
+    }
+
+    var externalRestoreClient: SettingsDataLifecycleExternalRestoreClient {
+        .live(store: store, configuration: externalRestoreConfiguration)
+    }
+
     @MainActor
     func model(
-        exportClient: SettingsDataLifecycleExportClient? = nil
+        exportClient: SettingsDataLifecycleExportClient? = nil,
+        externalRestoreClient: SettingsDataLifecycleExternalRestoreClient? = nil
     ) -> SettingsDataLifecycleModel {
         SettingsDataLifecycleModel(
             store: store,
@@ -544,7 +770,8 @@ private struct LifecycleContext {
             clock: lifecycleClock,
             generationID: { ids.next() },
             restoreFileOperations: operations,
-            exportClient: exportClient ?? self.exportClient
+            exportClient: exportClient ?? self.exportClient,
+            externalRestoreClient: externalRestoreClient ?? self.externalRestoreClient
         )
     }
 }
@@ -656,6 +883,74 @@ private final class BlockingLifecycleExportClient: @unchecked Sendable {
             databaseByteCount: 1,
             operationCategory: .internalGenerationExternalExport
         )
+    }
+
+    func finish() {
+        let continuation = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            defer { self.continuation = nil }
+            return self.continuation
+        }
+        continuation?.resume()
+    }
+}
+
+private func lifecycleExternalRestoreResult(
+    candidateSchema: Int = 6,
+    migrationRan: Bool = false
+) -> PermanentExternalRestoreResult {
+    PermanentExternalRestoreResult(
+        previousSchemaVersion: 6,
+        candidateSchemaVersion: candidateSchema,
+        finalSchemaVersion: 6,
+        migrationRan: migrationRan,
+        safetyGenerationIdentity: "synthetic-safety",
+        databaseByteCount: 4_096,
+        operationCategory: .externalGenerationRestore
+    )
+}
+
+private final class RecordingLifecycleExternalRestoreClient: @unchecked Sendable {
+    private let lock = NSLock()
+    private let result: PermanentExternalRestoreResult
+    private var invocations: [(operationID: UUID, safetyGenerationID: UUID)] = []
+
+    init(result: PermanentExternalRestoreResult) {
+        self.result = result
+    }
+
+    var invocationCount: Int { lock.withLock { invocations.count } }
+    var operationIDs: [UUID] { lock.withLock { invocations.map(\.operationID) } }
+    var safetyGenerationIDs: [UUID] {
+        lock.withLock { invocations.map(\.safetyGenerationID) }
+    }
+
+    var client: SettingsDataLifecycleExternalRestoreClient {
+        SettingsDataLifecycleExternalRestoreClient { [self] _, _, _, operationID, safetyID in
+            lock.withLock {
+                invocations.append((operationID, safetyID))
+            }
+            return result
+        }
+    }
+}
+
+private final class BlockingLifecycleExternalRestoreClient: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var started = false
+
+    var hasStarted: Bool { lock.withLock { started } }
+
+    var client: SettingsDataLifecycleExternalRestoreClient {
+        SettingsDataLifecycleExternalRestoreClient { [self] _, _, _, _, _ in
+            await withCheckedContinuation { continuation in
+                lock.withLock {
+                    started = true
+                    self.continuation = continuation
+                }
+            }
+            return lifecycleExternalRestoreResult()
+        }
     }
 
     func finish() {
