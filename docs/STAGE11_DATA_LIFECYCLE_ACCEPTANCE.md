@@ -2,7 +2,7 @@
 
 ## Status
 
-**Stage 11-EXTERNAL-BACKUP-EXPORT-PANEL-CANCEL-01 PARTIAL — Awaiting Reviewer Gate**
+**Stage 11 External Backup Export UI Runtime Candidate — Awaiting Reviewer Gate**
 
 ## External Backup Export Foundation round
 
@@ -535,3 +535,51 @@ The source file `SettingsDataLifecycleTests.swift` remained frozen at the comple
 ## Current External Backup Export UI runtime status
 
 **Stage 11-EXTERNAL-BACKUP-EXPORT-PANEL-CANCEL-01 PARTIAL — Awaiting Reviewer Gate**
+
+## Existing UI diagnostic closure round
+
+Prompt 11-EXISTING-UI-DIAGNOSTIC-CLOSURE-02 是零源码修改、零重建、零重签名的 evidence-only round。修改前全部规定 Source Identity 精确匹配；测试前的普通文件系统 inventory 包含 `114` 个 ordinary files，并显式排除 `.git/**`、`.secrets/**` 与 `default.profraw` payload。三项独立诊断、Existing focused 与 Full UI 全部串行复用同一个 frozen signed product。上一轮缺少 `Info.plist` 的 `ExistingFocusedRegression.xcresult` 保持 `INCOMPLETE RESULT — NOT PASS / NOT VERIFIED`，其三条 console assertion 线索未被合并或转换成 canonical aggregate。
+
+Current evidence root: `/private/tmp/Aureus-Stage11-EXISTING-UI-DIAGNOSTIC-CLOSURE-02-uRH4fF`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| External Export Targeted UI | `NOT RUN — ACCEPTED CURRENT-SOURCE 1/1 PASS AFTER EXACT SOURCE/PRODUCT VERIFICATION` | Accepted bundle `TargetedExternalExportUI.xcresult`; `Info.plist` present; definitions/executions `1/1`; `1/0/0`; canonical result `Passed`; summary/tests parser exits `0/0` |
+| Focused Unit | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Accepted `77` definitions / `79` dynamic executions PASS |
+| Affected Unit Regression | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Accepted `136` definitions / `146` dynamic executions PASS |
+| Full Unit | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Accepted `429` definitions / `472` dynamic executions PASS |
+| Performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION` | Accepted `29` definitions / `31` dynamic executions PASS; real 10,000-row export/validate workload `26 ms` |
+| Clean Build | `NOT RUN — ACCEPTED CURRENT-SOURCE BUILD AFTER EXACT SOURCE/PRODUCT VERIFICATION` | No build was authorized or performed |
+| BFT | `NOT RUN — REUSED EXACT FROZEN CURRENT-SOURCE SIGNED PRODUCT` | No rebuild or re-sign was authorized or performed |
+| Ledger Dynamic diagnostic | `PASS` | Exact selector `testLedgerDynamicCashFlowTransferInvestmentEditAndDelete`; shell exit `0`; definitions/executions `1/1`; one business execution; `1/0/0`; method duration `230.696 s`; result interval `243.204 s`; complete `LedgerDynamicDiagnostic.xcresult`; `Info.plist` present; summary/tests parser exits `0/0`; picker matching-snapshot failure did not recur |
+| Native CSV diagnostic | `PASS` | Exact selector `testLedgerNativeCSVImportPreviewConfirmationAndExport`; shell exit `0`; definitions/executions `1/1`; one business execution; `1/0/0`; method duration `52.287 s`; result interval `54.157 s`; complete `NativeCSVDiagnostic.xcresult`; `Info.plist` present; summary/tests parser exits `0/0`; import, preview, confirmation, Save Panel, `OKButton`, exact default export, and Ledger Error absence passed |
+| Portfolio diagnostic | `PASS` | Exact selector `testStage8PortfolioSyntheticCRUDHoldingsSnapshotAndIsolation`; shell exit `0`; definitions/executions `1/1`; one business execution; `1/0/0`; method duration `71.760 s`; result interval `72.916 s`; complete `PortfolioDiagnostic.xcresult`; `Info.plist` present; summary/tests parser exits `0/0`; summary-name, ordering, holdings/snapshot, reload/delete, and Production isolation passed |
+| Diagnostic matrix | `PASS` | 三项均各自形成独立完整 `1/1 PASS`；未将三个 bundle相加成伪造 aggregate |
+| Existing focused regression | `PASS` | 十一个 exact selectors在单次 serial invocation中执行；shell exit `0`; definitions/executions `11/11`; business executions `11`; passed/failed/skipped `11/0/0`; canonical result `Passed`; result interval `1109.470 s`; complete `ExistingFocusedRegression.xcresult`; `Info.plist` present; summary/tests parser exits `0/0` |
+| Full `AureusUITests` | `PASS` | Exact selector `AureusUITests`; shell exit `0`; definitions/executions `17/17`; business executions `17`; passed/failed/skipped `17/0/0`; canonical result `Passed`; all `17` Test Case nodes `Passed`; method aggregate `1262.523 s`; result interval `1274.760 s`; complete `FullAureusUITests.xcresult`; `Info.plist` present; summary/tests parser exits `0/0` |
+
+三项历史 console 线索均未在独立诊断、单次 Existing focused 聚合或 Full UI 中复现。所有 invocation 使用 `-parallel-testing-enabled NO`、maximum concurrent destination `1` 与同一个 frozen product：App SHA-256 `57de6848ec47b9df768adf3a2fab6af0dd48e5935b7701ccbdadf00b7e850a71`，Runner `a0a8835f2b59a28602d6b9a457c3d2edc8a005661641301675049c787cad0fae`，UI Test executable `de158835679de7d511b6d275e70972544aef0677210862c5d3125523e49ca7ce`，xctestrun `0446c244aec3849e52f45dacd7bb08e3af74da5333d2cdce3d7863a6b6fd2bd9`。App/Runner strict codesign复核通过，architecture为 `arm64`，Gate之间未 build、sign或修改产品。Business repair、business retry、UI infrastructure retry 与 incomplete-result re-observation实际用量均为 `0`。
+
+### Diagnostic closure provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter live operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- External Restore/import: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Scheduling/cloud export: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- External retention: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Stages 12–14: `NO-GO`
+
+测试停止后、文档更新前，系统 `shasum -c` 对全部 `114` 个 pre-inventory ordinary files返回 `OK`，确认 Product/Test/Project及其他 Repository路径在测试期间保持逐字节不变。所有 UI 与 result artifacts 均位于 `/private/tmp`；未向 Repository 写入数据库、Backup/export generation、staging、DerivedData或 xcresult。
+
+## Current Stage 11 UI runtime candidate status
+
+**Stage 11 External Backup Export UI Runtime Candidate — Awaiting Reviewer Gate**
+
+本状态仅是 Executor candidate evidence，不宣布 Stage 11 `PASS`、V1 Ready、Release Ready或 Stage 12授权。
