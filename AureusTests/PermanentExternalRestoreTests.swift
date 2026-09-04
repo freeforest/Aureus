@@ -348,35 +348,86 @@ struct PermanentExternalRestoreTests {
         ) == .invalidExternalCandidate(.symbolicLinkRejected))
     }
 
-    @Test("Schema zero and future schemas are rejected before Restore", arguments: [0, 7])
-    func unsupportedSchema(version: Int) async throws {
+    @Test("Manifest schema zero is rejected by the External Restore API before staging")
+    func schemaZeroManifest() async throws {
         let context = try externalRestoreContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
+        try await seedExternalAccounts(
+            context.store,
+            prefix: "external-schema-zero-live",
+            count: 1
+        )
         let candidate = try await makeExternalCandidate(
             context,
             schemaVersion: 6,
-            prefix: "external-schema",
+            prefix: "external-schema-zero",
             count: 1,
-            identity: 70 + version
+            identity: 70
         )
-        try mutateExternalDatabase(candidate) { db in
-            try db.execute(
-                sql: "UPDATE schema_metadata SET version = ? WHERE store_kind = 'permanent'",
-                arguments: [version]
-            )
+        try rewriteExternalManifest(candidate) { manifest in
+            externalManifestCopy(manifest, schemaVersion: 0)
         }
-        try resignExternalGeneration(candidate, schemaVersion: version)
+        let sourceBefore = try externalFingerprint(candidate)
+        let liveBefore = try await externalAccountIDs(context.store)
+        let operations = ExternalTrackingRestoreOperations()
 
         let error = await externalRestoreError(
             context,
             candidate: candidate,
-            operation: 70 + version
+            operation: 70,
+            fileOperations: operations
         )
-        guard case .invalidExternalCandidate = error else {
-            Issue.record("Unsupported schema was not rejected")
-            return
-        }
+
+        #expect(error == .invalidExternalCandidate(.malformedManifest))
+        #expect(operations.copyCount == 0)
+        #expect(operations.replacementCount == 0)
         #expect(try externalInventory(context).validGenerations.isEmpty)
+        #expect(try await externalAccountIDs(context.store) == liveBefore)
+        #expect(await context.store.maintenanceState == .ready)
+        #expect(try externalFingerprint(candidate) == sourceBefore)
+    }
+
+    @Test("Future schema seven is rejected by the External Restore API before staging")
+    func futureSchemaSeven() async throws {
+        let context = try externalRestoreContext()
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        try await seedExternalAccounts(
+            context.store,
+            prefix: "external-schema-seven-live",
+            count: 1
+        )
+        let candidate = try await makeExternalCandidate(
+            context,
+            schemaVersion: 6,
+            prefix: "external-schema-seven",
+            count: 1,
+            identity: 77
+        )
+        try mutateExternalDatabase(candidate) { db in
+            try db.execute(
+                sql: "UPDATE schema_metadata SET version = ? WHERE store_kind = 'permanent'",
+                arguments: [7]
+            )
+        }
+        try resignExternalGeneration(candidate, schemaVersion: 7)
+        let sourceBefore = try externalFingerprint(candidate)
+        let liveBefore = try await externalAccountIDs(context.store)
+        let operations = ExternalTrackingRestoreOperations()
+
+        let error = await externalRestoreError(
+            context,
+            candidate: candidate,
+            operation: 77,
+            fileOperations: operations
+        )
+
+        #expect(error == .invalidExternalCandidate(.schemaMismatch))
+        #expect(operations.copyCount == 0)
+        #expect(operations.replacementCount == 0)
+        #expect(try externalInventory(context).validGenerations.isEmpty)
+        #expect(try await externalAccountIDs(context.store) == liveBefore)
+        #expect(await context.store.maintenanceState == .ready)
+        #expect(try externalFingerprint(candidate) == sourceBefore)
     }
 
     @Test("Internal Backup Permanent Market Cache and additional protected roots reject overlap", arguments: ExternalOverlapFailure.allCases)

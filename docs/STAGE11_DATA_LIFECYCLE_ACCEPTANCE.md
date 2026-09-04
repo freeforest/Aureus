@@ -2,7 +2,7 @@
 
 ## Status
 
-**Stage 11-EXTERNAL-BACKUP-RESTORE-FOUNDATION-01 PARTIAL — Awaiting Reviewer Gate**
+**Stage 11 External Backup Restore Foundation Candidate — Awaiting Reviewer Gate**
 
 ## External Backup Export Foundation round
 
@@ -630,3 +630,62 @@ The first business-complete result exposed the `/private/tmp` versus Foundation-
 **Stage 11-EXTERNAL-BACKUP-RESTORE-FOUNDATION-01 PARTIAL — Awaiting Reviewer Gate**
 
 This is Executor evidence only. It does not declare Stage 11 `PASS`, V1 Ready, Release Ready, Settings External Restore UI readiness, or Stage 12 authorization.
+
+## External Backup Restore validation closure round
+
+Prompt 11-EXTERNAL-BACKUP-RESTORE-VALIDATION-CLOSURE-01 closes the two validation defects isolated by the preceding Foundation evidence while preserving that round's accepted Restore core. Only `PermanentBackup.swift` and `PermanentExternalRestoreTests.swift` changed before formal verification; this acceptance document and `README.md` changed only after Gates C–H completed.
+
+### Schema-zero and future-schema boundary
+
+The schema-0 test no longer attempts to violate the production database's `CHECK (version >= 1)`. It creates a valid schema-6 External generation, changes only the untrusted External manifest's `schemaVersion` to `0`, leaves the database, digest, and byte count unchanged, and invokes the formal `restoreExternalPermanentBackup` API. The API returns typed `invalidExternalCandidate(.malformedManifest)` before candidate staging, safety Backup, queue close, or replacement. Tracking operations remain at zero, the live synthetic records remain unchanged, maintenance remains `ready`, and the External generation fingerprint remains unchanged.
+
+The separate schema-7 test mutates the synthetic candidate database metadata to `7`, updates the manifest to `7`, recomputes its digest and byte count, and invokes the same formal API. It returns typed `invalidExternalCandidate(.schemaMismatch)` before staging, safety Backup, or replacement. Both rejected operations run exactly once and perform no automatic retry.
+
+### Standalone parent-access closure
+
+`validateStandaloneExternalGeneration` now validates the absolute file URL, its standardized/resolved non-symlink identity, protected-root non-overlap, and then the selected generation itself. It neither derives nor reads the generation's parent directory, does not list that parent, and does not call the root-dependent `validateDirectory(_:in:acceptedName:fileManager:)` path.
+
+The shared authoritative content validator continues to enforce the strict generation-name predicate, plain non-symlink directory, exact `aureus.sqlite` and `manifest.json` children, ordinary non-symlink files, manifest parsing and format/canonical fields, positive byte count, lowercase streaming SHA-256 agreement, query-only SQLite open, quick-check, foreign keys, and manifest/database schema agreement. Internal `validateGeneration(_:in:)` still checks its configured Backup root and `requireDirectChild` before calling the shared validator. External Export final and staging validators still validate the injected destination directory and require direct-child artifacts. `PermanentRestore.swift`, `PermanentExternalRestore.swift`, `WealthStore.swift`, migrations, Project, Package, targets, scheme, and entitlements remain byte-identical.
+
+Current evidence root: `/private/tmp/Aureus-Stage11-EXTERNAL-BACKUP-RESTORE-VALIDATION-CLOSURE-01-skIX9p`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Historical Foundation results | `NOT RUN — READ-ONLY CLASSIFICATION` | `FocusedUnit.xcresult` and `FocusedUnit-Final.xcresult` remain 0-test compile failures; `FocusedUnit-Current.xcresult` remains a complete failed `58/49/0` dynamic result; `FocusedUnit-AfterRepair.xcresult` remains complete `106/1/0` with the schema-0 fixture failure. No historical bundle was modified, merged, or converted to PASS |
+| Historical UI closure | `NOT RUN — ACCEPTED HISTORICAL CONTINUITY EVIDENCE` | Read-only verification retained the earlier full `AureusUITests` `17/17 PASS`; Production source changed in this round, so it is not current-source UI evidence |
+| Gate C Focused Unit | `PASS` | Unsigned isolated Debug Unit host; exact suites `AureusTests/PermanentExternalRestoreTests`, `AureusTests/PermanentRestoreTests`, `AureusTests/PermanentBackupTests`; shell exit `0`; `79` definitions / `107` dynamic and business executions; passed/failed/skipped `107/0/0`; result interval `46.228 s`, test execution `6.597 s`; complete `FocusedUnit.xcresult`; `Info.plist` present; initial sandbox summary/tests parser exits `64/64`, same-bundle standard Xcode read-only parser exits `0/0`; no test retry |
+| Gate D Affected Regression | `PASS` | Unsigned isolated Debug Unit host; exact suites `PermanentExternalRestoreTests`, `PermanentRestoreTests`, `PermanentBackupTests`, `PermanentMigrationSafetyTests`, `PermanentBackupExportTests`, `SettingsDataLifecycleTests`, `PersistenceTests`; shell exit `0`; `161` definitions / `195` dynamic and business executions; `195/0/0`; result interval `47.299 s`, test execution `9.312 s`; complete `AffectedRegression.xcresult`; `Info.plist` present; parsers `0/0`; no retry |
+| Gate E Full Unit | `PASS` | Unsigned isolated Debug Unit host; exact selector `AureusTests`; shell exit `0`; `454` definitions / `521` dynamic and business executions; `521/0/0`; result interval `90.712 s`, test execution `52.442 s`; complete `FullAureusTests.xcresult`; `Info.plist` present; parsers `0/0`; no retry |
+| Gate F Release External Restore | `PASS` | Release-oriented, `ENABLE_TESTABILITY=YES`, unsigned isolated Unit host; exact selector `AureusTests/PermanentExternalRestoreTests`; shell exit `0`; `25` definitions / `49` dynamic and business executions; `49/0/0`; result interval including build `143.882 s`, test execution `2.390 s`; complete `ReleaseExternalRestorePerformance.xcresult`; `Info.plist` present; parsers `0/0`; no retry |
+| Gate F workload | `PASS` | `STAGE11_EXTERNAL_RESTORE_PERF rows=10000 validate_safety_restore_ms=43 migration_applied=0 provider_requests=0 cache_reads=0 credential_reads=0`; actual 10,000-row candidate and current Store workload entered; `43 ms < 10000 ms` |
+| Gate G Clean Debug arm64 Build | `PASS` | Exact category `clean build`, Scheme `Aureus`, Debug arm64; shell exit `0`; canonical status `succeeded`; errors `0`; warnings `4`, all pre-existing `PortfolioView.swift` deprecated interpolation warnings; new warnings `0`; duration `28.722 s`; complete `CleanDebugBuild.xcresult`; `Info.plist` present; build parser exit `0`; no retry |
+| Gate H fresh signed BFT | `PASS` | Exact category `build-for-testing`, Scheme `Aureus`, Debug arm64, fresh DerivedData; shell exit `0`; `TEST BUILD SUCCEEDED`; canonical status `succeeded`; errors `0`; four existing warnings and zero new warnings; duration `37.608 s`; complete `BuildForTesting.xcresult`; `Info.plist` present; build parser exit `0`; App/Runner strict codesign exits `0`; no retry |
+| UI Tests | `NOT RUN — NOT AUTHORIZED IN EXTERNAL BACKUP RESTORE VALIDATION CLOSURE ROUND` | Historical `17/17` was not substituted for a current-source UI run; BFT is build evidence only |
+
+### BFT product identity
+
+- App: `BuildForTestingDerivedData/Build/Products/Debug/Aureus.app/Contents/MacOS/Aureus`; SHA-256 `a6b7780ea573564394fb44a2372d1c5caca50e6034251fd8a2e85d4ae546b781`; Bundle ID `com.aureus.wealthterminal`; `arm64`; local ad hoc / Sign to Run Locally; strict codesign exit `0`.
+- Runner: `BuildForTestingDerivedData/Build/Products/Debug/AureusUITests-Runner.app/Contents/MacOS/AureusUITests-Runner`; SHA-256 `102071f122fb6555bb379dbdb3d300387b7726dfc0e8fb2a6db1280b2032b2cf`; Bundle ID `com.aureus.wealthterminal.uitests.xctrunner`; `arm64`; local ad hoc / Sign to Run Locally; strict codesign exit `0`.
+- UI Test executable: `BuildForTestingDerivedData/Build/Products/Debug/AureusUITests-Runner.app/Contents/PlugIns/AureusUITests.xctest/Contents/MacOS/AureusUITests`; SHA-256 `6e40f5585d76e6efc3ddb7897523e766d8a5598b071f6aeab487a36d32bb6add`; Bundle ID `com.aureus.wealthterminal.uitests`; `arm64`.
+- xctestrun: `BuildForTestingDerivedData/Build/Products/Aureus_Aureus_macosx26.5-arm64.xctestrun`; SHA-256 `0c3e2ce3602148128a452af96946a50c9b401b2586e67c66a917100aff255936`.
+
+### Validation closure provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- Settings External Restore UI: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Security-scoped runtime: `NOT RUN`
+- Stages 12–14: `NO-GO`
+
+## Current External Backup Restore Foundation status
+
+**Stage 11 External Backup Restore Foundation Candidate — Awaiting Reviewer Gate**
+
+This remains Executor candidate evidence. The Reviewer still owns the Stage 11 Gate; this status does not declare Stage 11 `PASS`, V1 Ready, Release Ready, Settings External Restore UI readiness, or Stage 12 authorization.

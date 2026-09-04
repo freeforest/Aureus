@@ -236,8 +236,6 @@ enum PermanentBackupService {
             throw PermanentBackupError.symbolicLinkRejected
         }
 
-        let parentURL = normalizedGeneration.deletingLastPathComponent()
-        try requireExistingPlainDirectory(parentURL, fileManager: fileManager)
         for protectedURL in protectedURLs {
             guard protectedURL.isFileURL,
                   protectedURL.path.hasPrefix("/") else {
@@ -251,9 +249,8 @@ enum PermanentBackupService {
             }
         }
 
-        let generation = try validateDirectory(
+        let generation = try validateGenerationContents(
             normalizedGeneration,
-            in: parentURL,
             acceptedName: isGenerationName,
             fileManager: fileManager
         )
@@ -404,6 +401,21 @@ enum PermanentBackupService {
         fileManager: FileManager
     ) throws -> PermanentBackupGeneration {
         try requireDirectChild(generationURL, of: backupRoot, acceptedName: acceptedName)
+        return try validateGenerationContents(
+            generationURL,
+            acceptedName: acceptedName,
+            fileManager: fileManager
+        )
+    }
+
+    private static func validateGenerationContents(
+        _ generationURL: URL,
+        acceptedName: (String) -> Bool,
+        fileManager: FileManager
+    ) throws -> PermanentBackupGeneration {
+        guard acceptedName(generationURL.lastPathComponent) else {
+            throw PermanentBackupError.unsafePath
+        }
         let generationType = try itemType(at: generationURL, fileManager: fileManager)
         if generationType == .typeSymbolicLink {
             throw PermanentBackupError.symbolicLinkRejected
