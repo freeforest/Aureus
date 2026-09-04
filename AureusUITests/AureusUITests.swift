@@ -1471,7 +1471,9 @@ final class AureusUITests: XCTestCase {
         XCTAssertEqual(settingsGenerationRows(in: production).count, 0)
         XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.restore"].isEnabled)
         XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.import"].exists)
-        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.export"].exists)
+        let productionExport = production.descendants(matching: .any)["settings.dataLifecycle.export"]
+        XCTAssertTrue(productionExport.waitForExistence(timeout: 5))
+        XCTAssertFalse(productionExport.isEnabled)
         XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
         XCTAssertFalse(production.descendants(matching: .any)["settings.status"].exists)
         XCTAssertTrue(waitForSettingsDataLifecycleLabelContaining(
@@ -1480,6 +1482,192 @@ final class AureusUITests: XCTestCase {
             text: "Not verified",
             timeout: 5
         ))
+        production.terminate()
+    }
+
+    @MainActor
+    func testStage11SettingsExternalBackupExportToUserSelectedFolderAndIsolation() throws {
+        let warning = "External Backups contain private permanent financial records and are not encrypted by Aureus. Choose a private encrypted storage location you control. Do not choose a source-code repository or public/shared folder."
+        let testRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AureusSettingsExternalExportUITests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let destination = testRoot.appendingPathComponent("SelectedDestination", isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: testRoot) }
+
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 10))
+
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalExport.heading",
+            expectedLabel: "External Backup Export"
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalExport.warning",
+            expectedLabel: warning
+        )
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.export",
+            expectedLabel: "Export Selected Backup…"
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.export"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.externalExport.result"].exists)
+
+        let create = app.descendants(matching: .any)["settings.dataLifecycle.create"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        XCTAssertTrue(create.isEnabled)
+        create.click()
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 1 valid backups, 0 ignored entries",
+            timeout: 10
+        ))
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 8))
+        settingsGenerationRows(in: app).firstMatch.click()
+        XCTAssertTrue(waitForSettingsControlEnabled(
+            in: app,
+            identifier: "settings.dataLifecycle.export",
+            timeout: 5
+        ))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: destination.path), [])
+
+        app.descendants(matching: .any)["settings.dataLifecycle.export"].click()
+        XCTAssertTrue(
+            app.sheets.firstMatch.waitForExistence(timeout: 5)
+                || app.dialogs.firstMatch.waitForExistence(timeout: 5),
+            "Native directory-selection panel did not appear"
+        )
+        let cancelMatches = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Cancel"))
+        XCTAssertTrue(cancelMatches.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(cancelMatches.count, 1)
+        let cancel = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Cancel"))
+            .firstMatch
+        XCTAssertTrue(cancel.isEnabled)
+        XCTAssertTrue(cancel.isHittable)
+        cancel.click()
+        XCTAssertTrue(waitForNativePanelToDisappear(in: app, timeout: 5))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: destination.path), [])
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 5))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.status",
+            equals: "Data lifecycle status: Ready",
+            timeout: 5
+        ))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.externalExport.result"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        XCTAssertTrue(waitForSettingsControlEnabled(
+            in: app,
+            identifier: "settings.dataLifecycle.export",
+            timeout: 5
+        ))
+
+        app.descendants(matching: .any)["settings.dataLifecycle.export"].click()
+        chooseDirectory(destination.path, in: app)
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.status",
+            equals: "Data lifecycle status: External Backup Export Completed",
+            timeout: 10
+        ))
+
+        let externalEntries = try FileManager.default.contentsOfDirectory(
+            at: destination,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+        )
+        XCTAssertEqual(externalEntries.count, 1)
+        let generation = try XCTUnwrap(externalEntries.first)
+        let generationValues = try generation.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        XCTAssertEqual(generationValues.isDirectory, true)
+        XCTAssertNotEqual(generationValues.isSymbolicLink, true)
+        let artifactURLs = try FileManager.default.contentsOfDirectory(
+            at: generation,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+        )
+        XCTAssertEqual(Set(artifactURLs.map(\.lastPathComponent)), Set(["aureus.sqlite", "manifest.json"]))
+        for artifact in artifactURLs {
+            let values = try artifact.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            XCTAssertEqual(values.isRegularFile, true)
+            XCTAssertNotEqual(values.isSymbolicLink, true)
+        }
+        let databaseURL = generation.appendingPathComponent("aureus.sqlite")
+        let manifestURL = generation.appendingPathComponent("manifest.json")
+        let databaseBytes = try XCTUnwrap(
+            (try FileManager.default.attributesOfItem(atPath: databaseURL.path)[.size] as? NSNumber)?.int64Value
+        )
+        XCTAssertGreaterThan(databaseBytes, 0)
+        let manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
+        )
+        XCTAssertEqual((manifest["backupFormatVersion"] as? NSNumber)?.intValue, 1)
+        XCTAssertEqual((manifest["schemaVersion"] as? NSNumber)?.intValue, 6)
+        XCTAssertEqual((manifest["databaseByteCount"] as? NSNumber)?.int64Value, databaseBytes)
+        let resultLabel = "External Backup export completed: schema 6, \(databaseBytes) bytes."
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.dataLifecycle.externalExport.result",
+            expectedLabel: resultLabel
+        )
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 5))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: app,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 1 valid backups, 0 ignored entries",
+            timeout: 5
+        ))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.import"].exists)
+
+        let exportedSnapshot = try externalExportSnapshot(at: destination)
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 8))
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 8))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.externalExport.result"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.export"].isEnabled)
+        XCTAssertEqual(try externalExportSnapshot(at: destination), exportedSnapshot)
+        app.terminate()
+
+        let production = XCUIApplication()
+        production.launchArguments = uiTestingArguments()
+        launchApp(production)
+        XCTAssertTrue(production.descendants(matching: .any)["mode.local"].waitForExistence(timeout: 10))
+        production.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(production.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForSettingsDataLifecycleLabel(
+            in: production,
+            identifier: "settings.dataLifecycle.summary",
+            equals: "Data lifecycle: 0 valid backups, 0 ignored entries",
+            timeout: 8
+        ))
+        XCTAssertEqual(settingsGenerationRows(in: production).count, 0)
+        let productionExport = production.descendants(matching: .any)["settings.dataLifecycle.export"]
+        XCTAssertTrue(productionExport.waitForExistence(timeout: 5))
+        XCTAssertFalse(productionExport.isEnabled)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.externalExport.result"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
+        XCTAssertFalse(production.descendants(matching: .any)["settings.dataLifecycle.import"].exists)
+        XCTAssertFalse(production.sheets.firstMatch.exists)
+        XCTAssertFalse(production.dialogs.firstMatch.exists)
+        XCTAssertTrue(waitForSettingsDataLifecycleLabelContaining(
+            in: production,
+            identifier: "settings.provider.lastValidation",
+            text: "Not verified",
+            timeout: 5
+        ))
+        XCTAssertEqual(try externalExportSnapshot(at: destination), exportedSnapshot)
         production.terminate()
     }
 
@@ -2512,6 +2700,67 @@ final class AureusUITests: XCTestCase {
             waitForFile(at: expectedURL.path, timeout: 5),
             "Native Save Panel dismissed but the synthetic export was not created"
         )
+    }
+
+    @MainActor
+    private func chooseDirectory(_ path: String, in app: XCUIApplication) {
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+        XCTAssertTrue(
+            app.sheets.firstMatch.waitForExistence(timeout: 5)
+                || app.dialogs.firstMatch.waitForExistence(timeout: 5),
+            "Native directory-selection panel did not appear"
+        )
+        app.typeKey("g", modifierFlags: [.command, .shift])
+        XCTAssertTrue(app.textFields["PathTextField"].waitForExistence(timeout: 5))
+        replaceText(in: app.textFields["PathTextField"], with: path)
+        app.typeKey(.return, modifierFlags: [])
+        if !waitForNonexistence(app.sheets["GoToWindow"], timeout: 5) {
+            app.typeKey(.return, modifierFlags: [])
+        }
+        XCTAssertTrue(
+            waitForNonexistence(app.sheets["GoToWindow"], timeout: 5),
+            "Directory panel Go To sheet did not dismiss"
+        )
+        XCTAssertTrue(
+            waitForCurrentPanelControl(
+                in: app,
+                identifier: "OKButton",
+                elementType: .button,
+                timeout: 5
+            ),
+            "Directory panel did not expose its Choose control"
+        )
+        let choose = currentNativePanel(in: app)
+            .descendants(matching: .button)["OKButton"].firstMatch
+        XCTAssertTrue(waitForEnabled(choose, timeout: 5))
+        let currentChoose = currentNativePanel(in: app)
+            .descendants(matching: .button)["OKButton"].firstMatch
+        XCTAssertTrue(currentChoose.isHittable)
+        currentChoose.click()
+        XCTAssertTrue(
+            waitForNativePanelToDisappear(in: app, timeout: 5),
+            "Directory panel did not dismiss after choosing the synthetic destination"
+        )
+    }
+
+    private func externalExportSnapshot(at destination: URL) throws -> [String: Data] {
+        var snapshot: [String: Data] = [:]
+        let generations = try FileManager.default.contentsOfDirectory(
+            at: destination,
+            includingPropertiesForKeys: nil
+        )
+        for generation in generations.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            snapshot["directory/\(generation.lastPathComponent)"] = Data()
+            let artifacts = try FileManager.default.contentsOfDirectory(
+                at: generation,
+                includingPropertiesForKeys: nil
+            )
+            for artifact in artifacts {
+                snapshot["file/\(generation.lastPathComponent)/\(artifact.lastPathComponent)"]
+                    = try Data(contentsOf: artifact)
+            }
+        }
+        return snapshot
     }
 
     @MainActor

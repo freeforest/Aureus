@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @State private var model: SettingsFeatureModel
@@ -7,6 +8,7 @@ struct SettingsView: View {
     @State private var showDeleteCredentialConfirmation = false
     @State private var showResetConfirmation = false
     @State private var showRestoreConfirmation = false
+    @State private var showExternalExportImporter = false
     let mode: AppDataMode
 
     init(
@@ -17,6 +19,7 @@ struct SettingsView: View {
         sessionStore: TransientMarketSessionStore,
         wealthStore: WealthStore,
         internalBackupDirectoryURL: URL,
+        permanentBackupExportConfiguration: PermanentBackupExportConfiguration,
         appVersion: String,
         dataLifecycleGenerationID: @escaping @Sendable () -> UUID,
         clock: any Clock,
@@ -35,7 +38,8 @@ struct SettingsView: View {
             backupRoot: internalBackupDirectoryURL,
             appVersion: appVersion,
             clock: clock,
-            generationID: dataLifecycleGenerationID
+            generationID: dataLifecycleGenerationID,
+            exportClient: .live(configuration: permanentBackupExportConfiguration)
         ))
         self.mode = mode
     }
@@ -99,6 +103,12 @@ struct SettingsView: View {
         .sheet(isPresented: $showRestoreConfirmation) {
             restoreConfirmationSheet
         }
+        .fileImporter(
+            isPresented: $showExternalExportImporter,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: handleExternalExportSelection
+        )
     }
 
     private var settingsBanner: some View {
@@ -449,6 +459,43 @@ struct SettingsView: View {
                     }
                 }
 
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("External Backup Export")
+                        .font(.headline)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("External Backup Export")
+                        .accessibilityIdentifier("settings.dataLifecycle.externalExport.heading")
+
+                    Text(externalExportWarning)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(externalExportWarning)
+                        .accessibilityIdentifier("settings.dataLifecycle.externalExport.warning")
+
+                    Text("Aureus creates one two-file Backup generation folder in the selected directory. The destination is not remembered. External Restore/import, scheduling, and cloud export are not implemented.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button("Export Selected Backup…") {
+                        showExternalExportImporter = true
+                    }
+                    .disabled(!dataLifecycleModel.canExport)
+                    .accessibilityLabel("Export Selected Backup…")
+                    .accessibilityIdentifier("settings.dataLifecycle.export")
+
+                    if let result = dataLifecycleModel.externalExportResultLabel {
+                        Text(result)
+                            .foregroundStyle(.secondary)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(result)
+                            .accessibilityIdentifier("settings.dataLifecycle.externalExport.result")
+                    }
+                }
+
                 Text(dataLifecycleModel.statusLabel)
                     .foregroundStyle(.secondary)
                     .accessibilityElement(children: .ignore)
@@ -479,7 +526,7 @@ struct SettingsView: View {
                     .accessibilityLabel(disclosure)
                     .accessibilityIdentifier("settings.dataLifecycle.disclosure")
 
-                Text("External import/export, scheduling, cloud Backup, and user-selected file flows are not implemented.")
+                Text("External Backup Export is available as an explicit user-selected directory flow. External Restore/import, scheduling, and cloud Backup are not implemented.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -525,6 +572,35 @@ struct SettingsView: View {
         }
         .padding(24)
         .frame(width: 560)
+    }
+
+    private var externalExportWarning: String {
+        "External Backups contain private permanent financial records and are not encrypted by Aureus. Choose a private encrypted storage location you control. Do not choose a source-code repository or public/shared folder."
+    }
+
+    private func handleExternalExportSelection(_ selection: Result<[URL], Error>) {
+        switch selection {
+        case let .success(urls):
+            guard let destination = urls.first else {
+                dataLifecycleModel.externalDestinationSelectionFailed()
+                return
+            }
+            Task {
+                let isAccessing = destination.startAccessingSecurityScopedResource()
+                defer {
+                    if isAccessing {
+                        destination.stopAccessingSecurityScopedResource()
+                    }
+                }
+                await dataLifecycleModel.exportSelected(to: destination)
+            }
+        case let .failure(error):
+            if error is CancellationError
+                || (error as? CocoaError)?.code == .userCancelled {
+                return
+            }
+            dataLifecycleModel.externalDestinationSelectionFailed()
+        }
     }
 
     @ViewBuilder

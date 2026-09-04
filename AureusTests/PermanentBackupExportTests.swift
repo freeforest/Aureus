@@ -551,7 +551,7 @@ private struct ExportTestContext {
             internalBackupRootURL: paths.internalBackupDirectoryURL,
             permanentDatabaseURL: paths.permanentDatabaseURL,
             marketCacheDatabaseURL: paths.marketCacheDatabaseURL,
-            repositoryRootURL: repositoryRoot
+            additionalProtectedDestinationRoots: [repositoryRoot]
         )
     }
 }

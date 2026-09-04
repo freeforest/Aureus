@@ -105,6 +105,7 @@ struct AppShellView: View {
                     sessionStore: dependencies.marketSessionStore,
                     wealthStore: dependencies.wealthStore,
                     internalBackupDirectoryURL: dependencies.internalBackupDirectoryURL,
+                    permanentBackupExportConfiguration: dependencies.permanentBackupExportConfiguration,
                     appVersion: dependencies.appVersion,
                     dataLifecycleGenerationID: dependencies.dataLifecycleGenerationID,
                     clock: dependencies.clock,

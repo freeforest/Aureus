@@ -15,7 +15,7 @@ struct PermanentBackupExportConfiguration: Equatable, Sendable {
     let internalBackupRootURL: URL
     let permanentDatabaseURL: URL
     let marketCacheDatabaseURL: URL
-    let repositoryRootURL: URL
+    let additionalProtectedDestinationRoots: [URL]
 }
 
 enum PermanentBackupExportError: Error, Equatable, Sendable {
@@ -296,11 +296,10 @@ enum PermanentBackupExportService {
             configuration.permanentDatabaseURL,
             configuration.marketCacheDatabaseURL.deletingLastPathComponent(),
             configuration.marketCacheDatabaseURL
-        ]
-        guard !isEqualOrDescendant(
-            destination,
-            of: configuration.repositoryRootURL.standardizedFileURL
-        ), protectedURLs.allSatisfy({ !pathsOverlap(destination, $0.standardizedFileURL) }) else {
+        ] + configuration.additionalProtectedDestinationRoots
+        guard protectedURLs.allSatisfy({
+            !pathsOverlap(destination, $0.standardizedFileURL)
+        }) else {
             throw PermanentBackupExportError.unsafeOrUnsupportedDestination
         }
     }

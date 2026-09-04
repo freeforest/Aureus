@@ -83,7 +83,8 @@ struct SettingsDataLifecycleTests {
             store: context.store,
             backupRoot: context.root.appendingPathComponent("NotBackups"),
             appVersion: lifecycleAppVersion,
-            clock: lifecycleClock
+            clock: lifecycleClock,
+            exportClient: context.exportClient
         )
         #expect(!(await model.createBackup()))
         #expect(model.state == .failed(.createFailed))
@@ -103,6 +104,189 @@ struct SettingsDataLifecycleTests {
         await model.load()
         #expect(model.selectedGenerationID == nil)
         #expect(!model.canRestore)
+        #expect(!model.canExport)
+    }
+
+    @Test("Export requires a currently valid selection")
+    @MainActor
+    func exportSelectionLifecycle() async throws {
+        let context = try lifecycleContext(ids: [lifecycleUUID(21)])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let model = context.model()
+        await model.load()
+        #expect(!model.canExport)
+        #expect(await model.createBackup())
+        #expect(!model.canExport)
+        let identity = try #require(model.generations.first?.id)
+        #expect(model.selectGeneration(identity))
+        #expect(model.canExport)
+        await model.load()
+        #expect(model.selectedGenerationID == nil)
+        #expect(!model.canExport)
+    }
+
+    @Test("Explicit Export preserves internal inventory and publishes sanitized result")
+    @MainActor
+    func explicitExternalExport() async throws {
+        let context = try lifecycleContext(ids: [lifecycleUUID(22), lifecycleUUID(23)])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let model = context.model()
+        await model.load()
+        #expect(await model.createBackup())
+        let identity = try #require(model.generations.first?.id)
+        let source = try #require(try await context.store.permanentBackupInventory(
+            in: context.paths.internalBackupDirectoryURL
+        ).validGenerations.first)
+        let sourceDatabase = source.directoryURL.appendingPathComponent(
+            PermanentBackupService.databaseFileName
+        )
+        let sourceManifest = source.directoryURL.appendingPathComponent(
+            PermanentBackupService.manifestFileName
+        )
+        let digestBefore = try PermanentBackupService.streamingDigest(of: sourceDatabase)
+        let manifestBefore = try Data(contentsOf: sourceManifest)
+
+        #expect(model.selectGeneration(identity))
+        #expect(await model.exportSelected(to: context.destination))
+        #expect(model.state == .ready)
+        #expect(model.operationMessage == "External Backup Export Completed")
+        #expect(model.selectedGenerationID == identity)
+        #expect(model.canExport)
+        let result = try #require(model.externalExportResult)
+        #expect(result.schemaVersion == 6)
+        #expect(result.databaseByteCount > 0)
+        #expect(result.operationCategory == .internalGenerationExternalExport)
+        #expect(model.externalExportResultLabel == "External Backup export completed: schema 6, \(result.databaseByteCount) bytes.")
+
+        let externalGenerations = try FileManager.default.contentsOfDirectory(
+            at: context.destination,
+            includingPropertiesForKeys: nil
+        )
+        #expect(externalGenerations.count == 1)
+        let exported = try #require(externalGenerations.first)
+        #expect(try lifecycleArtifactNames(at: exported) == ["aureus.sqlite", "manifest.json"])
+        #expect(try await context.store.permanentBackupInventory(
+            in: context.paths.internalBackupDirectoryURL
+        ).validGenerations.count == 1)
+        #expect(try PermanentBackupService.streamingDigest(of: sourceDatabase) == digestBefore)
+        #expect(try Data(contentsOf: sourceManifest) == manifestBefore)
+
+        let presentation = [
+            model.statusLabel,
+            model.externalExportResultLabel ?? "",
+            model.errorLabel ?? ""
+        ].joined(separator: " ")
+        #expect(!presentation.contains(context.destination.path))
+        #expect(!presentation.contains("Synthetic Settings"))
+        #expect(!presentation.contains("Credential"))
+
+        let reconstructed = context.model()
+        await reconstructed.load()
+        #expect(reconstructed.externalExportResult == nil)
+        #expect(reconstructed.selectedGenerationID == nil)
+        #expect(!reconstructed.canExport)
+    }
+
+    @Test("Export failure is finite recoverable and never recovery-required")
+    @MainActor
+    func externalExportFailurePresentation() async throws {
+        let context = try lifecycleContext(ids: [lifecycleUUID(24), lifecycleUUID(25)])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let failing = SettingsDataLifecycleExportClient { _, _, _ in
+            throw PermanentBackupExportError.destinationCollision
+        }
+        let model = context.model(exportClient: failing)
+        await model.load()
+        #expect(await model.createBackup())
+        let identity = try #require(model.generations.first?.id)
+        #expect(model.selectGeneration(identity))
+        #expect(!(await model.exportSelected(to: context.destination)))
+        #expect(model.state == .failed(.exportFailed))
+        #expect(model.errorLabel == "Data lifecycle error: The selected internal Backup could not be exported and verified.")
+        #expect(!model.isRecoveryRequired)
+        #expect(model.selectedGenerationID == identity)
+        #expect(model.canExport)
+        #expect(model.externalExportResult == nil)
+    }
+
+    @Test("Exporting blocks Create Restore and a second Export")
+    @MainActor
+    func exportingBlocksConcurrentOperations() async throws {
+        let context = try lifecycleContext(ids: [lifecycleUUID(26), lifecycleUUID(27)])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let blocker = BlockingLifecycleExportClient()
+        let client = SettingsDataLifecycleExportClient { source, destination, operationID in
+            try await blocker.export(source, destination, operationID)
+        }
+        let model = context.model(exportClient: client)
+        await model.load()
+        #expect(await model.createBackup())
+        let identity = try #require(model.generations.first?.id)
+        #expect(model.selectGeneration(identity))
+
+        let first = Task { await model.exportSelected(to: context.destination) }
+        for _ in 0..<1_000 where !blocker.hasStarted {
+            await Task.yield()
+        }
+        #expect(blocker.hasStarted)
+        #expect(model.state == .exportingBackup)
+        #expect(!model.canCreateBackup)
+        #expect(!model.canRestore)
+        #expect(!model.canExport)
+        #expect(!(await model.createBackup()))
+        #expect(!(await model.restoreSelected(confirmed: true)))
+        #expect(!(await model.exportSelected(to: context.destination)))
+        blocker.finish()
+        #expect(await first.value)
+        #expect(model.state == .ready)
+    }
+
+    @Test("Foundation revalidation rejects a stale source after selection")
+    @MainActor
+    func staleSourceRejectedAtExport() async throws {
+        let context = try lifecycleContext(ids: [lifecycleUUID(28), lifecycleUUID(29)])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let model = context.model()
+        await model.load()
+        #expect(await model.createBackup())
+        let identity = try #require(model.generations.first?.id)
+        let generation = try #require(try await context.store.permanentBackupInventory(
+            in: context.paths.internalBackupDirectoryURL
+        ).validGenerations.first)
+        #expect(model.selectGeneration(identity))
+        try FileManager.default.removeItem(
+            at: generation.directoryURL.appendingPathComponent(PermanentBackupService.manifestFileName)
+        )
+
+        #expect(!(await model.exportSelected(to: context.destination)))
+        #expect(model.state == .failed(.exportFailed))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: context.destination.path).isEmpty)
+    }
+
+    @Test("Export identity collision does not overwrite destination")
+    @MainActor
+    func exportCollisionIsFinite() async throws {
+        let backupID = lifecycleUUID(31)
+        let exportID = lifecycleUUID(32)
+        let context = try lifecycleContext(ids: [backupID, exportID])
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let model = context.model()
+        await model.load()
+        #expect(await model.createBackup())
+        let generation = try #require(model.generations.first)
+        #expect(model.selectGeneration(generation.id))
+        let collisionName = try PermanentBackupService.externalExportGenerationName(
+            createdAt: generation.createdAt,
+            operationID: exportID
+        )
+        let collision = context.destination.appendingPathComponent(collisionName)
+        try FileManager.default.createDirectory(at: collision, withIntermediateDirectories: false)
+        let sentinel = collision.appendingPathComponent("synthetic-existing")
+        try Data("preserve".utf8).write(to: sentinel)
+
+        #expect(!(await model.exportSelected(to: context.destination)))
+        #expect(model.state == .failed(.exportFailed))
+        #expect(try String(decoding: Data(contentsOf: sentinel), as: UTF8.self) == "preserve")
     }
 
     @Test("Unconfirmed Restore has zero side effects")
@@ -206,7 +390,9 @@ struct SettingsDataLifecycleTests {
         #expect(model.recoveryRequiredLabel != nil)
         #expect(!model.canCreateBackup)
         #expect(!model.canRestore)
+        #expect(!model.canExport)
         #expect(!(await model.createBackup()))
+        #expect(!(await model.exportSelected(to: context.destination)))
         #expect(!model.selectGeneration(identity))
     }
 
@@ -276,6 +462,15 @@ struct SettingsDataLifecycleTests {
         )
         #expect(dependencies.appVersion == lifecycleAppVersion)
         #expect(dependencies.internalBackupDirectoryURL.path.hasPrefix(root.path))
+        #expect(
+            dependencies.permanentBackupExportConfiguration
+                == PermanentBackupExportConfiguration(
+                    internalBackupRootURL: RuntimePaths.temporary(root: root).internalBackupDirectoryURL,
+                    permanentDatabaseURL: RuntimePaths.temporary(root: root).permanentDatabaseURL,
+                    marketCacheDatabaseURL: RuntimePaths.temporary(root: root).marketCacheDatabaseURL,
+                    additionalProtectedDestinationRoots: []
+                )
+        )
     }
 
     @Test("Inventory presentation remains bounded by Foundation retention")
@@ -318,19 +513,38 @@ private let lifecycleClock = FixedClock(instant: lifecycleInstant)
 private struct LifecycleContext {
     let root: URL
     let paths: RuntimePaths
+    let destination: URL
     let store: WealthStore
     let ids: LifecycleIDSequence
     let operations: any PermanentRestoreFileOperations
 
+    var exportConfiguration: PermanentBackupExportConfiguration {
+        PermanentBackupExportConfiguration(
+            internalBackupRootURL: paths.internalBackupDirectoryURL,
+            permanentDatabaseURL: paths.permanentDatabaseURL,
+            marketCacheDatabaseURL: paths.marketCacheDatabaseURL,
+            additionalProtectedDestinationRoots: [
+                root.appendingPathComponent("SyntheticRepository", isDirectory: true)
+            ]
+        )
+    }
+
+    var exportClient: SettingsDataLifecycleExportClient {
+        .live(configuration: exportConfiguration)
+    }
+
     @MainActor
-    func model() -> SettingsDataLifecycleModel {
+    func model(
+        exportClient: SettingsDataLifecycleExportClient? = nil
+    ) -> SettingsDataLifecycleModel {
         SettingsDataLifecycleModel(
             store: store,
             backupRoot: paths.internalBackupDirectoryURL,
             appVersion: lifecycleAppVersion,
             clock: lifecycleClock,
             generationID: { ids.next() },
-            restoreFileOperations: operations
+            restoreFileOperations: operations,
+            exportClient: exportClient ?? self.exportClient
         )
     }
 }
@@ -341,9 +555,12 @@ private func lifecycleContext(
 ) throws -> LifecycleContext {
     let root = try lifecycleTemporaryDirectory()
     let paths = RuntimePaths.temporary(root: root)
+    let destination = root.appendingPathComponent("ExternalDestination", isDirectory: true)
+    try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
     return LifecycleContext(
         root: root,
         paths: paths,
+        destination: destination,
         store: try WealthStore(databaseURL: paths.permanentDatabaseURL),
         ids: LifecycleIDSequence(ids),
         operations: operations
@@ -381,6 +598,10 @@ private func lifecycleAccountNames(
     }
 }
 
+private func lifecycleArtifactNames(at directory: URL) throws -> [String] {
+    try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+}
+
 private func lifecycleTemporaryDirectory() throws -> URL {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("AureusSettingsDataLifecycleTests", isDirectory: true)
@@ -405,6 +626,44 @@ private final class LifecycleIDSequence: @unchecked Sendable {
         lock.withLock {
             values.isEmpty ? UUID() : values.removeFirst()
         }
+    }
+}
+
+private final class BlockingLifecycleExportClient: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var started = false
+
+    var hasStarted: Bool { lock.withLock { started } }
+
+    func export(
+        _ source: URL,
+        _ destination: URL,
+        _ operationID: UUID
+    ) async throws -> PermanentBackupExportResult {
+        _ = source
+        _ = destination
+        _ = operationID
+        await withCheckedContinuation { continuation in
+            lock.withLock {
+                started = true
+                self.continuation = continuation
+            }
+        }
+        return PermanentBackupExportResult(
+            exportedGenerationIdentity: "synthetic-export",
+            schemaVersion: 6,
+            databaseByteCount: 1,
+            operationCategory: .internalGenerationExternalExport
+        )
+    }
+
+    func finish() {
+        let continuation = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            defer { self.continuation = nil }
+            return self.continuation
+        }
+        continuation?.resume()
     }
 }
 

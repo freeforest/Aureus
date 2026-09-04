@@ -451,3 +451,45 @@ Provider requests remained `NOT RUN`; Twelve Data operations, Frankfurter operat
 ## Current Data Lifecycle UI runtime status
 
 **Stage 11 Data Lifecycle UI Runtime Candidate — Awaiting Reviewer Gate**
+
+## Settings external Backup Export UI round
+
+Prompt 11-SETTINGS-EXTERNAL-BACKUP-EXPORT-UI-01 connects the accepted no-UI external Export foundation to the existing Settings data-lifecycle model and view. The Production composition root supplies the real Permanent, internal Backup, and Market Cache paths without deriving a source-checkout path. Settings uses SwiftUI `.fileImporter` with `.folder`, starts security-scoped access immediately after selection, holds it across the asynchronous export, and stops it on every completed path. The model retains no destination URL, filename history, or bookmark. The visible External Backup warning and its AX label are identical; the heading, warning, Export button, and result are independent nodes. External Restore/import, scheduling, cloud export, external retention, ZIP/compression, and application-layer encryption remain unimplemented.
+
+Current evidence is rooted at `/private/tmp/Aureus-Stage11-SETTINGS-EXTERNAL-BACKUP-EXPORT-UI-01-ayEbIL`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Focused Unit | `PASS` | Final-source stable unsigned isolated-host route; exact suites `SettingsDataLifecycleTests`, `PermanentBackupExportTests`, and `PermanentBackupTests`; shell exit `0`; `77` definitions / `79` dynamic executions; `77` passed / `0` failed / `0` skipped; complete `FocusedUnit-Final.xcresult`; `Info.plist` present; summary/tests parsers `0/0`; result interval `41.920 s` |
+| Affected regression | `PASS` | Six exact suites; shell exit `0`; `136` definitions / `146` dynamic executions; `136/0/0`; complete `AffectedRegression-Final.xcresult`; `Info.plist` present; parsers `0/0`; result interval `7.435 s` |
+| Full Unit | `PASS` | Exact selector `AureusTests`; shell exit `0`; `429` definitions / `472` dynamic executions; `429/0/0`; complete `FullAureusTests-Final.xcresult`; `Info.plist` present; parsers `0/0`; result interval `50.519 s` |
+| Release External Export | `PASS` | Exact suite `PermanentBackupExportTests`; shell exit `0`; `29` definitions / `31` dynamic executions; `29/0/0`; complete `ReleaseExternalExportPerformance-Final.xcresult`; `Info.plist` present; parsers `0/0`; actual line `STAGE11_EXTERNAL_BACKUP_EXPORT_PERF rows=10000 export_validate_ms=26 exported_files=2 provider_requests=0 cache_reads=0 credential_reads=0` |
+| Clean Debug arm64 Build | `PASS` | Shell exit `0`; status succeeded; errors `0`; four existing `PortfolioView` warnings and no new warning; complete `CleanDebugBuild-Final.xcresult`; `Info.plist` present; build parser `0`; duration `28.487 s` |
+| Fresh signed arm64 BFT | `PASS` | Shell exit `0`; `TEST BUILD SUCCEEDED`; errors `0`; four existing warnings; complete `BuildForTesting-Final.xcresult`; `Info.plist` present; build parser `0`; duration `34.369 s`; App/Runner strict codesign exit `0` |
+| Targeted Settings External Export UI, initial | `FAIL` | Exact selector `testStage11SettingsExternalBackupExportToUserSelectedFolderAndIsolation`; shell exit `65`; definitions/executions `1/1`; one business execution; `0/1/0`; complete `TargetedExternalExportUI.xcresult`; `Info.plist` present; parsers `0/0`; failure at old source line `1550` after the native directory panel opened but the panel-scoped typed `Cancel` query did not match |
+| Targeted Settings External Export UI, final | `FAIL` | Same exact selector on rebuilt final source/product; shell exit `65`; definitions/executions `1/1`; one business execution; `0/1/0`; complete `TargetedExternalExportUI-Final.xcresult`; `Info.plist` present; parsers `0/0`; result interval `50.953 s`; failure `AureusUITests.swift:1549` because the native panel's public visible-label `Cancel` control remained unqueryable through a type-independent application-wide query |
+| Existing focused regression | `NOT RUN` | Gate G did not pass; the ordered prerequisite for the eleven exact selectors was not met |
+| Full `AureusUITests` | `NOT RUN` | Existing focused `11/11` was not run and could not satisfy the prerequisite for current inventory `17/17` |
+
+The first signed Focused Unit bundle is retained as an infrastructure result: it discovered all `77` definitions, but the known App Sandbox policy denied `/private/tmp/AureusTests/<UUID>` before `57` Backup/Export tests could use their synthetic roots. The authorized stable unsigned isolated-host route then produced the complete final-source Unit evidence above. This route is infrastructure handling, not a business retry. Gate G used exactly one authorized direct UI-test lifecycle repair, two business executions total, no infrastructure retry, and no incomplete-result re-observation. The final failure occurred before Cancel, Choose, artifact creation, reconstruction, and Production-isolation tail assertions; those runtime portions remain `NOT VERIFIED` in this round. Historical external Export foundation and prior `16/16` UI evidence were not substituted for the newly affected UI Gate.
+
+### Current-round provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter live operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- External Restore/import: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Scheduling/cloud export: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Stages 12–14: `NO-GO`
+
+All Unit, performance, build, BFT, and UI artifacts remain below the current `/private/tmp` evidence root. No database, external generation, security-scoped bookmark, DerivedData, or xcresult was written into the Repository.
+
+## Current Settings external Export UI status
+
+**Stage 11-SETTINGS-EXTERNAL-BACKUP-EXPORT-UI-01 PARTIAL — Awaiting Reviewer Gate**

@@ -20,6 +20,7 @@ struct AppDependencies: Sendable {
     let credentialStoragePolicy: ProductionCredentialStorage
     let clock: any Clock
     let internalBackupDirectoryURL: URL
+    let permanentBackupExportConfiguration: PermanentBackupExportConfiguration
     let appVersion: String
     let dataLifecycleGenerationID: @Sendable () -> UUID
 
@@ -51,6 +52,12 @@ struct AppDependencies: Sendable {
                 createdAt: safetyInputs.createdAt,
                 generationID: safetyInputs.generationID
             )
+        )
+        let permanentBackupExportConfiguration = PermanentBackupExportConfiguration(
+            internalBackupRootURL: paths.internalBackupDirectoryURL,
+            permanentDatabaseURL: paths.permanentDatabaseURL,
+            marketCacheDatabaseURL: paths.marketCacheDatabaseURL,
+            additionalProtectedDestinationRoots: []
         )
         let marketCacheStore = try MarketCacheStore(databaseURL: paths.marketCacheDatabaseURL)
         let marketSessionStore = TransientMarketSessionStore()
@@ -149,6 +156,7 @@ struct AppDependencies: Sendable {
             credentialStoragePolicy: ProductionCredentialPolicy.storage,
             clock: clock,
             internalBackupDirectoryURL: paths.internalBackupDirectoryURL,
+            permanentBackupExportConfiguration: permanentBackupExportConfiguration,
             appVersion: safetyInputs.appVersion,
             dataLifecycleGenerationID: safetyInputs.generationID
         )
