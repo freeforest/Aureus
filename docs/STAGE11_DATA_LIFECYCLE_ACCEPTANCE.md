@@ -2,7 +2,7 @@
 
 ## Status
 
-**Stage 11 External Backup Export Foundation Candidate — Awaiting Reviewer Gate**
+**Stage 11-EXTERNAL-BACKUP-EXPORT-PANEL-CANCEL-01 PARTIAL — Awaiting Reviewer Gate**
 
 ## External Backup Export Foundation round
 
@@ -493,3 +493,45 @@ All Unit, performance, build, BFT, and UI artifacts remain below the current `/p
 ## Current Settings external Export UI status
 
 **Stage 11-SETTINGS-EXTERNAL-BACKUP-EXPORT-UI-01 PARTIAL — Awaiting Reviewer Gate**
+
+## External Backup Export panel Escape-cancel round
+
+Prompt 11-EXTERNAL-BACKUP-EXPORT-PANEL-CANCEL-01 changes only `AureusUITests.swift` before formal execution. The targeted flow no longer queries the system-owned directory panel `Cancel` node by identifier, label, element type, count, enabled, hittable, or click state. It proves that the native panel appears, sends exactly one public macOS/XCTest `Escape` action, waits for dismissal, and verifies zero Cancel side effects before reopening a new panel and retaining the existing public `PathTextField` / `OKButton` success path. Production Swift, Unit tests, Project, Package, migrations, entitlements, targets, scheme, and synthetic fixtures remain unchanged.
+
+Current evidence root: `/private/tmp/Aureus-Stage11-EXTERNAL-BACKUP-EXPORT-PANEL-CANCEL-01-KuDiH0`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Focused Unit | `NOT RUN — INHERITED AFTER EXACT PRODUCTION/MODEL/UNIT SOURCE-HASH VERIFICATION` | Accepted `77` definitions / `79` dynamic executions PASS |
+| Affected regression | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Accepted `136` definitions / `146` dynamic executions PASS |
+| Full Unit | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Accepted `429` definitions / `472` dynamic executions PASS |
+| Performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION` | Accepted `29` definitions / `31` dynamic executions PASS; 10,000-row export/validate workload `26 ms` |
+| Clean Debug arm64 Build, initial | `INFRASTRUCTURE FAILURE` | Shell exit `74`; GRDB checkout's SQLiteLib submodule fetch failed with a transient TLS transport error before source compilation; complete `CleanDebugBuild.xcresult`; `Info.plist` present; not counted as a source/build PASS |
+| Clean Debug arm64 Build, infrastructure retry | `PASS` | Shell exit `0`; status `succeeded`; errors `0`; four existing `PortfolioView` deprecation warnings and no new warning; duration `27.136 s`; complete `CleanDebugBuild-InfraRetry.xcresult`; `Info.plist` present; build parser exit `0` |
+| Fresh signed arm64 BFT | `PASS` | Shell exit `0`; `TEST BUILD SUCCEEDED`; errors `0`; four existing warnings and no new warning; duration `33.126 s`; complete `BuildForTesting.xcresult`; `Info.plist` present; build parser exit `0`; App/Runner strict codesign exits `0` |
+| Gate G targeted External Export UI | `PASS` | Exact selector `testStage11SettingsExternalBackupExportToUserSelectedFolderAndIsolation`; shell exit `0`; definitions/executions `1/1`; one business execution; passed/failed/skipped `1/0/0`; method duration `85.288 s`; result interval `93.639 s`; complete `TargetedExternalExportUI.xcresult`; `Info.plist` present; summary/tests parser exits `0/0` |
+| Gate H Existing focused regression | `INCOMPLETE RESULT — NOT PASS / NOT VERIFIED` | One serial invocation requested all eleven exact selectors. The command session was externally interrupted after completed business failures at current-source `AureusUITests.swift:2160` (Ledger Dynamic matching snapshot), `AureusUITests.swift:2679` (Native CSV Save Panel export state), and `AureusUITests.swift:235` (Portfolio summary name). Accurate xcodebuild/App/Runner processes then measured `0`; `ExistingFocusedRegression.xcresult` has no `Info.plist`; no canonical definitions/executions or passed/failed/skipped aggregate exists; summary/tests parsers exit `64/64`; no re-observation is authorized after completed business assertions |
+| Gate I full `AureusUITests` | `NOT RUN` | Gate H did not produce the required canonical `11/11 PASS`; current inventory `17/17` was not executed |
+
+Gate G formally proves the complete Cancel and success branches: Cancel leaves the synthetic destination empty, internal inventory at one valid generation, selection usable, status `Ready`, and result/error/recovery/safety/artifact state absent. The subsequent success path completes security-scoped External Export, exposes `External Backup Export Completed`, produces one ordinary non-symlink generation containing only ordinary non-symlink `aureus.sqlite` and `manifest.json`, validates manifest format `1`, schema `6`, and byte count, preserves internal inventory without a safety generation, and passes navigation reconstruction and Production isolation through the Provider-zero tail.
+
+The source file `SettingsDataLifecycleTests.swift` remained frozen at the complete SHA-256 `c1f6d3b7b341e908c0a0445180e785509ba178ed46fbcff239ba41769653dcbf`. Gate G used one targeted business execution and no repair or business retry. Gate H was not rerun, repaired, or combined; the globally authorized incomplete-result re-observation was not used because complete business assertions already existed. Gate I remained `NOT RUN`.
+
+### Escape-cancel round provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter live operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- External Restore/import: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Scheduling/cloud export: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Stages 12–14: `NO-GO`
+
+## Current External Backup Export UI runtime status
+
+**Stage 11-EXTERNAL-BACKUP-EXPORT-PANEL-CANCEL-01 PARTIAL — Awaiting Reviewer Gate**

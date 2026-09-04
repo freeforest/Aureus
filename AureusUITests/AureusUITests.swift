@@ -1544,19 +1544,18 @@ final class AureusUITests: XCTestCase {
                 || app.dialogs.firstMatch.waitForExistence(timeout: 5),
             "Native directory-selection panel did not appear"
         )
-        let cancelMatches = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "Cancel"))
-        XCTAssertTrue(cancelMatches.firstMatch.waitForExistence(timeout: 5))
-        XCTAssertEqual(cancelMatches.count, 1)
-        let cancel = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "Cancel"))
-            .firstMatch
-        XCTAssertTrue(cancel.isEnabled)
-        XCTAssertTrue(cancel.isHittable)
-        cancel.click()
+        app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(waitForNativePanelToDisappear(in: app, timeout: 5))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: destination.path), [])
         XCTAssertTrue(waitForSettingsGenerationCount(1, in: app, timeout: 5))
+        XCTAssertEqual(
+            app.descendants(matching: .any)["settings.dataLifecycle.summary"].label,
+            "Data lifecycle: 1 valid backups, 0 ignored entries"
+        )
+        let selectedGeneration = settingsGenerationRows(in: app).firstMatch
+        XCTAssertTrue(selectedGeneration.exists)
+        XCTAssertTrue(selectedGeneration.label.contains(", selected"))
+        XCTAssertFalse(selectedGeneration.label.contains("not selected"))
         XCTAssertTrue(waitForSettingsDataLifecycleLabel(
             in: app,
             identifier: "settings.dataLifecycle.status",
@@ -1565,6 +1564,7 @@ final class AureusUITests: XCTestCase {
         ))
         XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.externalExport.result"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.error"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings.dataLifecycle.recovery-required"].exists)
         XCTAssertTrue(waitForSettingsControlEnabled(
             in: app,
             identifier: "settings.dataLifecycle.export",
