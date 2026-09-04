@@ -20,6 +20,7 @@ enum PermanentRestoreFailureCategory: String, Equatable, Sendable {
 
 enum PermanentRestoreOperationCategory: String, Equatable, Sendable {
     case internalGenerationRestore
+    case externalGenerationRestore
 }
 
 struct PermanentRestoreResult: Equatable, Sendable {
@@ -108,12 +109,12 @@ private extension PermanentDatabaseValidationFailure {
     }
 }
 
-private enum PermanentRestoreStageKind: String {
+enum PermanentRestoreStageKind: String {
     case candidate
     case rollback
 }
 
-private enum PermanentRestoreService {
+enum PermanentRestoreService {
     static let currentSchemaVersion = PermanentDatabaseValidation.currentSchemaVersion
 
     static func validateLiveDatabaseURL(_ databaseURL: URL) throws {
@@ -367,6 +368,36 @@ extension WealthStore {
         guard maintenanceState == .ready else {
             throw PermanentRestoreError.maintenanceUnavailable
         }
+        try PermanentRestoreService.validateLiveDatabaseURL(databaseURL)
+        let candidate = try PermanentRestoreService.validateCandidate(
+            generationURL,
+            in: backupRoot
+        )
+        return try restoreValidatedPermanentBackup(
+            candidate,
+            in: backupRoot,
+            appVersion: appVersion,
+            createdAt: createdAt,
+            operationID: operationID,
+            safetyGenerationID: safetyGenerationID,
+            operationCategory: .internalGenerationRestore,
+            fileOperations: fileOperations
+        )
+    }
+
+    func restoreValidatedPermanentBackup(
+        _ candidate: PermanentBackupGeneration,
+        in backupRoot: URL,
+        appVersion: String,
+        createdAt: UTCInstant,
+        operationID: UUID,
+        safetyGenerationID: UUID,
+        operationCategory: PermanentRestoreOperationCategory,
+        fileOperations: any PermanentRestoreFileOperations
+    ) throws -> PermanentRestoreResult {
+        guard maintenanceState == .ready else {
+            throw PermanentRestoreError.maintenanceUnavailable
+        }
         maintenanceState = .restoring
 
         var candidateStageURL: URL?
@@ -383,10 +414,10 @@ extension WealthStore {
 
         do {
             try PermanentRestoreService.validateLiveDatabaseURL(databaseURL)
-            let candidate = try PermanentRestoreService.validateCandidate(
-                generationURL,
-                in: backupRoot
-            )
+            guard (1...PermanentRestoreService.currentSchemaVersion)
+                .contains(candidate.manifest.schemaVersion) else {
+                throw PermanentRestoreError.unsupportedCandidateSchema
+            }
             let stagedCandidate = try PermanentRestoreService.stage(
                 generation: candidate,
                 databaseURL: databaseURL,
@@ -556,7 +587,7 @@ extension WealthStore {
                 finalSchemaVersion: PermanentRestoreService.currentSchemaVersion,
                 migrationRan: candidate.manifest.schemaVersion < PermanentRestoreService.currentSchemaVersion,
                 safetyGenerationIdentity: safetyGeneration.directoryURL.lastPathComponent,
-                operationCategory: .internalGenerationRestore
+                operationCategory: operationCategory
             )
         } catch let error as PermanentRestoreError {
             if maintenanceState == .restoring {

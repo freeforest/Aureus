@@ -221,6 +221,56 @@ enum PermanentBackupService {
         )
     }
 
+    static func validateStandaloneExternalGeneration(
+        _ generationURL: URL,
+        excluding protectedURLs: [URL],
+        fileManager: FileManager = .default
+    ) throws -> PermanentBackupGeneration {
+        guard generationURL.isFileURL,
+              generationURL.path.hasPrefix("/") else {
+            throw PermanentBackupError.unsafePath
+        }
+        let normalizedGeneration = generationURL.standardizedFileURL
+        guard normalizedGeneration.resolvingSymlinksInPath().path
+                == normalizedGeneration.path else {
+            throw PermanentBackupError.symbolicLinkRejected
+        }
+
+        let parentURL = normalizedGeneration.deletingLastPathComponent()
+        try requireExistingPlainDirectory(parentURL, fileManager: fileManager)
+        for protectedURL in protectedURLs {
+            guard protectedURL.isFileURL,
+                  protectedURL.path.hasPrefix("/") else {
+                throw PermanentBackupError.unsafePath
+            }
+            let normalizedProtectedURL = protectedURL.standardizedFileURL
+            guard normalizedProtectedURL.resolvingSymlinksInPath().path
+                    == normalizedProtectedURL.path,
+                  !pathsOverlap(normalizedGeneration, normalizedProtectedURL) else {
+                throw PermanentBackupError.unsafePath
+            }
+        }
+
+        let generation = try validateDirectory(
+            normalizedGeneration,
+            in: parentURL,
+            acceptedName: isGenerationName,
+            fileManager: fileManager
+        )
+        let normalizedAppVersion = generation.manifest.appVersion
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard generation.manifest.appVersion == normalizedAppVersion,
+              !normalizedAppVersion.isEmpty,
+              normalizedAppVersion.count <= 64,
+              !normalizedAppVersion.contains("/"),
+              !normalizedAppVersion.contains("\\"),
+              (1...PermanentDatabaseValidation.currentSchemaVersion)
+                .contains(generation.manifest.schemaVersion) else {
+            throw PermanentBackupError.schemaMismatch
+        }
+        return generation
+    }
+
     static func externalExportGenerationName(
         createdAt: String,
         operationID: UUID
@@ -670,6 +720,19 @@ enum PermanentBackupService {
 
     private static func isLowercaseSHA256(_ value: String) -> Bool {
         value.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil
+    }
+
+    private static func pathsOverlap(_ lhs: URL, _ rhs: URL) -> Bool {
+        isEqualOrDescendant(lhs, of: rhs) || isEqualOrDescendant(rhs, of: lhs)
+    }
+
+    private static func isEqualOrDescendant(_ candidate: URL, of ancestor: URL) -> Bool {
+        let candidatePath = candidate.standardizedFileURL.path
+        let ancestorPath = ancestor.standardizedFileURL.path
+        return candidatePath == ancestorPath
+            || candidatePath.hasPrefix(
+                ancestorPath.hasSuffix("/") ? ancestorPath : ancestorPath + "/"
+            )
     }
 }
 

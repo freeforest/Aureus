@@ -2,7 +2,7 @@
 
 ## Status
 
-**Stage 11 External Backup Export UI Runtime Candidate — Awaiting Reviewer Gate**
+**Stage 11-EXTERNAL-BACKUP-RESTORE-FOUNDATION-01 PARTIAL — Awaiting Reviewer Gate**
 
 ## External Backup Export Foundation round
 
@@ -583,3 +583,50 @@ Current evidence root: `/private/tmp/Aureus-Stage11-EXISTING-UI-DIAGNOSTIC-CLOSU
 **Stage 11 External Backup Export UI Runtime Candidate — Awaiting Reviewer Gate**
 
 本状态仅是 Executor candidate evidence，不宣布 Stage 11 `PASS`、V1 Ready、Release Ready或 Stage 12授权。
+
+## Validated External Backup Restore Foundation round
+
+Prompt 11-EXTERNAL-BACKUP-RESTORE-FOUNDATION-01 implements an explicit no-UI External Restore entry on the existing `WealthStore` actor. A caller supplies one External generation and operation-scoped configuration. Standalone validation accepts only an absolute file URL whose strict generation name and exact `aureus.sqlite` / `manifest.json` content pass the existing authoritative Backup validator, plus canonical UTC/app-version, format `1`, streaming SHA-256, byte-count, query-only SQLite quick-check, foreign-key, and schema `1...6` checks. Protected internal Backup, Permanent, Market Cache, and caller-supplied roots reject overlap. The internal `validateGeneration(_:in:)` and internal Restore entry remain configured-root direct-child only.
+
+After validation, the External path calls the same Restore core that stages the candidate beside the live database, validates the staged digest and database, creates and validates exactly one safety generation before close, checkpoints and closes the actor-owned queue, atomically replaces the live database, migrates schemas 1...5 through the unchanged permanent migrator, validates schema 6 and application invariants, and rebinds the same actor. Replacement or activation failures reuse the accepted safety rollback; rollback failure enters `recoveryRequired`. External artifacts are not moved, renamed, modified, retained, copied into internal inventory, or persisted as URL/bookmark/history. Candidate/rollback staging cleanup is operation-owned; safety retention remains the existing validated latest-five policy.
+
+Current evidence root: `/private/tmp/Aureus-Stage11-EXTERNAL-BACKUP-RESTORE-FOUNDATION-01-1l01JA`.
+
+| Verification | Result | Evidence |
+|---|---|---|
+| Historical UI closure | `NOT RUN — ACCEPTED HISTORICAL EVIDENCE ONLY` | Read-only canonical parsing confirmed current-before-change Ledger Dynamic `1/1`, Native CSV `1/1`, Portfolio `1/1`, Existing focused `11/11`, and Full UI `17/17`; Production source changed in this round, so these bundles are not current-source UI evidence |
+| Initial Focused compile | `FAIL` | Exact three-suite selector; shell exit `65`; complete `FocusedUnit.xcresult`; `Info.plist` present; definitions/executions `0/0`; compiler required parameterized-test enum visibility; summary/tests parser exits `0/0`; no business execution |
+| Second Focused compile | `FAIL` | Same exact selectors; shell exit `65`; complete `FocusedUnit-Final.xcresult`; `Info.plist` present; definitions/executions `0/0`; three GRDB async calls required `await`; summary/tests parser exits `0/0`; no business execution |
+| Focused Unit before direct repair | `FAIL` | Exact suites `PermanentExternalRestoreTests`, `PermanentRestoreTests`, and `PermanentBackupTests`; shell exit `65`; complete `FocusedUnit-Current.xcresult`; `Info.plist` present; `78` definitions / `107` dynamic executions; `58/49/0` dynamic outcomes; all `49` new External executions stopped on the same `/private/tmp` URL-string canonicalization rejection while the accepted Backup/Restore suites passed; summary/tests parser exits `0/0` |
+| Focused Unit after direct repair | `FAIL` | Same exact suites and final source; shell exit `65`; complete `FocusedUnit-AfterRepair.xcresult`; `Info.plist` present; `78` definitions / `107` dynamic executions; `106/1/0`; canonical result `Failed`; summary/tests parser exits `0/0`; result interval `54.610 s`, test execution `6.432 s` |
+| Focused failure boundary | `FAIL` | The sole post-repair failure is `PermanentExternalRestoreTests/unsupportedSchema(version:)` for argument `0`: the fixture's `UPDATE schema_metadata SET version = 0` was rejected by existing `CHECK (version >= 1)` before the External Restore API ran. The future-schema argument and all other dynamic cases passed |
+| Affected Regression | `NOT RUN` | Gate C did not pass; ordered prerequisite not met |
+| Full Unit | `NOT RUN` | Gate D was not run/passed; ordered prerequisite not met |
+| Release Performance | `NOT RUN` | Gate E was not run/passed; the Debug Focused run did execute and pass the same 10,000-row workload at `52 ms`, but it is not Release evidence |
+| Clean Debug arm64 Build | `NOT RUN` | Ordered Unit prerequisites did not pass |
+| Fresh signed arm64 BFT | `NOT RUN` | Ordered Clean Build prerequisite was not run |
+| UI Tests | `NOT RUN — NOT AUTHORIZED IN EXTERNAL BACKUP RESTORE FOUNDATION ROUND` | Historical `17/17` is not substituted for current-source UI evidence; no BFT was produced in this round |
+
+The first business-complete result exposed the `/private/tmp` versus Foundation-standardized `/tmp` string-identity defect. One authorized minimal direct repair removed only the original-versus-standardized string equality while retaining absolute file URL, standardized/resolved path, symlink, type, direct-child, exact-artifact, manifest, digest, SQLite, FK, and schema validation. The required from-Gate-C rerun then produced the single schema-0 fixture failure above. Under the one-repair and second-complete-failure stop rule, no additional test/source repair, business retry, infrastructure retry, or result merging occurred; Gates D–H remain `NOT RUN`.
+
+### External Restore provider and data boundary
+
+- Provider requests: `NOT RUN`
+- Twelve Data operations: `0`
+- Frankfurter operations: `0`
+- Provider transport attempts: `0`
+- Credential reads: `0`
+- Keychain metadata reads: `0`
+- Market Cache reads/mutations: `0`
+- Twelve Data persistent writes: `Disabled`
+- Provider retention rights: `BLOCKED`
+- Settings External Restore UI: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Security-scoped runtime: `NOT RUN`
+- External retention, scheduling, and cloud Restore: `NOT IMPLEMENTED / NOT AUTHORIZED`
+- Stages 12–14: `NO-GO`
+
+## Current External Backup Restore Foundation status
+
+**Stage 11-EXTERNAL-BACKUP-RESTORE-FOUNDATION-01 PARTIAL — Awaiting Reviewer Gate**
+
+This is Executor evidence only. It does not declare Stage 11 `PASS`, V1 Ready, Release Ready, Settings External Restore UI readiness, or Stage 12 authorization.

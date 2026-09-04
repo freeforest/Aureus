@@ -68,6 +68,7 @@
 		A10000000000000000000040 /* PermanentMigrationSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* PermanentMigrationSafety.swift */; };
 		A10000000000000000000041 /* SettingsDataLifecycleModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003D /* SettingsDataLifecycleModel.swift */; };
 		A10000000000000000000042 /* PermanentBackupExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003E /* PermanentBackupExport.swift */; };
+		A10000000000000000000043 /* PermanentExternalRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003F /* PermanentExternalRestore.swift */; };
 		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
 		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
 		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
@@ -94,6 +95,7 @@
 		A20000000000000000000017 /* PermanentMigrationSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */; };
 		A20000000000000000000018 /* SettingsDataLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000018 /* SettingsDataLifecycleTests.swift */; };
 		A20000000000000000000019 /* PermanentBackupExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000019 /* PermanentBackupExportTests.swift */; };
+		A2000000000000000000001A /* PermanentExternalRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000001A /* PermanentExternalRestoreTests.swift */; };
 		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
 		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
 /* End PBXBuildFile section */
@@ -178,6 +180,7 @@
 		B1000000000000000000003C /* PermanentMigrationSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentMigrationSafety.swift; sourceTree = "<group>"; };
 		B1000000000000000000003D /* SettingsDataLifecycleModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDataLifecycleModel.swift; sourceTree = "<group>"; };
 		B1000000000000000000003E /* PermanentBackupExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackupExport.swift; sourceTree = "<group>"; };
+		B1000000000000000000003F /* PermanentExternalRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentExternalRestore.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
@@ -203,6 +206,7 @@
 		B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentMigrationSafetyTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000018 /* SettingsDataLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDataLifecycleTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000019 /* PermanentBackupExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackupExportTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000001A /* PermanentExternalRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentExternalRestoreTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
 		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -425,6 +429,7 @@
 				B1000000000000000000003B /* PermanentRestore.swift */,
 				B1000000000000000000003C /* PermanentMigrationSafety.swift */,
 				B1000000000000000000003E /* PermanentBackupExport.swift */,
+				B1000000000000000000003F /* PermanentExternalRestore.swift */,
 			);
 			path = Backup;
 			sourceTree = "<group>";
@@ -569,6 +574,7 @@
 				B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */,
 				B20000000000000000000018 /* SettingsDataLifecycleTests.swift */,
 				B20000000000000000000019 /* PermanentBackupExportTests.swift */,
+				B2000000000000000000001A /* PermanentExternalRestoreTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -736,6 +742,7 @@
 				A10000000000000000000040 /* PermanentMigrationSafety.swift in Sources */,
 				A10000000000000000000041 /* SettingsDataLifecycleModel.swift in Sources */,
 				A10000000000000000000042 /* PermanentBackupExport.swift in Sources */,
+				A10000000000000000000043 /* PermanentExternalRestore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -768,6 +775,7 @@
 				A20000000000000000000017 /* PermanentMigrationSafetyTests.swift in Sources */,
 				A20000000000000000000018 /* SettingsDataLifecycleTests.swift in Sources */,
 				A20000000000000000000019 /* PermanentBackupExportTests.swift in Sources */,
+				A2000000000000000000001A /* PermanentExternalRestoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
