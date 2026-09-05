@@ -2,6 +2,34 @@
 
 ## Status
 
+**Stage 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-02 PARTIAL — Awaiting Reviewer Gate**
+
+## App Connection Diagnostic Closure 02 — 命令参数校验停止
+
+本轮 evidence root：`/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-02-KNimB7`；完整 [ExecutionReport.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-02-KNimB7/ExecutionReport.md)。主 Executor 按序实际审阅全部 14 项指定正文至 EOF；其余设计/架构/Foundation 为 Hash-only inheritance，不标记本轮全文阅读。历史 Mandatory Read 缺口不能追溯修复。
+
+治理基线 `RepositoryPost.sha256` 自身 SHA-256 为 `857b9685d9a90f97645ef348f2badba8d974d5d6ec7f4323720a384bbe04ad71`，116 条安全普通文件路径、实际集合及全部 Hash 匹配；逐组件拒绝 symlink，遍历前排除 `.git`、`.secrets`、`default.profraw`。四项冻结产品与指定 Hash 匹配，三个 executable 为 arm64，Bundle IDs 匹配，App/Runner strict codesign `0/0`，local ad hoc。未重新 build/sign。
+
+启动前未发现 Aureus、XCTest Runner 或 xcodebuild 冲突；系统 WorkflowKit `BackgroundShortcutRunner` 不是本测试 Runner。未终止任何进程，未使用历史 PID 62705 的退出授权。Gate A 自然退出后也无准确产品/测试 invocation 残留。
+
+| Gate | 实际状态 | 完整执行元数据 |
+|---|---|---|
+| A Ledger Dynamic | FAIL — command argument validation；canonical `unknown`，不是业务 failure | 唯一 `test-without-building` invocation；wrapper PID `72689`，xcodebuild PID `72691`；UTC `2026-09-05T10:17:16Z` → `10:17:17Z`；underlying exit `64`；definitions/executions `0/0`，methods started/workflows reached `0/0`，outcomes `0/0/0`，expected failures `0`；canonical interval `0 s`；`LedgerDynamicDiagnostic.xcresult` 含 Info.plist，summary/tests parsers `0/0` |
+| B Existing focused | NOT RUN | A 未通过，未启动 invocation；expected 12/12 不作实际计数；result、exit、duration、parsers N/A |
+| C Full UI | NOT RUN | B 未通过，未启动 invocation；expected 18/18 不作实际计数；result、exit、duration、parsers N/A |
+
+Gate A exact selector：`AureusUITests/AureusUITests/testLedgerDynamicCashFlowTransferInvestmentEditAndDelete`。实际命令保留用户要求的 `-test-iterations 1`；Xcode 返回 `xcodebuild: error: Must specify -test-iterations with more than 1 iteration.`。wrapper 在 wait 返回后立即保存数字退出码并以同值退出，未用 tee 或外层状态替代。该参数校验失败发生于业务前；不能声称 Ledger 已执行、历史失联“未复现”或“已修复”，首次失联根因仍 `UNKNOWN`。未擅自删除参数或增加迭代，repair/retry/infrastructure retry/incomplete re-observation/automatic retry 均 `0`；parser-only reread `0`。
+
+从实际 bEN0A5 四份历史 bundle 顺序重新解析，全部 parser exit `0`：Clean/BFT succeeded（各四项既存 warning）；Targeted `1/1 PASS`；Existing 完整 `0/12/0 Failed`。历史 Existing numeric exit 仍 `NOT VERIFIED`，后续十一项 pre-launch 传播与首次 Ledger 业务中失联保持区分。OMbBhJ A/B/C 全部 `NOT RUN` 的历史不变。
+
+Unit/Performance 本轮 `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION`：Focused `134/168`、Affected `167/205`、Full `460/531`；Restore Release `25/49`、10,000 rows `43 ms`；Export Release `29/31`、10,000 rows `26 ms`。Clean/BFT 为 `NOT RUN — ACCEPTED BUILD / REUSED EXACT FROZEN SIGNED PRODUCT`；独立 External Restore Targeted 为 `NOT RUN — ACCEPTED CURRENT-SOURCE 1/1 PASS AFTER EXACT SOURCE/PRODUCT VERIFICATION`。均不替代当前 Gate。
+
+本轮未启动业务 App/fixture，Executor 发起 live Provider/Credential/Keychain/Market Cache 操作为 `0`，Provider requests `NOT RUN`；不宣称全系统或其他进程遥测为零。Local-mode 历史 UI 仅为 temporary-store 隔离证据，不是真实用户 Production Store 验证。Twelve Data persistent writes `Disabled`；Provider retention rights `BLOCKED`；external retention/scheduling/cloud `NOT IMPLEMENTED / NOT AUTHORIZED`；Stages 12–14 `NO-GO`。
+
+文档前完整 116 项和四项产品复核无变化；仅两份授权文档新增本轮事实，保留治理说明与历史失败。无 Repository 新增/删除/重命名，不读取受限目录、default.profraw payload、附件或真实用户数据。最终清单及限定 Markdown/privacy 审计见本轮报告。
+
+## 前轮状态（历史保留）
+
 **Stage 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**
 
 ## App Connection Diagnostic Closure — 本轮启动前停止

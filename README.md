@@ -19,6 +19,14 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+当前最新状态：**Stage 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-02 PARTIAL — Awaiting Reviewer Gate**。14 项指定 Mandatory Read 正文由主 Executor 按序实际审阅至 EOF，其余冻结约束通过治理更新后的 116 项安全路径/Hash 基线继承。源码、四项 signed 产品身份及启动前相关进程检查通过；没有修改源码、build 或 re-sign。
+
+Gate A 唯一 invocation 的 underlying `xcodebuild` 退出码已即时保存为 `64`：当前 Xcode 拒绝本 Prompt 指定的 `-test-iterations 1`，报错 `Must specify -test-iterations with more than 1 iteration.`。实际 bundle 含 `Info.plist`，summary/tests parsers `0/0`，canonical result `unknown`，definitions/executions `0/0`，outcomes `0/0/0`，没有进入 Ledger 业务。它是命令参数校验失败，不是业务 PASS，也不是历史断连复现。按零 retry 预算停止，Existing focused 和 Full UI 均 `NOT RUN`；未改参数重跑。历史首次断连原因仍 `UNKNOWN`。
+
+完整本轮记录：[ExecutionReport.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-02-KNimB7/ExecutionReport.md)。测试结束、文档修改前 116 项与产品 Hash 不变；仅本节及 Stage 11 acceptance 新增当前证据。历史失败、阅读缺口与 numeric exit `NOT VERIFIED` 保留。Provider requests `NOT RUN`，persistent writes `Disabled`，retention rights `BLOCKED`，Stages 12–14 `NO-GO`。没有运行 synthetic 业务 fixture；未观测的全进程 live-operation 计数不伪报为遥测零值。
+
+以下为前轮启动前停止的原始记录，保留历史：
+
 当前最新状态：**Stage 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。本轮 32 项 Mandatory Read 正文已按序实际审阅至 EOF；基线清单自身 Hash、116 项源码和四项冻结产品 Hash 全匹配。启动前发现 PID `62705` 来自旧 `BACKUP-FOUNDATION` unsigned Aureus 产品，其当前运行用途/归属未确认，按停止规则未启动任何测试，也未终止该进程。Ledger diagnostic、Existing focused `12/12`、Full UI `18/18` 均为 `NOT RUN`。本轮零源码修改、零 build/sign、零 retry。
 
 历史 Targeted `1/1 PASS` 仅在精确源码/产品核验后继承；历史 Existing `0/12/0 FAIL`、历史 Mandatory Read 未满足及数字退出码 `NOT VERIFIED` 保持不变。首次断连原因仍为 `UNKNOWN`，本轮没有执行，不能声称“未复现”或“已修复”。完整报告：[ExecutionReport.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01-OMbBhJ/ExecutionReport.md)。仅更新两份文档；Provider requests `NOT RUN`，Twelve Data persistent writes `Disabled`，Provider retention rights `BLOCKED`，Stages 12–14 `NO-GO`。
