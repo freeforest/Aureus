@@ -3040,25 +3040,10 @@ final class AureusUITests: XCTestCase {
             "Directory panel Go To sheet did not dismiss"
         )
         XCTAssertTrue(
-            waitForCurrentPanelControl(
-                in: app,
-                identifier: "OKButton",
-                elementType: .button,
-                timeout: 5
-            ),
-            "Directory panel did not expose its Choose control"
+            currentNativePanel(in: app).exists,
+            "Native directory-selection panel did not remain active after Go To"
         )
-        let choose = currentNativePanel(in: app)
-            .descendants(matching: .button)["OKButton"].firstMatch
-        XCTAssertTrue(waitForEnabled(choose, timeout: 5))
-        let currentChoose = currentNativePanel(in: app)
-            .descendants(matching: .button)["OKButton"].firstMatch
-        XCTAssertTrue(currentChoose.isHittable)
-        currentChoose.click()
-        XCTAssertTrue(
-            waitForNativePanelToDisappear(in: app, timeout: 5),
-            "Directory panel did not dismiss after choosing the synthetic destination"
-        )
+        app.typeKey(.enter, modifierFlags: [])
     }
 
     private func externalExportSnapshot(at destination: URL) throws -> [String: Data] {

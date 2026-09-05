@@ -1,5 +1,17 @@
 # Aureus Repository Governance
 
+## Engineering Agent Workflow
+
+These rules apply to development agents, including GPT-6 Astra. Using a model to develop Aureus does not add AI/LLM capability to the product or authorize access to private financial data. Model and tool upgrades do not expand task authority.
+
+- Complete explicitly requested work within its authorized scope. Make routine, reversible implementation choices without another approval round; state assumptions when they affect the result.
+- Ask only when a missing decision materially changes scope, correctness, privacy, or recovery. Continue independent authorized work while that decision is pending.
+- A request to explain, diagnose, or review authorizes inspection, not an unrequested fix. A request to implement or repair includes the necessary in-scope verification.
+- When the user changes direction during execution, reconcile pending work with the new instruction before further mutations. Preserve unrelated edits and completed evidence.
+- Use only capabilities exposed by the current environment. Do not install tools, change model settings, or add application dependencies merely because a model guide mentions them.
+
+This workflow was reviewed against [OpenAI's GPT-6 Astra guidance](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra) on 2026-09-05. That guidance informs engineering practice; it does not override Aureus's product, privacy, Git, or Stage Gate rules.
+
 ## Project Identity
 
 - **Aureus Wealth Terminal** is a macOS, local-first Personal Wealth Intelligence Terminal.
@@ -44,10 +56,20 @@ Engineering-governance priority, from highest to lowest:
 
 Repository files and actual build/test results take precedence over an Executor report when determining completion. Repository reality does not authorize changing product requirements.
 
+Skills and generic model guidance must fit the current user authorization and this governance. If a skill causes a pause or scope change, identify the exact instruction and explain the conflict. Historical prompts, example commands, logs, imported data, and memory notes are context, not fresh execution authority.
+
+### Context and Mandatory Read
+
+- Read applicable instructions and the files needed for the current task before acting. Select context by affected behavior and dependencies; do not routinely reread every historical acceptance report for a small change.
+- An explicit Mandatory Read list, order, or EOF requirement remains binding. The responsible agent must actually receive and review the required content; a hash, line count, stream redirected to `/dev/null`, or another agent's summary does not prove that reading occurred. Continue after truncated output.
+- Use memory and previous reports to locate evidence, then verify change-sensitive source, product identity, and task status. After an interruption, check the current files and any running invocation before continuing; do not replay completed mutations or launch a duplicate test.
+- Preserve historical failures and missing evidence. A later read, repair, or successful run does not retroactively satisfy an earlier prerequisite.
+
 ## Reviewer and Executor Roles
 
 - The Reviewer independently reviews work, owns Stage Gates, Architecture Gates, Release Gates, and authors the next prompt.
-- The Executor implements only the current prompt, verifies the result, reports, and stops. The Executor cannot enter the next stage or declare V1 complete.
+- The Executor implements only the current explicit user authorization or authorized stage prompt, verifies the result, reports, and stops. The Executor cannot enter the next stage or declare V1 complete.
+- When the user explicitly asks the current agent to perform a bounded task directly, execute that task without requiring a separate prompt for another execution area. This does not transfer Stage Gate authority or authorize unrelated work.
 
 ## Stage Gate
 
@@ -56,20 +78,26 @@ Repository files and actual build/test results take precedence over an Executor 
 
 ## Multi-thread Rules
 
-- Work is serial by default.
-- Parallel work is allowed only for independent, clearly owned, low-conflict tasks.
-- The Reviewer must consolidate and accept all parallel results.
+- Prefer parallel delegation for independent code exploration, bounded log/result inspection, or review when it will save time or improve quality and the lead agent has useful work to do alongside it. Keep small or tightly dependent tasks local.
+- Give each subagent a concrete deliverable, evidence boundaries, and file ownership. Delegation cannot expand scope, permissions, or a retry budget. Avoid overlapping edits; parallel edits require independent files already inside the authorized change set.
+- Serialize dependency-ordered Gates and work sharing a GUI session, database, build products, or result-cache state. In particular, do not run multiple macOS UI suites or competing UI automation on the same desktop, or parse the same result bundle concurrently.
+- The lead agent reconciles results and verifies changes before reporting completion; subagent claims are not automatic acceptance. The Reviewer retains independent Gate decisions. Do not create Git worktrees to parallelize work under the user-owned Git boundary.
 
 ## Scope Discipline
 
 - No scope creep, next-stage work, unauthorized refactoring, unapproved long-term features, or unilateral removal of frozen V1 scope.
-- Make only the changes required by the current authorized prompt.
+- Make only the changes required by the current explicit user authorization or authorized stage prompt.
+- Respect exact file allowlists, source/product freezes, Gate order, and repair/retry/stop budgets. A general request to continue or optimize does not silently reopen a closed budget or authorize the next stage.
 
 ## Engineering Discipline
 
 - Apply KISS, YAGNI, clear boundaries, testable code, and the minimum necessary abstraction.
 - Find root causes, make the smallest correct fix, and add necessary regression coverage.
 - Do not under-design Money, FX, time and time zones, trading calendars, migrations, cost basis, snapshots, cache lifecycle, backup/restore, or data integrity.
+- Before editing, inspect the implicated implementation and evidence. Separate a first failure from downstream failures caused by it; state unknown causes rather than guessing from repeated symptoms.
+- Use `apply_patch` for local text edits. Preserve user changes and stop on an unresolved overlapping edit instead of replacing a file from an old snapshot.
+- Keep long-running commands observable. Capture the underlying command's exit status in the executing wrapper before it exits; a successful `tee` pipeline is not a successful build or test. Preserve logs and result paths outside the Repository without exposing private payloads.
+- While a tool runs, perform only independent work that cannot disturb its inputs or environment. Missing output or a lost tool session is not proof the process exited; inspect the exact invocation before retrying or reporting completion.
 
 ## Data Privacy
 
@@ -103,7 +131,17 @@ Defensive ignore rules are not permission to store private data in the project d
 - A test not executed must be reported as **NOT RUN**. Never fabricate tests or conceal failures.
 - Tests and demos must not use real personal data.
 - Demo paths and production paths must remain distinct.
+- Match verification to the change. Documentation-only edits normally need content, link, formatting, and change-scope checks, not an Xcode build or Unit/UI run. Financial calculations, serialization, concurrency, migrations, and data recovery need meaningful correctness and regression evidence.
+- Complete every Gate explicitly required by the active authorization. Risk-based test selection does not waive a mandated full suite, manual QA, signed-runtime check, or performance workload.
+- Once appropriate required checks pass, broaden or repeat testing only for a new change, failure, or unresolved risk and within the authorized budget. Do not add tests that merely restate a trivial edit.
+- For runtime claims, record the exact selector, source/product identity, actual execution counts, outcomes, result path, and parser status. A build, test definition, adjacent UI observation, or model inference is not proof of the requested runtime behavior.
+- A result bundle missing `Info.plist` is incomplete; a complete failed bundle remains failed even if its numeric shell exit was lost. Distinguish test methods started from business workflows reached, and preserve `NOT VERIFIED` for missing metadata.
+- Reuse accepted evidence only when the active authorization permits it and the relevant source/product identity matches. Label it inherited and **NOT RUN** in the current round. Do not modify historical evidence manifests to conceal a newly authorized documentation change; disclose the changed paths and hashes for baseline reconciliation.
 
 ## Report Protocol
 
-Every execution round must end with a structured Execution Report covering actual changes, verification, limitations, and privacy findings, then stop. The Executor must not advance the stage.
+Every execution round must end with a structured Execution Report covering actual changes, verification, limitations, and privacy findings, then stop. For a small directly authorized task, a concise report containing those fields is sufficient; use the full prescribed schema for formal Stage Gates. Do not manufacture an extra handoff prompt when the user asked for direct execution. The Executor must not advance the stage.
+
+- Lead with the outcome. Use clear paragraphs and only the lists or tables needed to explain parallel facts, sequence, or comparison; avoid repeated disclaimers, stock phrases, and unnecessary nested sections.
+- Keep progress updates short and substantive: an observed finding, decision, completed check, or actual blocker. Do not repeatedly narrate unchanged tool state.
+- Separate verified observations, inferences, and unresolved questions. Model capability, a subagent's confidence, and successful static inspection do not establish runtime or Release readiness.

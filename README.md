@@ -19,6 +19,16 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+当前最新状态：**Stage 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。本轮 32 项 Mandatory Read 正文已按序实际审阅至 EOF；基线清单自身 Hash、116 项源码和四项冻结产品 Hash 全匹配。启动前发现 PID `62705` 来自旧 `BACKUP-FOUNDATION` unsigned Aureus 产品，其当前运行用途/归属未确认，按停止规则未启动任何测试，也未终止该进程。Ledger diagnostic、Existing focused `12/12`、Full UI `18/18` 均为 `NOT RUN`。本轮零源码修改、零 build/sign、零 retry。
+
+历史 Targeted `1/1 PASS` 仅在精确源码/产品核验后继承；历史 Existing `0/12/0 FAIL`、历史 Mandatory Read 未满足及数字退出码 `NOT VERIFIED` 保持不变。首次断连原因仍为 `UNKNOWN`，本轮没有执行，不能声称“未复现”或“已修复”。完整报告：[ExecutionReport.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01-OMbBhJ/ExecutionReport.md)。仅更新两份文档；Provider requests `NOT RUN`，Twelve Data persistent writes `Disabled`，Provider retention rights `BLOCKED`，Stages 12–14 `NO-GO`。
+
+以下为上一轮原始结论，保留历史，不追溯改写：
+
+当前状态：**Stage 11-EXTERNAL-RESTORE-DIRECTORY-PANEL-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。本轮只修改 UI Test 的 `chooseDirectory`：保留 Go To Folder 流程，以一次公开 XCTest `.enter` 提交目录默认动作。当前 Targeted External Restore UI 已取得完整 canonical `1/1 PASS`，覆盖两种 Cancel、真实 Export/Restore、两文件 artifact、safety generation、Goals reconstruction 与隔离模式重启。随后同一冻结产品的 Existing focused 形成完整 `12/12` executions、`0/12/0 FAIL`：Ledger 在执行期间失去应用连接，其余测试随后在公共 pre-launch helper 中发生相同连接错误；Full UI `18/18` 为 `NOT RUN`。本轮没有正式 Gate 后 repair、business retry、infrastructure retry 或 incomplete-result re-observation。Reviewer 仍独立决定 Stage 11 Gate。
+
+以下保留截至前一轮的历史状态；本轮实际结果与证据限制见文末及 [Stage 11 acceptance](docs/STAGE11_DATA_LIFECYCLE_ACCEPTANCE.md)。
+
 Stages 1 through 10 and the Stage 11 Backup, Restore, and Migration Safety foundations have passed their applicable Reviewer gates. Prompt 11-EXISTING-UI-DIAGNOSTIC-CLOSURE-02 made no Product, Test, Project, Package, Migration, Entitlement, Target, Scheme, fixture, build, or signing change. Exact source and frozen-product verification accepted the current-source External Export targeted UI `1/1 PASS`, while the preceding unfinalized Existing focused directory remains **INCOMPLETE RESULT — NOT PASS / NOT VERIFIED** and was neither repaired, merged, nor converted into canonical counts. On the same frozen signed product, Ledger Dynamic, Native CSV, and Portfolio each produced an independent complete `1/1 PASS`; the ordered single-invocation Existing focused regression then produced canonical `11/11 PASS`, and the single-invocation full `AureusUITests` produced canonical `17/17 PASS`. Prompt 11-EXTERNAL-BACKUP-RESTORE-VALIDATION-CLOSURE-01 then corrected the schema-0 untrusted-manifest fixture and removed standalone External generation validation's parent-directory access dependency without changing Internal Backup/Restore direct-child enforcement. Prompt 11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01 wires that accepted Foundation into Settings with an operation-scoped folder importer, security-scoped lease, explicit confirmation sheet, finite model state, and current-source Unit/build coverage. Its final Focused Unit passed `134` definitions / `168` dynamic executions, Affected Regression passed `167/205`, Full Unit passed `460/531`, and Clean Debug arm64 Build plus fresh signed BFT passed with no new warnings. The first Targeted UI run exposed two competing folder-importer presentations; the single authorized repair consolidated them into one shared importer. The final, second Targeted business execution then reached the real External Export folder panel but failed at `AureusUITests.swift:3042` because the current panel did not expose the public Choose control after Go To Folder. That complete `0/1/0` failure exhausted the business-execution and repair budget, so Existing focused `12/12` and full UI `18/18` are `NOT RUN`. The current execution state is **Stage 11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01 PARTIAL — Awaiting Reviewer Gate**. Provider requests remain `NOT RUN`, Twelve Data persistent writes remain `Disabled`, Provider retention rights remain `BLOCKED`, and Stages 12–14 remain `NO-GO`.
 
 The preceding **Stage 10 Goals UI Runtime Candidate — Awaiting Reviewer Gate** remains accepted historical evidence. Prompt 10-GOALS-UI-GATE-CLOSURE-01 changed no Production Swift, Test Swift, Project, Package, Migration, Entitlement, Target, Scheme, fixture, or Unit test. Exact source and signed-product verification accepted the current-source Goals focused UI `1/1 PASS`, then the same frozen App, Runner, UI Test executable, and xctestrun produced a complete Existing focused regression `8/8 PASS` and a complete full `AureusUITests` `14/14 PASS`; both current result bundles contain `Info.plist` and passed canonical summary/tests parsing. Its prior incomplete Existing focused bundle remains preserved as `INCOMPLETE RESULT — NOT PASS / NOT VERIFIED`; it was not repaired, combined, or substituted. That closure used no infrastructure retry, incomplete-result re-observation, or business retry.
@@ -100,6 +110,8 @@ Stage 8 appends `permanent_v6_portfolio` without changing the v1–v5 migration 
 
 ## Build and Test
 
+Development agents follow [AGENTS.md](AGENTS.md). The commands below are reference examples, not instructions to execute while reading this file. Choose checks according to the current authorization and change risk; documentation-only changes normally need document checks. An explicit Stage Gate still requires its prescribed suites, order, product identity, and retry limits. Keep macOS UI runs serial on a shared desktop, and use task-specific temporary evidence paths rather than reusing the example paths across concurrent work.
+
 Resolve the single external dependency, GRDB 7.11.1:
 
 ```sh
@@ -113,7 +125,7 @@ xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destin
 xcodebuild -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage9-DerivedData build-for-testing
 ```
 
-Run the complete Unit/Integration suite, then the UI suite. The UI test runner uses only local ad-hoc signing and does not require a Development Team:
+When a complete regression is authorized, run the Unit/Integration suite and then the UI suite as required by that Gate. The UI test runner uses only local ad-hoc signing and does not require a Development Team:
 
 ```sh
 xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath /private/tmp/Aureus-Stage9-Unit -only-testing:AureusTests CODE_SIGNING_ALLOWED=NO
@@ -176,3 +188,23 @@ Current evidence root: `/private/tmp/Aureus-Stage11-SETTINGS-EXTERNAL-BACKUP-RES
 The single authorized direct repair was used before the final C–G rerun to consolidate the two folder importers into one shared operation-dispatched importer. The second Targeted execution is a complete business failure at the External Export panel-control lifecycle, before External Restore source selection, security-scoped Restore access, confirmation, safety generation, restored Goals, reconstruction, or Production-isolation tail. No second repair, third Targeted execution, infrastructure retry, or incomplete-result re-observation was performed. Provider requests are `NOT RUN`; Twelve Data operations, Frankfurter live operations, transport attempts, Credential reads, Keychain metadata reads, and Market Cache reads/mutations remain `0`; Twelve Data persistent writes remain `Disabled`; Provider retention rights remain `BLOCKED`; Stages 12–14 remain `NO-GO`.
 
 **Stage 11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01 PARTIAL — Awaiting Reviewer Gate**
+
+## External Restore directory-panel closure round
+
+本轮 evidence root：`/private/tmp/Aureus-Stage11-EXTERNAL-RESTORE-DIRECTORY-PANEL-CLOSURE-01-bEN0A5`。Product、Model、Foundation、Unit、Project、Package、Migration 和 Entitlements 的 Hash 均保持冻结值；只有 `chooseDirectory` 改为在 Go To sheet 消失、当前 native panel 仍存在后执行一次 `.enter`。`chooseFile`、`saveFileUsingDefaultFilename` 和全部业务断言保持不变。
+
+| Gate | 实际结果 |
+|---|---|
+| Focused / Affected / Full Unit | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION`；accepted definitions/dynamic executions 分别 `134/168`、`167/205`、`460/531 PASS` |
+| External Restore / Export Performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION`；accepted `25/49 PASS, 43 ms` 与 `29/31 PASS, 26 ms` |
+| Clean Debug arm64 Build | `PASS`；direct shell exit `0`；canonical `succeeded`；errors `0`，四项既存 Portfolio interpolation warnings；`33.989 s`；完整 `CleanDebugBuild.xcresult`，`Info.plist` 存在，build parser `0` |
+| Fresh signed Debug arm64 BFT | `PASS`；direct shell exit `0`；`TEST BUILD SUCCEEDED`；errors `0`，四项既存 warnings；`37.401 s`；完整 `BuildForTesting.xcresult`，`Info.plist` 存在，build parser `0`，App/Runner strict codesign `0/0` |
+| Targeted External Restore UI | `PASS`；direct shell exit `0`；definitions/executions `1/1`；business executions `1`；`1/0/0`；method `228.097 s`，result interval `240.645 s`；完整 `TargetedExternalRestoreUI.xcresult`，`Info.plist` 存在，summary/tests parsers `0/0` |
+| Existing focused | `FAIL`；definitions/executions `12/12`，canonical `0/12/0`；Ledger 已进入业务操作后发生 application connection loss，后续 11 个方法在公共 pre-launch helper 中失败；完整 `ExistingFocusedRegression.xcresult`，`Info.plist` 存在，summary/tests parsers `0/0`；`214.574 s`；command-session interruption 后原 session 不可恢复，direct shell 数字退出码为 `NOT VERIFIED` |
+| Full UI | `NOT RUN`；Existing focused 未取得 `12/12 PASS`，未执行 expected `18/18` |
+
+Targeted 已证明公开目录默认动作修复有效；其独立 PASS 不替代失败的聚合 Gate。Existing focused 的首个 failure source 为 `AureusUITests.swift:2444`，查询 `ledger.filter.tag` 时与应用连接丢失；后续 source 为 `AureusUITests.swift:3525`。连接丢失的底层原因为 `NOT VERIFIED`，不得推断为 Restore/Foundation 数据失败或将完整失败改写为 incomplete。两次 UI invocation 使用同一个 frozen signed arm64 product，前后四项 Hash 均一致。
+
+执行记录还存在一项前置限制：45 项 Mandatory Read 曾按序经文件流读取到 EOF，但命令将内容重定向到 `/dev/null`，该记录不足以证明逐项内容审阅；AC-01 为 `NOT VERIFIED`。历史 bundle 均只读保留。Provider requests 为 `NOT RUN`；Twelve Data/Frankfurter/transport/Credential/Keychain/Market Cache live operations 为 `0`；persistent writes 为 `Disabled`，Provider retention rights 为 `BLOCKED`；external retention、scheduling、cloud Restore 为 `NOT IMPLEMENTED / NOT AUTHORIZED`；Stages 12–14 保持 `NO-GO`。
+
+**Stage 11-EXTERNAL-RESTORE-DIRECTORY-PANEL-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**

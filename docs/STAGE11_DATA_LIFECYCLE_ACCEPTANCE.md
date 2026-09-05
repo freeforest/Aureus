@@ -2,7 +2,31 @@
 
 ## Status
 
-**Stage 11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01 PARTIAL — Awaiting Reviewer Gate**
+**Stage 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**
+
+## App Connection Diagnostic Closure — 本轮启动前停止
+
+本轮 evidence root：`/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01-OMbBhJ`。主 Executor 按指定顺序实际接收并审阅 32 项完整正文至 EOF；逐项记录见 [MandatoryRead.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01-OMbBhJ/MandatoryRead.md)，不以此追溯修复上一轮 `/dev/null` 阅读缺口。
+
+清单自身 SHA-256 `1693bbe926693b38876398d53ff798ad6c8db210a359a3afc4ab54d38e7440e6`、116 个普通文件及四项冻结产品 Hash 全匹配；路径集合、普通文件类型、symlink 组件和受限目录排除检查通过。三个 executable 均 arm64，Bundle ID 正确；App/Runner strict codesign exit `0/0`，local ad hoc、无 TeamIdentifier，不冒充发行签名。
+
+启动前准确进程检查发现 PID `62705`，PPID `1`，来自 `/private/tmp/Aureus-Stage11-BACKUP-FOUNDATION-01-CgeiqO/UnsignedDerivedData/Build/Products/Debug/Aureus.app/Contents/MacOS/Aureus`。它不是本轮冻结产品；其当前用途/运行归属未确认。执行前置条件为 `BLOCKED`，未终止或操作此进程，未启动 Gate A。没有真实 Automation/Accessibility 权限提示证据，不称为 `USER TAKEOVER REQUIRED`。
+
+| Gate | 本轮状态 | 执行元数据 |
+|---|---|---|
+| A Ledger Dynamic diagnostic | NOT RUN | invocation 0；业务执行 0；exit/counts/duration/result/Info.plist/parsers 不适用，未生成 bundle |
+| B Existing focused 12/12 | NOT RUN | A 未通过；invocation 0；未构造 aggregate |
+| C Full AureusUITests 18/18 | NOT RUN | B 未通过；invocation 0；未使用历史结果替代 |
+
+执行 wrapper 已通过 `apply_patch` 创建在 evidence root，设计为直接日志重定向、同进程立即捕获数字退出码并保存独立 marker；但没有运行任何 Gate wrapper，所以没有新 exit-code marker，也没有本轮实际退出码证据。Source/business repair、business retry、infrastructure retry、incomplete re-observation、build/sign 均为 `0`。
+
+四个历史实际 bundle 重新顺序 canonical parsing 成功，Info.plist 均存在：Clean/BFT succeeded；Targeted `1/1`、`1/0/0 PASS`；Existing `12/12`、`0/12/0 FAIL`。历史 Existing 数字退出码仍为 `NOT VERIFIED`。Ledger 首项约 178 秒业务执行后在清除筛选后的 `ledger.filter.tag` 查询失去 PID `59940` 连接；后续十一项在 `launchApp` 的 pre-launch residual-panel 查询处连锁失败。首次断连原因仍为 `UNKNOWN`，不能归因于 Restore、Provider 或 QoS warning。本轮未执行，不能称为“本轮未复现”或“根因已修复”。
+
+Unit/Performance 均为 `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION`：Focused `134/168 PASS`、Affected `167/205 PASS`、Full `460/531 PASS`、External Restore Release `25/49 PASS`（10,000 rows，43 ms）、External Export Release `29/31 PASS`（10,000 rows，26 ms）。Clean/BFT 为 `NOT RUN — ACCEPTED BUILD / REUSED EXACT FROZEN SIGNED PRODUCT`；独立 External Restore Targeted 为 `NOT RUN — ACCEPTED CURRENT-SOURCE 1/1 PASS AFTER EXACT SOURCE/PRODUCT VERIFICATION`。继承的 Local-mode 隔离验证仅针对 XCTest temporary store，不涉及真实用户 Production Store。
+
+停止后、文档更新前 116 项源码及四项产品复核仍全匹配。仅允许两份文档变化，源码、测试、Project、Package、Migration、Entitlements 不变。完整自包含 [ExecutionReport.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-01-OMbBhJ/ExecutionReport.md) 记录逐项 AC、完整 Hash 和审计边界。
+
+Provider requests `NOT RUN`；Twelve Data/Frankfurter/Provider transport、Credential/Keychain/Market Cache live access 为 `0`；persistent writes `Disabled`；retention rights `BLOCKED`；Stages 12–14 `NO-GO`。本轮在启动前停止，不决定 Stage 11 Gate，不生成下一轮 Prompt。以下历史内容原样保留。
 
 ## External Backup Export Foundation round
 
@@ -742,3 +766,78 @@ The first complete Targeted failure authorized exactly one direct repair. The vi
 **Stage 11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01 PARTIAL — Awaiting Reviewer Gate**
 
 This is Executor evidence only. The Reviewer still owns the Stage 11 Gate; it does not declare Stage 11 `PASS`, V1 Ready, Release Ready, or Stage 12 authorization.
+
+## External Restore directory-panel closure round
+
+Prompt 11-EXTERNAL-RESTORE-DIRECTORY-PANEL-CLOSURE-01 的唯一源码修改是 `AureusUITests.swift` 中的 `chooseDirectory`。路径存在、native panel 出现、Command-Shift-G、`PathTextField` 准确输入、有限 Return、`GoToWindow` 消失的原合同保留。Go To 消失后确认当前 native panel 仍存在，执行恰好一次 `app.typeKey(.enter, modifierFlags: [])`。helper 不再查询系统 `OKButton`/Choose/Cancel，也不再以所有 sheet/dialog 消失作为结束条件；调用方继续通过 Export status/artifact 或应用自有 Restore confirmation 节点判断结果。`chooseFile`、`saveFileUsingDefaultFilename`、`currentNativePanel`、`waitForCurrentPanelControl` 及所有业务测试断言保持不变。
+
+本轮 evidence root：`/private/tmp/Aureus-Stage11-EXTERNAL-RESTORE-DIRECTORY-PANEL-CLOSURE-01-bEN0A5`。历史七个 bundle 的 `Info.plist` 和 canonical parsers 均核验成功；上一轮 Targeted initial/final 保持完整 `0/1/0 FAIL`。冻结源 Hash 全部匹配，ordinary files 为 `116`，Project/Scheme/Targets 为 `1/1/3`，arm64、Swift 6、macOS 14.0、GRDB 7.11.1 均保持。正式测试前只有 UI Test 文件变化，文档仅在测试全部结束后更新。
+
+### 当前 Gate evidence
+
+| Gate | 分类 | 完整证据 |
+|---|---|---|
+| Focused Unit | `NOT RUN — INHERITED AFTER EXACT PRODUCTION/MODEL/UNIT SOURCE-HASH VERIFICATION` | Accepted `134` definitions / `168` dynamic executions PASS |
+| Affected Regression | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Accepted `167/205 PASS` |
+| Full Unit | `NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION` | Accepted `460/531 PASS` |
+| External Restore Performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION` | Accepted `25/49 PASS`，10,000-row workload `43 ms` |
+| External Export Performance | `NOT RUN — INHERITED AFTER EXACT FOUNDATION SOURCE-HASH VERIFICATION` | Accepted `29/31 PASS`，10,000-row workload `26 ms` |
+| A Clean Build | `PASS` | `clean build`，Scheme Aureus，Debug arm64；direct shell exit `0`；canonical `succeeded`；errors `0`；既存 Portfolio warnings `4`，新增 canonical warnings `0`；duration `33.989 s`；完整 `CleanDebugBuild.xcresult`，`Info.plist` 存在，build parser `0`；无 retry |
+| B fresh signed BFT | `PASS` | `build-for-testing`，Scheme Aureus，Debug arm64，fresh DerivedData；direct shell exit `0`；`TEST BUILD SUCCEEDED`，canonical `succeeded`；errors `0`，既存 warnings `4`；duration `37.401 s`；完整 `BuildForTesting.xcresult`，`Info.plist` 存在，build parser `0`，App/Runner strict codesign `0/0`；无 retry |
+| C Targeted External Restore UI | `PASS` | `test-without-building`；exact selector `AureusUITests/AureusUITests/testStage11SettingsExternalBackupRestoreFromUserSelectedGenerationAndIsolation`；direct shell exit `0`；definitions/executions `1/1`，business executions `1`，passed/failed/skipped `1/0/0`，expected failures `0`；method `228.097 s`，result interval `240.645 s`；完整 `TargetedExternalRestoreUI.xcresult`，`Info.plist` 存在，summary/tests parsers `0/0`；无 retry |
+| D Existing focused | `FAIL` | 单次 serial `test-without-building` 包含下列 12 个 exact selectors；canonical definitions/executions `12/12`，passed/failed/skipped `0/12/0`，expected failures `0`；12 个测试方法已开始，1 个进入应用业务操作，11 个止于公共 pre-launch helper；method duration 合计 `200.925 s`，result interval `214.574 s`；完整 `ExistingFocusedRegression.xcresult`，`Info.plist` 存在，summary/tests parsers `0/0`；direct shell 数字退出码在 command-session interruption 后未能取回，为 `NOT VERIFIED`；无 retry/re-observation |
+| E Full AureusUITests | `NOT RUN` | Exact selector `AureusUITests`，expected `18/18`；Gate D 未取得 `12/12 PASS`，无 invocation、shell exit 或结果目录 |
+
+Gate D 的 exact selectors：
+
+```text
+AureusUITests/AureusUITests/testStage6SettingsCredentialEntitlementAndCacheLifecycle
+AureusUITests/AureusUITests/testWealthCNYUSDLiabilityCRUDAndDynamicTotals
+AureusUITests/AureusUITests/testLedgerDynamicCashFlowTransferInvestmentEditAndDelete
+AureusUITests/AureusUITests/testLedgerNativeCSVImportPreviewConfirmationAndExport
+AureusUITests/AureusUITests/testStage7MarketsSyntheticSearchWatchlistChartAccessibilityAndClear
+AureusUITests/AureusUITests/testStage8PortfolioSyntheticCRUDHoldingsSnapshotAndIsolation
+AureusUITests/AureusUITests/testStage9AnalyticsSyntheticMetricsAccessibilityAndIsolation
+AureusUITests/AureusUITests/testStage10GoalsSyntheticCRUDPlanningAccessibilityAndIsolation
+AureusUITests/AureusUITests/testStage10DashboardGoalsProgressAndNavigationIsolation
+AureusUITests/AureusUITests/testStage11SettingsInternalBackupRestoreLifecycleAndIsolation
+AureusUITests/AureusUITests/testStage11SettingsExternalBackupExportToUserSelectedFolderAndIsolation
+AureusUITests/AureusUITests/testStage11SettingsExternalBackupRestoreFromUserSelectedGenerationAndIsolation
+```
+
+### Targeted runtime 合同
+
+本轮独立 Targeted `1/1 PASS` 已执行真实 External Export，取得唯一普通 non-symlink generation，其中严格只有普通 non-symlink `aureus.sqlite` 与 `manifest.json`；format `1`、schema `6`、byte count 均符合断言。使用一次 Escape 取消 native Restore panel 后，inventory 仍为 `1`、状态为 Ready、probe Goal 保留、artifact byte snapshot 不变。再次选择后，四个 app-owned confirmation AX 节点的唯一性、完整 exact labels、Cancel/Confirm enabled 均通过；confirmation Cancel 后无 Restore/safety 副作用。第三次选择后 Confirm 只点击一次，正式 Restore 完成，inventory `1→2`，脱敏 result/status 正确，External artifact 不变，probe Goal 消失而原始两个 Synthetic Goals 恢复。
+
+导航重建后 result 不恢复、inventory 仍为 `2`、无自动 panel；随后使用 XCTest 隔离 temporary store 的 Local/Production-mode 重启验证 Goals empty、inventory `0`、无 synthetic records/result/error/recovery/import 节点、无自动 panel、Provider validation 仍为 `Not verified`，External artifact 保持不变。整个流程没有读取真实 Production Store。这些 runtime 证据来自本轮独立 Targeted bundle，不用于替代 Gate D aggregate。
+
+### Gate D failure 与执行记录限制
+
+Gate D 首项 Ledger 在查询 `ledger.filter.tag` 时发生 `Failed to get matching snapshots: Lost connection to the application`，canonical source 为 `AureusUITests.swift:2444`；其 method duration 为 `178.423 s`。同次 invocation 中其余 11 个测试方法随后在 `launchApp` 调用的 `dismissResidualNativePanels` 处遇到同一应用连接错误，source 为 `AureusUITests.swift:3525`，每项约 `2 s`。这是完整的执行期间连接失败结果，不能降级成 incomplete 或 0-business bootstrap；底层连接丢失原因仍为 `NOT VERIFIED`，不据此宣称 Restore/Foundation 或全部业务模块存在数据错误。
+
+工具等待被外部中断，恢复后原 persistent session 返回 `Unknown process id`；准确产品/Runner/xcodebuild 进程均已退出，结果已完成 canonical finalization。因完整 failure 已存在，infrastructure retry 与 incomplete-result re-observation 均不适用，使用量均为 `0`。本轮 repair 共 `1`，在正式 Gate 前完成；正式 Gate 后 repair/business retry 为 `0`。Gate C 与 Gate D 各仅有一次 invocation；Gate E 未启动。未覆盖、修补或合并任何结果。
+
+另需更正前置阅读证据：`MandatoryRead.log` 为 45 个指定路径逐项记录了 `READ TO EOF`，但当时命令将内容重定向到 `/dev/null`。它只证明文件流按序读取完毕，不能证明 Executor 对全部文件的逐项内容审阅；因此 AC-01 为 `NOT VERIFIED`，不以补读追溯修复正式 Gate 的前置证据。
+
+四项 Portfolio interpolation warnings 为既存 canonical build warnings；Build/BFT 日志另有 AppIntents metadata extraction skipped 诊断。Targeted 与 Existing focused tests JSON 各包含一条 XCTest 内部 QoS priority-inversion runtime warning。全部按实际证据保留，不修改冻结 Product。
+
+### 当前 frozen BFT product
+
+所有下列路径均位于 `/private/tmp/Aureus-Stage11-EXTERNAL-RESTORE-DIRECTORY-PANEL-CLOSURE-01-bEN0A5/BuildForTestingDerivedData/Build/Products`；Gate C、D 前后四项 SHA-256 均与基线一致，Gate 之间未 rebuild/sign。
+
+| Product | Path under product root | SHA-256 | Bundle / architecture / signing |
+|---|---|---|---|
+| App | `Debug/Aureus.app/Contents/MacOS/Aureus` | `0e03f32f8bf87ffac8507973dc9f0df7490f193166117eb10de8180be9e1ecbc` | `com.aureus.wealthterminal` / arm64 / local ad hoc；strict codesign `0` |
+| Runner | `Debug/AureusUITests-Runner.app/Contents/MacOS/AureusUITests-Runner` | `5c1b83b3446bc928f6099772b127f0746994bf997103d43753b84ab66fb0b6aa` | `com.aureus.wealthterminal.uitests.xctrunner` / arm64 / local ad hoc；strict codesign `0` |
+| UI Test | `Debug/AureusUITests-Runner.app/Contents/PlugIns/AureusUITests.xctest/Contents/MacOS/AureusUITests` | `924ba57d6e8a25aca0734a2956d4ffd1542e516e41372a5a1a968aed5e877b48` | `com.aureus.wealthterminal.uitests` / arm64 |
+| xctestrun | `Aureus_Aureus_macosx26.5-arm64.xctestrun` | `42afdb1426fad2040448289fe62f26597fe2508e8a8920711331eb400bf4d226` | 对应同一 macOS arm64 产品 |
+
+### 当前 Provider / Data Boundary
+
+Provider requests 为 `NOT RUN`；Twelve Data operations、Frankfurter operations、Provider transport attempts、Credential reads、Keychain metadata reads、Market Cache live reads/mutations 均为 `0`。Twelve Data persistent writes 保持 `Disabled`，Provider retention rights 保持 `BLOCKED`。External retention、scheduling、cloud Restore 为 `NOT IMPLEMENTED / NOT AUTHORIZED`；Stages 12–14 保持 `NO-GO`。未执行 Git/gh，未访问 `.git/**`、`.secrets/**` 或 `default.profraw` payload，未安装缺失 scanner。
+
+## Current directory-panel closure status
+
+**Stage 11-EXTERNAL-RESTORE-DIRECTORY-PANEL-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**
+
+Targeted 默认动作及 External Restore runtime 已验证；Existing focused 失败，Full UI 未运行，完整 Stage 11 Gate 仍由 Reviewer 决定。
