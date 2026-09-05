@@ -19,6 +19,18 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+当前总状态：**Stage 11 PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受 External Backup Restore UI Runtime 子关卡（Ledger `1/1`、Existing focused `12/12`、Full UI `18/18 PASS`），但这不代表 Stage 11 全部冻结要求已实现。
+
+本轮 **Stage 11 Scope and Evidence Audit Candidate — Awaiting Reviewer Gate** 仅为审计产物待审。总范围、实现/断言/artifact/身份/人工限制及最小候选合同见 [Stage 11 Scope Evidence Matrix](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md)。确定缺口为 Settings currency/display preferences、last-cleanup time 展示、unified privacy-safe OSLog；另有 Settings cache stale/offline 语义、空 session offline→missing 呈现及旧 Export Release 26 ms 的相关 validator 源码变化待裁决。没有实施建议，没有新测试、Build/BFT、App 或 live 数据操作。以下历史记录保持其当时语境，不追溯改变失败、UNKNOWN、阅读或退出码缺口。
+
+Prompt 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-03 仅在新 `/private/tmp` wrapper 中删除非法 `-test-iterations 1`；零源码修改、零 build/re-sign。主 Executor 完成规定正文及完整语义段审阅，其余约束明确为 Hash-only continuity。最新 `FinalInventory.json` 自身 Hash、安全路径集合与 116 项当前 Hash 全匹配。
+
+同一冻结 signed arm64 产品依序完成三个独立 Gate：Ledger Dynamic `1/1 PASS`、单次 Existing focused `12/12 PASS`、单次 Full `AureusUITests 18/18 PASS`。三项 underlying numeric exits 均 `0`，完整 `Info.plist`，summary/tests parsers 均 `0/0`，expected failures 均 `0`；未拼接结果。没有 source/business repair、retry、infrastructure retry 或 re-observation。历史断连在本轮规定执行中未复现，根因仍 `UNKNOWN`，不称已修复。
+
+全部 invocation 结束后，116 项文件与四项产品复核无变化，才更新两份文档。完整 [ExecutionReport.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-03-jKe2QJ/ExecutionReport.md) 包含 actual selectors、PID/UTC/exit、canonical counts、Hash 与审计。Local-mode UI 仅验证 temporary stores，不是真实用户 Production Store；synthetic/mock fixture 操作不伪报为零，全进程未遥测计数为 `NOT VERIFIED`。Provider requests `NOT RUN`，Twelve Data persistent writes `Disabled`，Provider retention rights `BLOCKED`，Stages 12–14 `NO-GO`；Reviewer 保留总 Gate。
+
+以下保留上一轮原始参数失败记录，不追溯改写：
+
 当前最新状态：**Stage 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-02 PARTIAL — Awaiting Reviewer Gate**。14 项指定 Mandatory Read 正文由主 Executor 按序实际审阅至 EOF，其余冻结约束通过治理更新后的 116 项安全路径/Hash 基线继承。源码、四项 signed 产品身份及启动前相关进程检查通过；没有修改源码、build 或 re-sign。
 
 Gate A 唯一 invocation 的 underlying `xcodebuild` 退出码已即时保存为 `64`：当前 Xcode 拒绝本 Prompt 指定的 `-test-iterations 1`，报错 `Must specify -test-iterations with more than 1 iteration.`。实际 bundle 含 `Info.plist`，summary/tests parsers `0/0`，canonical result `unknown`，definitions/executions `0/0`，outcomes `0/0/0`，没有进入 Ledger 业务。它是命令参数校验失败，不是业务 PASS，也不是历史断连复现。按零 retry 预算停止，Existing focused 和 Full UI 均 `NOT RUN`；未改参数重跑。历史首次断连原因仍 `UNKNOWN`。

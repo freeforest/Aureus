@@ -2,6 +2,46 @@
 
 ## Status
 
+**Stage 11 PARTIAL — Awaiting Reviewer Gate**
+
+## Scope and Evidence Audit — 当前总范围索引
+
+**Stage 11 Scope and Evidence Audit Candidate — Awaiting Reviewer Gate** 仅表示本轮审计产物待审。Reviewer 已接受下述 Runtime 子关卡：Ledger `1/1`、单次 Existing focused `12/12`、Full UI `18/18 PASS`，全部 underlying exits `0`、summary/tests parsers `0/0`；不据此宣布总 Stage 完成。
+
+完整 requirement → implementation → assertion → artifact → identity → limitation 映射见 [Stage 11 Scope Evidence Matrix](STAGE11_SCOPE_EVIDENCE_MATRIX.md)。确定的实现缺口：Settings currency/display preferences、last-cleanup time UI/AX、unified privacy-safe OSLog。集中决策还包括 Settings cache stale/offline 的准确语义、空 session offline 被映射为 missing 的呈现，以及旧 Export Release 26 ms 的同源复用限制（共享 Backup validator 已改变）。既有 Unit 的95项相关源全部匹配；Restore Release相关Foundation/Test匹配；旧Export计时保留为历史PASS，不冒充当前完整validator链的精确同源性能证据。
+
+本轮全部 Test/Build/Performance/UI/BFT：`NOT RUN — DOCUMENTATION AND READ-ONLY AUDIT ROUND`。复用项明确 `NOT RUN — ACCEPTED EVIDENCE AFTER RELEVANT SOURCE-IDENTITY VERIFICATION`。仅审计及三份文档，没有产品/测试修复，没有App、Provider、真实Keychain/Cache/Store操作。人工VoiceOver、keyboard-only、appearance/contrast、chart interaction、security-scoped/signed-sandbox/offline观察仍独立未验证，不由18/18替代；不得把Stage11明确缺口任意挪到Stage12。
+
+本轮 [ExecutionReport](/private/tmp/Aureus-Stage11-SCOPE-EVIDENCE-AUDIT-01-h3ILCY/ExecutionReport.md) 记录实际全文阅读、安全116项基线、相关证据身份与最终117项文件审计。以下历史内容保留原始轮次语境：PID59940首次断连根因仍 `UNKNOWN`，历史Mandatory Read和numeric-exit缺口不追溯改写。Stages12–14继续 `NO-GO`。
+
+## App Connection Diagnostic Closure 03 — 当前运行时证据
+
+Evidence root：`/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-03-jKe2QJ`；完整 [ExecutionReport.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-03-jKe2QJ/ExecutionReport.md)。主 Executor 按序实际阅读五份正文至 EOF，核对本机 help 与 xctestrun，并审阅规定 UI Test 完整语义段；未冒称整个 UI Test 本轮 READ TO EOF。其余 Product/Foundation/Unit、设计与治理约束为 Hash-only continuity。
+
+本轮基线为 KNimB7/FinalInventory.json，自身 SHA-256 `a614f3c63f2a673c2602998c420387c031b0c8288b904b9f4b6e20c6a5309f02`。预期值取 `inventory[].sha256`，不是旧比较字段 `expected`。116 项安全路径与实际集合、普通文件类型、无 symlink 组件及全部 Hash 通过。四项产品使用 bEN0A5 冻结路径，三个 executable arm64、Bundle IDs 匹配，App/Runner strict codesign `0/0`，local ad hoc；无 build/re-sign。
+
+唯一 pre-Gate command correction：新 wrapper 删除 `-test-iterations 1`。最终 argv 无 iteration/retry/repetition 参数，仅 `test-without-building`、准确 xctestrun、macOS arm64、parallel disabled、maximum concurrent destination 1、独立 result 与 exact selectors。每 Gate 一次，stdout/stderr 直接入日志，wait 后即时保存 underlying numeric exit、wrapper/child PID 和 UTC；不用 tee。
+
+| Gate | canonical 结果 | 退出与执行 | 时间与 bundle |
+|---|---|---|---|
+| A Ledger Dynamic | `Passed`；definitions/executions `1/1`；outcomes `1/0/0`；expected failures `0` | exit `0`；methods/workflows `1/1`；wrapper/child `74956/74958` | UTC `10:44:59Z–10:49:59Z`；canonical `294.814 s`；`LedgerDynamicDiagnostic.xcresult` |
+| B Existing focused | `Passed`；definitions/executions `12/12`；outcomes `12/0/0`；expected failures `0` | exit `0`；methods/workflows `12/12`；wrapper/child `75253/75255` | UTC `10:51:08Z–11:13:36Z`；canonical `1342.750 s`；`ExistingFocusedRegression.xcresult` |
+| C Full AureusUITests | `Passed`；definitions/executions `18/18`；outcomes `18/0/0`；expected failures `0` | exit `0`；methods/workflows `18/18`；wrapper/child `76624/76626` | UTC `11:14:35Z–11:39:28Z`；canonical `1487.969 s`；`FullAureusUITests.xcresult` |
+
+日期均为 2026-09-05；bundle 均位于本轮 evidence root，均含 `Info.plist`，summary/tests 顺序 parsers `0/0`。B 的十二项与请求 exact selectors 一致，C 的十八个 canonical Test Case 与当前源码定义完全一致且全部 `Passed`。A/B/C 的 Ledger 方法分别完整通过；未将计划内覆盖写成一次执行，也未拼接 aggregate。
+
+历史 category clear → `ledger.filter.tag` 及后续 container/date/currency、invalid-date、summary 在本轮完整方法中通过；历史 PID 59940 失联在本轮规定执行中未复现，首次原因仍 `UNKNOWN`。本轮没有后续 pre-launch 传播。Gate B 运行时一次观察到另一短暂 xcodebuild PID 75385，立即准确 PID 复核时其与父进程已退出，用途 `UNKNOWN`；不读取参数、不终止、不作根因推断。各 Gate 前后没有未解决的相关冲突；本轮 App/Runner 正常退出，无额外清理请求。
+
+原 KNimB7 Ledger bundle 从实际目录顺序解析：完整 `unknown/0-test`、exit `64`、methods/workflows `0/0`、parsers `0/0`，保持参数校验失败/NOT PASS，不改称 incomplete。更早 bEN0A5 Targeted `1/1 PASS` 与 Existing 完整 `0/12/0 Failed`、numeric exit `NOT VERIFIED`、Mandatory Read 缺口均保留。OMbBhJ 未运行记录不变。新证据不追溯修复历史。
+
+Unit/Performance：`NOT RUN — INHERITED AFTER EXACT SOURCE-HASH VERIFICATION`，Focused `134/168`、Affected `167/205`、Full `460/531`，Restore Release `25/49` / 10,000 rows `43 ms`，Export Release `29/31` / 10,000 rows `26 ms`。Clean/BFT：`NOT RUN — ACCEPTED BUILD / REUSED EXACT FROZEN SIGNED PRODUCT`。独立 External Restore Targeted：`NOT RUN — ACCEPTED CURRENT-SOURCE 1/1 PASS AFTER EXACT SOURCE/PRODUCT VERIFICATION`，其 B/C 中实际执行另计。
+
+Source/business repair、business/infrastructure retry、incomplete re-observation、automatic repetition/retry、parser-only reread 均 `0`。仅调用既有 synthetic/sanitized UI 流程；Local-mode 仍为 temporary-store 隔离验证，不涉及真实用户 Production Store。mock provider/credential/cache fixture 有实际操作，未伪报为零；未遥测的全进程 live counters 为 `NOT VERIFIED`。Executor 未发起 live Provider/Credential/Keychain/Market Cache 操作，Provider requests `NOT RUN`。Twelve Data persistent writes `Disabled`，retention rights `BLOCKED`，external retention/scheduling/cloud `NOT IMPLEMENTED / NOT AUTHORIZED`，Stages 12–14 `NO-GO`。
+
+测试期间完整 116 项与路径集合、四项产品均保持一致；所有 invocation 结束后仅更新 README 与本文件，其余 114 项不变，无新增/删除/重命名。安全清单排除 `.git`、`.secrets`、`default.profraw` payload；未读取附件、AX dump 或真实用户数据。最终清单、Markdown/privacy 审计及完整 Hash 见报告。Stage 11 总 Gate 仍等待 Reviewer，不生成下一轮 Prompt。
+
+## 前轮状态（02 原始失败保留）
+
 **Stage 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-02 PARTIAL — Awaiting Reviewer Gate**
 
 ## App Connection Diagnostic Closure 02 — 命令参数校验停止
