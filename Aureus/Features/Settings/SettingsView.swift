@@ -345,6 +345,12 @@ struct SettingsView: View {
                     )
                     .accessibilityIdentifier("settings.cache.summary")
 
+                    let cleanupTime = SettingsFeatureModel.lastCleanupTimeLabel(for: statistics.lastCleanupAt)
+                    Text(cleanupTime)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(cleanupTime)
+                        .accessibilityIdentifier("settings.cache.lastCleanupAt")
+
                     ForEach(statistics.providerBreakdown) { provider in
                         Text("\(provider.providerIdentifier): \(provider.entryCount) entries, \(byteString(provider.bytes))")
                             .font(.caption)

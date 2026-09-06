@@ -2181,6 +2181,8 @@ final class AureusUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments()
         launchApp(app)
+        let cleanupTimeLabel = "Last cleanup time: 2026-01-15 00:00:00.000 UTC"
+        let noCleanupTimeLabel = "Last cleanup time: No cleanup record available"
 
         app.descendants(matching: .any)["sidebar.settings"].click()
         XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 10))
@@ -2195,6 +2197,11 @@ final class AureusUITests: XCTestCase {
             timeout: 5
         ))
         XCTAssertTrue(app.descendants(matching: .any)["settings.cache.summary"].exists)
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.cache.lastCleanupAt",
+            expectedLabel: cleanupTimeLabel
+        )
         let sessionSummary = app.descendants(matching: .any)["settings.session.summary"]
         XCTAssertTrue(sessionSummary.waitForExistence(timeout: 5))
         XCTAssertEqual(
@@ -2279,6 +2286,12 @@ final class AureusUITests: XCTestCase {
             containing: "expired recoverable cache",
             timeout: 5
         ))
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.cache.lastCleanupAt",
+            expectedLabel: cleanupTimeLabel
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["settings.error"].exists)
 
         app.descendants(matching: .any)["settings.cache.reset"].click()
         let reset = app.descendants(matching: .any)["settings.cache.reset.confirm"]
@@ -2288,6 +2301,36 @@ final class AureusUITests: XCTestCase {
             containing: "reset and rebuilt",
             timeout: 5
         ))
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.cache.lastCleanupAt",
+            expectedLabel: noCleanupTimeLabel
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["settings.error"].exists)
+
+        // Reconstruct Settings in the same foreground dependency graph. App
+        // relaunch would run startup cleanup and would not test reset's nil.
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.empty"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.content"].waitForExistence(timeout: 5))
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.cache.lastCleanupAt",
+            expectedLabel: noCleanupTimeLabel
+        )
+        app.descendants(matching: .any)["settings.cache.removeExpired"].click()
+        XCTAssertTrue(waitForValueOrLabel(
+            app.descendants(matching: .any)["settings.status"],
+            containing: "expired recoverable cache",
+            timeout: 5
+        ))
+        assertUniqueSettingsDataLifecycleElement(
+            in: app,
+            identifier: "settings.cache.lastCleanupAt",
+            expectedLabel: cleanupTimeLabel
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["settings.error"].exists)
 
         let screenshot = XCUIScreen.main.screenshot().pngRepresentation
         try screenshot.write(

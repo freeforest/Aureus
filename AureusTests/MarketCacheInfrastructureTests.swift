@@ -336,6 +336,39 @@ struct MarketCacheInfrastructureTests {
         #expect(try await cache.cachedRowCount() == 0)
     }
 
+    @Test("Cleanup record time survives reopening and reset clears both time and result")
+    func cleanupRecordTimeLifecycle() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("cache.sqlite")
+        let cache = try MarketCacheStore(databaseURL: url)
+        let fresh = try await cache.statistics()
+        #expect(fresh.lastCleanupAt == nil)
+        #expect(fresh.lastCleanupResult == nil)
+
+        let first = try await cache.removeExpired(now: now)
+        #expect(first.removedEntries == 0)
+        #expect(first.completedAt == now)
+        let recorded = try await cache.statistics()
+        #expect(recorded.lastCleanupAt == now)
+        #expect(recorded.lastCleanupResult == "removeExpired: removed 0 recoverable entries")
+
+        // Last-written time is not a monotonic clock: a later operation may
+        // receive an earlier wall-clock value.
+        let secondTime = UTCInstant(millisecondsSince1970: now.millisecondsSince1970 - 1_234)
+        _ = try await cache.removeExpired(now: secondTime)
+        #expect(try await cache.statistics().lastCleanupAt == secondTime)
+        let reopened = try MarketCacheStore(databaseURL: url)
+        let persisted = try await reopened.statistics()
+        #expect(persisted.lastCleanupAt == secondTime)
+        #expect(persisted.lastCleanupResult == recorded.lastCleanupResult)
+        try await reopened.reset()
+        let reset = try await reopened.statistics()
+        #expect(reset.lastCleanupAt == nil)
+        #expect(reset.lastCleanupResult == nil)
+        #expect(reset.entryCount == 0)
+    }
+
     @Test("Launch, periodic, and background cleanup use independent matching due metadata")
     func cleanupScheduleBookkeeping() async throws {
         let root = try temporaryDirectory()
@@ -497,7 +530,10 @@ struct MarketCacheInfrastructureTests {
         )
         try await cache.store(makeEntry(key: "rollback-a", payloadSize: 600), authorization: .authorized)
         try await cache.store(makeEntry(key: "rollback-b", payloadSize: 600), authorization: .authorized)
+        _ = try await cache.removeExpired(now: now)
         let before = try await cache.statistics()
+        #expect(before.lastCleanupAt == now)
+        #expect(before.lastCleanupResult != nil)
         let inspection = try DatabaseQueueFactory.open(at: url)
         try await inspection.write { db in
             try db.execute(sql: """
@@ -511,13 +547,18 @@ struct MarketCacheInfrastructureTests {
         try inspection.close()
 
         await #expect(throws: (any Error).self) {
-            _ = try await cache.updateMaximumBytes(1_000, now: now)
+            _ = try await cache.updateMaximumBytes(
+                1_000,
+                now: UTCInstant(millisecondsSince1970: now.millisecondsSince1970 + 1_234)
+            )
         }
         let after = try await cache.statistics()
         #expect(after.maximumBytes == before.maximumBytes)
         #expect(after.currentBytes == before.currentBytes)
         #expect(after.entryCount == before.entryCount)
         #expect(after.lastCleanupResult == before.lastCleanupResult)
+        #expect(after.lastCleanupAt == before.lastCleanupAt)
+        #expect(after == before)
     }
 
     @Test(

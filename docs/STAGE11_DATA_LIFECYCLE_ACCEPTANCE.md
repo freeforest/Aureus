@@ -4,7 +4,36 @@
 
 **Stage 11 PARTIAL — Awaiting Reviewer Gate**
 
-## Scope and Evidence Audit — 当前总范围索引
+## Settings Cache Cleanup Time — S11-06 / D-02
+
+**Stage 11 Settings Cache Cleanup Time Candidate — Awaiting Reviewer Gate**。Reviewer 已接受 Scope and Evidence Audit；本轮仅实现已批准的清理时间显示合同，不决定 Stage 11 总 Gate。
+
+唯一来源为 `MarketCacheStatistics.lastCleanupAt`。SettingsFeatureModel 纯格式化固定 Gregorian、en_US_POSIX、UTC、24小时、毫秒；例如 `Last cleanup time: 2026-01-15 00:00:00.000 UTC`。nil 为 `Last cleanup time: No cleanup record available`，无句末标点；epoch-zero 是有效时间。时间表示 Store 最后写入的记录，不保证单调递增。统计未加载时仍显示 Cache status unavailable；不写入 metadata 或从 Clock/mtime 推断。
+
+`settings.cache.lastCleanupAt` 是 summary children-ignore Grid 外的真实可见 Text sibling，独立 AX label 与完整可见文本一致；原 summary、oldest-entry、缓存语义和全部 Foundation 未改。Store 测试覆盖 fresh nil、no-op T1、后写入但更早的 T2、重开持久化、reset nil及既有 SQL-trigger rollback 保持时间/结果/容量/记录。Model 覆盖 UTC跨日/毫秒/epoch-zero 与同依赖 load→remove→reset→reconstruction；UI 保留 credential/session/cache/isolation，并验证同 foreground graph 导航后 nil、再次清理恢复固定时间。
+
+最终证据目录：`/private/tmp/Aureus-Stage11-SETTINGS-CACHE-CLEANUP-TIME-01-6x2SKE/AfterRepair`。完整路径、selectors、产品/源 Hash、PID/UTC、宿主参数和失败记录见 [ExecutionReport](/private/tmp/Aureus-Stage11-SETTINGS-CACHE-CLEANUP-TIME-01-6x2SKE/ExecutionReport.md)。
+
+| Gate / bundle | 最终结果 | direct exit / canonical parser | canonical duration |
+|---|---|---|---|
+| D `FocusedUnit.xcresult` | 77 definitions / 86 executions；86/0/0 PASS | 0 / 0,0 | 4.426 s |
+| E `FullUnit.xcresult` | 463 / 534；534/0/0 PASS | 0 / 0,0 | 57.037 s |
+| F `CleanDebugBuild.xcresult` | succeeded，errors 0，既存 warnings 4 | 0 / 0 | 32.936 s |
+| G `SignedBFT.xcresult` | TEST BUILD SUCCEEDED，errors 0，既存 warnings 4 | 0 / 0 | 37.214 s |
+| H `SettingsTargetedUI.xcresult` | 1/1；1/0/0 PASS | 0 / 0,0 | 93.278 s |
+| I `SharedSettingsLifecycle.xcresult` | 单次3/3；3/0/0 PASS | 0 / 0,0 | 432.860 s |
+
+所有 bundle 含 Info.plist；Test expected failures/skipped 均0。I 的实际顺序为 External Export→External Restore→Internal Restore，未与H拼接。三个Stage11方法及公共helper不变，UI definitions仍18。H/I使用同一新signed arm64产品，App/Runner strict codesign 0/0，local ad hoc；四项产品 Hash 前后不变。
+
+Unit 产品准备独立使用最终源码 unsigned BFT，原 xctestrun 不覆盖；同 Products 目录运行副本仅给 enabled AureusTests 的 CommandLineArguments 增加一个 `--aureus-temporary-store`。D/E 明确 test-without-building 引用该副本，实际准确宿主均观察到此参数。未改 UITargetAppCommandLineArguments、TestHost、注入库、签名策略、HOME/TMPDIR或Scheme。宿主仍按既有 temporaryDirectory/Aureus-Stage2/UUID 建目录；测试也使用既有 /private/tmp/AureusTests/UUID 等隔离目录，不伪称产物全在 evidence root。unsigned Unit BFT 不替代 G。
+
+原版 H 完整0/1/0 FAIL、exit65、parsers0/0，首次新时间AX exact-label等待失败，尚未进入清理分支。唯一 direct repair 为 Text 增加 `.accessibilityElement(children: .ignore)`；之后重做 Unit BFT及D–H，I首次执行。保留原版通过构建/Unit与失败UI，不拼接为最终源证据。Business repair 1，授权修复后重验1轮，infrastructure retry / incomplete re-observation / automatic retry / parser-only reread 均0。ZJlwAX启动前停止保留，无业务执行，不消耗预算。
+
+本轮全12 focused、全18 UI、Backup/Restore/Export Release workload、人工QA：`NOT RUN`。旧18/18是旧源码接受记录；D-06旧Export26ms为`HISTORICAL ONLY`，当前共享validator链Release计时`NOT VERIFIED`。D-01、D-03、D-04、D-05保持原矩阵缺口。历史断连根因仍UNKNOWN，不由此次通过推断修复。Provider live requests NOT RUN；synthetic/mock操作与Full Unit既有随机synthetic Keychain条目据实存在，未遥测全进程计数NOT VERIFIED。未访问真实用户Store/Keychain/Market Cache、受限目录或附件。persistent writes Disabled；retention rights BLOCKED；Stages12–14 NO-GO。
+
+## Scope and Evidence Audit — 已接受的原审计记录
+
+以下保留 h3ILCY 审计当时语境；S11-06/D-02 的后续实现与证据以上节为准，其余缺口继续保留。
 
 **Stage 11 Scope and Evidence Audit Candidate — Awaiting Reviewer Gate** 仅表示本轮审计产物待审。Reviewer 已接受下述 Runtime 子关卡：Ledger `1/1`、单次 Existing focused `12/12`、Full UI `18/18 PASS`，全部 underlying exits `0`、summary/tests parsers `0/0`；不据此宣布总 Stage 完成。
 
@@ -14,7 +43,7 @@
 
 本轮 [ExecutionReport](/private/tmp/Aureus-Stage11-SCOPE-EVIDENCE-AUDIT-01-h3ILCY/ExecutionReport.md) 记录实际全文阅读、安全116项基线、相关证据身份与最终117项文件审计。以下历史内容保留原始轮次语境：PID59940首次断连根因仍 `UNKNOWN`，历史Mandatory Read和numeric-exit缺口不追溯改写。Stages12–14继续 `NO-GO`。
 
-## App Connection Diagnostic Closure 03 — 当前运行时证据
+## App Connection Diagnostic Closure 03 — 旧源码接受的运行时证据
 
 Evidence root：`/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-03-jKe2QJ`；完整 [ExecutionReport.md](/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-03-jKe2QJ/ExecutionReport.md)。主 Executor 按序实际阅读五份正文至 EOF，核对本机 help 与 xctestrun，并审阅规定 UI Test 完整语义段；未冒称整个 UI Test 本轮 READ TO EOF。其余 Product/Foundation/Unit、设计与治理约束为 Hash-only continuity。
 

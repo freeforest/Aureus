@@ -21,7 +21,15 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 当前总状态：**Stage 11 PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受 External Backup Restore UI Runtime 子关卡（Ledger `1/1`、Existing focused `12/12`、Full UI `18/18 PASS`），但这不代表 Stage 11 全部冻结要求已实现。
 
-本轮 **Stage 11 Scope and Evidence Audit Candidate — Awaiting Reviewer Gate** 仅为审计产物待审。总范围、实现/断言/artifact/身份/人工限制及最小候选合同见 [Stage 11 Scope Evidence Matrix](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md)。确定缺口为 Settings currency/display preferences、last-cleanup time 展示、unified privacy-safe OSLog；另有 Settings cache stale/offline 语义、空 session offline→missing 呈现及旧 Export Release 26 ms 的相关 validator 源码变化待裁决。没有实施建议，没有新测试、Build/BFT、App 或 live 数据操作。以下历史记录保持其当时语境，不追溯改变失败、UNKNOWN、阅读或退出码缺口。
+Reviewer 已接受 Scope and Evidence Audit；总范围索引见 [Stage 11 Scope Evidence Matrix](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md)。本轮仅补齐 S11-06 / D-02，状态为 **Stage 11 Settings Cache Cleanup Time Candidate — Awaiting Reviewer Gate**。
+
+Settings 从现有 `MarketCacheStatistics.lastCleanupAt` 显示固定 Gregorian / UTC 毫秒时间；可见文本与独立 AX `settings.cache.lastCleanupAt` 的 label 相同。nil 显示 `Last cleanup time: No cleanup record available`，epoch-zero 有效；不改变缓存存储、清理或 Permanent 隔离语义。
+
+最终源码验证：Focused Unit `77 definitions / 86 dynamic executions PASS`，Full Unit `463 / 534 PASS`，Clean Debug arm64 Build 与 fresh signed BFT `PASS`；Settings targeted UI `1/1 PASS`，同一冻结 signed 产品的三项 Shared Settings Lifecycle 单次聚合 `3/3 PASS`。全部 underlying exits `0`、完整 Info.plist、canonical parsers `0`（tests 为 `0/0`），无 skipped。Unit 明确使用独立 unsigned BFT 的已核验 xctestrun 副本，将一个 `--aureus-temporary-store` 传给 application host；不是依赖 fixture 路径推断宿主隔离。
+
+首次 targeted 在新时间节点的 exact-label 等待处完整 `0/1/0 FAIL`（exit `65`）；唯一 direct repair 为该真实 Text 增加明确 AX element 语义。之后从 Unit 产品准备及 Gate D 起按序重验，原失败不覆盖。完整 [ExecutionReport](/private/tmp/Aureus-Stage11-SETTINGS-CACHE-CLEANUP-TIME-01-6x2SKE/ExecutionReport.md) 记录两版源码/产品、参数差异、宿主证据与全部结果。此前 ZJlwAX 启动前停止保留，未追溯称宿主隔离已验证。
+
+本轮 Existing focused 全部12项、Full UI全部18项、两项 Release workload、人工 QA 均 `NOT RUN`；历史18/18仅为旧源码接受记录。D-01 currency/display、D-03 OSLog（`NOT IMPLEMENTED`）、D-04 Settings stale/offline、D-05 empty-session offline 呈现及 D-06 Export Release 同源计时继续开放；旧26 ms为 `HISTORICAL ONLY`。Provider live requests `NOT RUN`，未遥测全进程计数 `NOT VERIFIED`，Twelve Data persistent writes `Disabled`，retention rights `BLOCKED`，Stages12–14 `NO-GO`。以下历史记录保持原轮次语境，不追溯改变失败、UNKNOWN、阅读或退出码缺口。
 
 Prompt 11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-03 仅在新 `/private/tmp` wrapper 中删除非法 `-test-iterations 1`；零源码修改、零 build/re-sign。主 Executor 完成规定正文及完整语义段审阅，其余约束明确为 Hash-only continuity。最新 `FinalInventory.json` 自身 Hash、安全路径集合与 116 项当前 Hash 全匹配。
 

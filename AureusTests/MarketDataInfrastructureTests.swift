@@ -2689,6 +2689,76 @@ struct MarketDataInfrastructureTests {
         #expect(model.statusMessage?.contains("Session Market Data") == true)
     }
 
+    @MainActor
+    @Test("Settings cleanup time has exact Gregorian UTC millisecond and missing-value text")
+    func settingsCleanupTimeFormatting() {
+        let cases: [(Int64?, String)] = [
+            (nil, "Last cleanup time: No cleanup record available"),
+            (0, "Last cleanup time: 1970-01-01 00:00:00.000 UTC"),
+            (-1, "Last cleanup time: 1969-12-31 23:59:59.999 UTC"),
+            (1_768_435_199_999, "Last cleanup time: 2026-01-14 23:59:59.999 UTC"),
+            (1_768_435_200_000, "Last cleanup time: 2026-01-15 00:00:00.000 UTC"),
+            (1_768_435_200_123, "Last cleanup time: 2026-01-15 00:00:00.123 UTC"),
+            (1_768_521_600_007, "Last cleanup time: 2026-01-16 00:00:00.007 UTC")
+        ]
+        for (milliseconds, expected) in cases {
+            #expect(SettingsFeatureModel.lastCleanupTimeLabel(
+                for: milliseconds.map(UTCInstant.init(millisecondsSince1970:))
+            ) == expected)
+        }
+    }
+
+    @MainActor
+    @Test("Settings reloads cleanup time through remove, reset, and same-dependency reconstruction")
+    func settingsCleanupTimeRefresh() async throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let dependencies = try await AppDependencies.make(configuration: LaunchConfiguration(
+            dataMode: .local,
+            usesTemporaryStores: true,
+            temporaryRoot: root
+        ))
+        func makeModel() -> SettingsFeatureModel {
+            SettingsFeatureModel(
+                provider: dependencies.marketDataProvider,
+                marketDataService: dependencies.marketDataService,
+                credentialCoordinator: dependencies.credentialCoordinator,
+                cache: dependencies.marketCacheStore,
+                sessionStore: dependencies.marketSessionStore,
+                clock: dependencies.clock
+            )
+        }
+        let model = makeModel()
+        #expect(model.cacheStatistics == nil)
+        await model.load()
+        #expect(model.cacheStatistics?.lastCleanupAt == dependencies.clock.now())
+        #expect(SettingsFeatureModel.lastCleanupTimeLabel(for: model.cacheStatistics?.lastCleanupAt)
+            == "Last cleanup time: 2026-01-15 00:00:00.000 UTC")
+        await model.removeExpired()
+        #expect(model.cacheStatistics?.lastCleanupAt == dependencies.clock.now())
+        #expect(model.cacheStatistics?.lastCleanupResult == "removeExpired: removed 0 recoverable entries")
+        #expect(model.errorMessage == nil)
+        await model.resetCache()
+        #expect(model.cacheStatistics != nil)
+        #expect(model.cacheStatistics?.lastCleanupAt == nil)
+        #expect(model.cacheStatistics?.lastCleanupResult == nil)
+        #expect(SettingsFeatureModel.lastCleanupTimeLabel(for: model.cacheStatistics?.lastCleanupAt)
+            == "Last cleanup time: No cleanup record available")
+        #expect(model.errorMessage == nil)
+
+        let reconstructed = makeModel()
+        await reconstructed.load()
+        #expect(reconstructed.cacheStatistics != nil)
+        #expect(reconstructed.cacheStatistics?.lastCleanupAt == nil)
+        #expect(reconstructed.cacheStatistics?.lastCleanupResult == nil)
+        #expect(reconstructed.errorMessage == nil)
+        await reconstructed.removeExpired()
+        #expect(reconstructed.cacheStatistics?.lastCleanupAt == dependencies.clock.now())
+        #expect(SettingsFeatureModel.lastCleanupTimeLabel(for: reconstructed.cacheStatistics?.lastCleanupAt)
+            == "Last cleanup time: 2026-01-15 00:00:00.000 UTC")
+        #expect(reconstructed.errorMessage == nil)
+    }
+
     private func makeClient(
         transport: any HTTPTransport,
         sleeper: any ProviderSleeper = RecordingProviderSleeper(),

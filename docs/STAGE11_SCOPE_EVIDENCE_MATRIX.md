@@ -1,8 +1,10 @@
 # Stage 11 完整范围与证据矩阵
 
-**Stage 11 Scope and Evidence Audit Candidate — Awaiting Reviewer Gate**
+**Stage 11 总 Gate：PARTIAL — Awaiting Reviewer Gate**
 
-2026-09-05，只读源码/既有证据审计。Reviewer 已接受 External Backup Restore UI Runtime 子关卡；**Stage 11 总 Gate 仍为 PARTIAL**。本 Candidate 仅指审计产物待审，不表示产品完成。未实施下述建议，未运行任何 Test/Build/Performance/UI/BFT，未启动 App。
+2026-09-05 的 Scope and Evidence Audit 已获 Reviewer 接受。该轮为只读审计，没有新 Test/Build/App 操作；原审计的来源、身份与证据限制在下文保留。
+
+2026-09-06 仅 S11-06 / D-02 按新授权补齐：**Stage 11 Settings Cache Cleanup Time Candidate — Awaiting Reviewer Gate**。相关新证据为 E-CCT；其他建议未实施。历史18/18保留为旧源码接受记录，不是本轮新源码 Full UI PASS。
 
 ## 1. 阅读、来源与判定规则
 
@@ -15,12 +17,13 @@
 
 主 Executor 按序全文审阅用户指定十份正文，长文件截断处补读；源码/测试按完整相关语义阅读并接受只读子代理映射，不冒称全仓 READ TO EOF。实际记录与安全清单见本轮 [ExecutionReport](/private/tmp/Aureus-Stage11-SCOPE-EVIDENCE-AUDIT-01-h3ILCY/ExecutionReport.md)。
 
-矩阵的实现状态为 `IMPLEMENTED / NOT IMPLEMENTED / PARTIAL`；自动化状态为 `VERIFIED / NOT VERIFIED`，其中 VERIFIED **只指列出的既有断言与相关源身份支持**。本轮执行状态统一为 `NOT RUN — DOCUMENTATION AND READ-ONLY AUDIT ROUND`；证据复用统一为 `NOT RUN — ACCEPTED EVIDENCE AFTER RELEVANT SOURCE-IDENTITY VERIFICATION`。人工观察列统一 `NOT RUN / NOT VERIFIED`，除明确标为历史观察的 S6，不能由自动化替代。
+矩阵的实现状态为 `IMPLEMENTED / NOT IMPLEMENTED / PARTIAL`；自动化状态为 `VERIFIED / NOT VERIFIED`，其中 VERIFIED **只指列出的断言与相关源身份支持**。原审计执行状态为 `NOT RUN — DOCUMENTATION AND READ-ONLY AUDIT ROUND`，原审计复用为 `NOT RUN — ACCEPTED EVIDENCE AFTER RELEVANT SOURCE-IDENTITY VERIFICATION`；后续本轮实际执行仅见 E-CCT。人工观察列统一 `NOT RUN / NOT VERIFIED`，除明确标为历史观察的 S6，不能由自动化替代。
 
 ## 2. Artifact 与 relevant identity 索引
 
 | ID | 准确 artifact / 接受来源 | 本轮身份核验、复用范围及限制 |
 |---|---|---|
+| E-CCT | `/private/tmp/Aureus-Stage11-SETTINGS-CACHE-CLEANUP-TIME-01-6x2SKE/AfterRepair/`：`FocusedUnit.xcresult`、`FullUnit.xcresult`、`CleanDebugBuild.xcresult`、`SignedBFT.xcresult`、`SettingsTargetedUI.xcresult`、`SharedSettingsLifecycle.xcresult`；[ExecutionReport](/private/tmp/Aureus-Stage11-SETTINGS-CACHE-CLEANUP-TIME-01-6x2SKE/ExecutionReport.md) | 本轮最终源实际PASS：Unit77/86、463/534，UI单次1/1及独立单次3/3；exits0、Info.plist完整、parsers0（tests0/0），无skip/expected failure。Clean/BFT errors0、既存warnings4。Unit隔离副本实际传参，H/I同一新signed arm64产品。初始H完整0/1/0 FAIL保留；一次AX direct repair后从D起重验。全12focused/全18UI/Release/人工QA NOT RUN；本Candidate仍待Reviewer。 |
 | E-UI | `/private/tmp/Aureus-Stage11-APP-CONNECTION-DIAGNOSTIC-CLOSURE-03-jKe2QJ/`：`LedgerDynamicDiagnostic.xcresult`、`ExistingFocusedRegression.xcresult`、`FullAureusUITests.xcresult` | Reviewer 接受 `1/1`、`12/12`、`18/18 PASS`，exits `0`、parsers `0/0`。本轮目录/Info.plist存在，116项当前源全匹配，四项产品Hash匹配；不机械重复解析，不读附件。`ACCEPTED EVIDENCE`，仅实际断言。 |
 | E-U | `/private/tmp/Aureus-Stage11-SETTINGS-EXTERNAL-BACKUP-RESTORE-UI-01-A9c0OF/`：`FocusedUnit-Final.xcresult`、`AffectedRegression-Final.xcresult`、`FullAureusTests-Final.xcresult` | 已接受 definitions/dynamic executions `134/168`、`167/205`、`460/531 PASS`。对应 `final-source-inventory.sha256` 中 Product、Unit、Project 95/95匹配；三个目录与Info.plist存在。复用对应套件，不将definition数误当dynamic outcomes。 |
 | E-RP | `/private/tmp/Aureus-Stage11-EXTERNAL-BACKUP-RESTORE-VALIDATION-CLOSURE-01-skIX9p/ReleaseExternalRestorePerformance.xcresult` | 已接受25/49、10,000-row `43 ms`；Foundation/相关Unit源匹配。历史清单95项中5项Settings/composition后续变化不属于该isolated workload。`ACCEPTED EVIDENCE`，不是整个旧App composition同源或跨机器保证。 |
@@ -52,7 +55,7 @@
 | S11-03；A492–527，S124/193；Stage6→11 | 512MiB默认/范围/90→80水位、TTL/LRU；[CachePolicyConfiguration](../Aureus/Persistence/MarketCache/CachePolicyConfiguration.swift)→CS.cleanup/store/updateMaximum；AM.runMarketCacheMaintenance与AD.launch cleanup | CT.cleanupPriority:259断言优先淘汰、≤80%；cleanupScheduleBookkeeping:340断言各schedule独立；capacityReductionRollback:490失败后容量/行数/result不变 | `IMPLEMENTED / VERIFIED`；E-U | 人工NOT RUN；不能以配置存在证明每个真实长时调度点已观察 |
 | S11-04；A519–527，S124；Stage6→11 | SV.cacheSection→SM.removeExpired/resetCache/applyMaximum→CS对应事务/reset；reset只准确cache DB及sidecars | CT.providerPurgeAndReset:318、allCleanupPathsArePermanentlyIsolated:527比Permanent URL/Hash/schema/records/snapshots；UI.testStage6SettingsCredentialEntitlementAndCacheLifecycle:2180确认Remove/Reset终态 | `IMPLEMENTED / VERIFIED`；E-U/E-UI | 人工NOT RUN；UI未断言capacity Apply全部选项，不夸大UI覆盖 |
 | S11-05；A521；Stage11 | Settings bytes/cap/percentage/entries/oldest/provider breakdown：CS.statistics419→SM.refresh207→SV327–380 | UI同Settings方法只断言summary存在；CT统计/容量断言，不证明所有字段AX读出 | `IMPLEMENTED / NOT VERIFIED`（所有字段端到端AX）；字段计算E-U，有限UI E-UI | 人工NOT RUN；oldest以epoch文本显示且被summary的children-ignore省略，易读性/AX须限定补证 |
-| S11-06；A521；Stage11 | last cleanup result/time：CS.record745持久化last_cleanup_ms→statistics419→SM207；SV336/344只消费result，无lastCleanupAt | CT现有result/schedule断言非timestamp；无exact时间/reopen/失败保持/reset-nil或时间AX断言 | 存储`IMPLEMENTED`、展示`NOT IMPLEMENTED`；时间自动化`NOT VERIFIED` | D-02补最小展示/AX与时间断言；nil是无可用记录，不等于从未清理 |
+| S11-06；A521；Stage11 | CS.record→statistics.lastCleanupAt→SM.refreshCacheStatistics→SM.lastCleanupTimeLabel:22→SV.cacheSection:348；Grid外真实Text `settings.cache.lastCleanupAt`，可见/AX exact label一致；summary不变 | CT.cleanupRecordTimeLifecycle:340：fresh nil/no-op T1/后写更早T2/reopen/reset；capacityReductionRollback:523保持time/result/cap/rows。DT.settingsCleanupTimeFormatting:2694与settingsCleanupTimeRefresh:2713；UI Stage6:2180固定时间→remove→reset nil→同graph导航nil→remove恢复，原断言保留 | 存储及展示 `IMPLEMENTED`；上述Unit/UI自动化 `VERIFIED`，E-CCT；Reviewer总Gate未决定 | 人工NOT RUN。D-02已批准最小合同并实现；nil无可用记录，epoch-zero有效，不是never cleaned；last-written不保证墙钟递增。oldest及其他字段未改 |
 | S11-07；A521；Stage11 | Settings cache stale/offline状态：CS.statistics118与DS.session statistics无该状态，SV292–380未显示；SM.validation offline error不是cache状态 | 无此Settings状态断言；Markets freshness不能替代“Settings displays” | `NOT IMPLEMENTED / NOT VERIFIED`；`DECISION REQUIRED` | D-04确定条目freshness或最近操作状态，不能虚构全局网络探测 |
 | S11-08；A469–486、S93–103；Stage6→11 | TD bounded session-only；AD70新session→DS各query→TransientMarketSessionStore；clear/disconnect/rotation/entitlement清除；偏好仅identifier/UIchoice | DT.sessionOnlyServiceRouting:2277重复调用只各一次、5 entries、disk sentinel不变；sessionStaleFallbackBoundaries:2326 credential error清session；UI Settings clear/Markets reconstruction | `IMPLEMENTED / VERIFIED`；E-U/E-UI，rights仍BLOCKED | 人工NOT RUN；mock transport有实际调用，不能称全系统0 |
 | S11-09；A484/510/522，S129；Stage6/7→11 | offline/timeout有旧session：DS.latestQuote411与historicalBars467保留时间并标stale；FX referenceRate633独立cache策略；MarketsView316/400显示freshness/fetched | DT.sessionStaleFallbackBoundaries断言旧price/quality.offline/stale，invalid credential不fallback；KT.fxStaleOffline:263旧rate相同/stale，miss抛missing | `IMPLEMENTED / VERIFIED`（synthetic有限分支）；E-U | 手工offline NOT RUN；不延伸为当前live entitlement或真实离线观察 |
@@ -94,12 +97,12 @@
 
 ## 6. 最小补齐候选合同与集中决策
 
-以下均是**建议，未批准、未实施**。不得据此自行扩展范围或将Stage11缺口挪到Stage12。
+除 D-02 已由本轮明确授权并实现外，以下仍是**建议，未批准、未实施**。不得据此自行扩展范围或将Stage11缺口挪到Stage12。
 
-| 决策/缺口 | 冻结文本已经确定 / 尚未确定 | 最小候选与影响范围 | 建议的必要验证（本轮全部NOT RUN） |
+| 决策/缺口 | 冻结文本已经确定 / 尚未确定 | 最小候选与影响范围 | 验证状态 / 尚需验证 |
 |---|---|---|---|
 | D-01 Currency/display | S43确定职责；未确定选项、消费视图、默认值。A266确定CNY估值权威，A240区分显示与canonical CSV | Reviewer选择“新表单默认输入币种”或一个明确显示策略；再选一个有限display选项。Settings窄preference type/store、SM/SV、AD与指定消费视图；UserDefaults只存nonsecret设置、temporary graph memory-only | 默认/未知值fallback、重启持久化、temporary隔离、UI/AX、CNY/USD/FX历史不变、无自动Provider请求。不添加主题/语言/跨设备系统，不改Money/Snapshot公式 |
-| D-02 Last cleanup time | A521已要求result/time；CS已持久化UTCInstant。nil包括reset清空metadata，不能叫never cleaned | 仅SV消费lastCleanupAt，有限稳定AX；时间格式与timezone明确，nil“尚无可用清理记录”。可同时纠正oldest epoch可读性，但需授权，不能隐式扩范围 | FixedClock exact time、重开一致、失败不推进、reset nil、SM刷新、UI时间/AX。保持TTL/水位/容量/purge/Permanent隔离不变 |
+| D-02 Last cleanup time | 已裁决唯一来源lastCleanupAt；固定Gregorian/en_US_POSIX/UTC `yyyy-MM-dd HH:mm:ss.SSS UTC`；完整前缀`Last cleanup time: `，nil尾文`No cleanup record available`，epoch-zero有效 | 已实现SM纯展示投影、SV独立可见AX Text；statistics nil仍Cache status unavailable；不写metadata、不用当前Clock替代，不修改oldest/缓存语义。初始AX等待FAIL经唯一element语义repair后重验 | E-CCT：时间/reopen/失败保持/reset/同graph刷新及UI exact-label PASS；三项共享Settings回归3/3 PASS。人工QA NOT RUN；Stage11总验收仍由Reviewer决定 |
 | D-03 OSLog | A670/675/712明确unified/private/exclusions；未确定事件/level/精确bucket必要性 | 只给现有Backup/Restore/Export/migration/rollback/manual-cleanup终态小型typed adapter；operation/result/errorCategory枚举、必要duration bucket/count。Reviewer决定是否含credential/provider lifecycle。禁止接受任意String/Error/URL/row/payload参数 | synthetic敏感哨兵不进入event，成功/失败/rollback各有限事件，adapter private-by-default静态检查；不读取真实OS logs，不加日志缓存/导出/telemetry/新依赖，不改close-to-rebind顺序 |
 | D-04 Settings stale/offline | A521明确Settings展示；尚未定义条目freshness、最近操作状态还是连通性，语义不同 | 决定准确可推导状态及nil/unknown；仅现有数据的有限显示，禁止后台探测或伪网络指示 | mock状态→Settings exact label/AX；不把Provider validation错误当cache整体状态 |
 | D-05 Offline empty-session呈现 | A484明确relaunch offline miss为Unavailable Offline；当前`.missing`丢失offline原因 | Reviewer确认服务typed error或model映射最小修正，区分offline/timeout/真missing；可能影响DS、MarketsFeatureModel及Unit/UI | fresh-session mockoffline→明确unavailable、不造值、不Synthetic fallback；旧stale保留timestamp；不新增网络/磁盘TD缓存 |
@@ -109,8 +112,8 @@ E-EP差异：`PermanentBackup.swift` 旧 `44ebae07ffbab669f984520c3efe751f5c8ba1
 
 ## 7. 结论与边界
 
-当前已实现且具有accepted synthetic/Unit/UI证据的Backup、Restore、Export、migration、CSV、Keychain/cache子合同，不覆盖尚未实现的preferences、cleanup时间展示、OSLog，以及上述状态呈现/证据限制。不能用18/18自动化宣布Stage11完整。
+已有accepted synthetic/Unit/UI证据的Backup、Restore、Export、migration、CSV、Keychain/cache子合同，以及本轮已实现并有E-CCT自动化证据的cleanup时间展示，仍不覆盖尚未实现的preferences、OSLog及上述状态呈现/证据限制。不能用历史18/18或本轮时间子关卡宣布Stage11完整。
 
-历史PID59940首次断连原因仍 `UNKNOWN`；jKe2QJ规定执行中未复现，不等于根因修复。本轮没有执行，不能说“本轮未复现”。历史完整Failed、unknown/0-test、incomplete、Mandatory Read与numeric-exit缺口原样保留在[Stage11 acceptance](STAGE11_DATA_LIFECYCLE_ACCEPTANCE.md)。
+历史PID59940首次断连原因仍 `UNKNOWN`；jKe2QJ规定执行中未复现，不等于根因修复。h3ILCY只读审计没有执行；本轮限定Settings测试通过也不构成历史断连根因修复。历史完整Failed、unknown/0-test、incomplete、Mandatory Read与numeric-exit缺口原样保留在[Stage11 acceptance](STAGE11_DATA_LIFECYCLE_ACCEPTANCE.md)。
 
 Provider requests `NOT RUN`；本轮无live Credential/Keychain/Market Cache/用户Store操作，不将synthetic fixture能力或未遥测的全系统计数伪报为0。Twelve Data persistent writes `Disabled`；Provider retention rights `BLOCKED`。无scheduling/cloud/external retention/ZIP/compression/application-layer encryption/AI新增要求；Stages12–14 `NO-GO`。未运行Git/gh，未访问.git/.secrets/default.profraw payload。建议均等待Reviewer/用户裁决；报告后STOP，不生成下一轮Prompt。
