@@ -4,6 +4,26 @@
 
 **Stage 11 PARTIAL — Awaiting Reviewer Gate**
 
+## Market Session Offline Error — S11-10 / D-05
+
+**Stage 11-MARKET-SESSION-OFFLINE-ERROR-01 PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受下节 Cache Cleanup Time 子关卡；本节不追溯改变其初始AX失败或历史证据缺口。
+
+MarketDataService 仅四个 market-session fallback miss 改为原样抛出 offline/timeout；Provider原生missing保持missing。新增Unit覆盖空session四入口、stale Search/Quote/History值及provenance、complete/empty/partial action pair、普通错误不得被stale隐藏、disk sentinel，以及Model公开Search/History的三种终态和exact disclosure。MarketsFeatureModel/View、FX referenceRate、generation/entitlement/helpers、Settings和UI Test不变。实现已编译，新增断言未形成运行通过证据。
+
+本轮证据root：`/private/tmp/Aureus-Stage11-MARKET-SESSION-OFFLINE-ERROR-01-kpBbOx`；完整[Final Execution Report](/private/tmp/Aureus-Stage11-MARKET-SESSION-OFFLINE-ERROR-01-kpBbOx/FinalExecutionReport.md)。
+
+| Gate / bundle | 实际结果 | underlying exit / parsers | canonical duration |
+|---|---|---|---|
+| C `UnitBFT.xcresult` | unsigned Debug BFT succeeded；errors0、既存Portfolio warnings4 | 0 / build0 | 40.116s |
+| D `FocusedUnit.xcresult` | 完整Failed；44 definitions / 44 executions；43/1/0；expected failures0 | 73 / summary0, tests0 | 613.495s |
+| E Full Unit；F Clean；G signed BFT | NOT RUN，未跨越D | N/A | N/A |
+
+D准确请求MarketDataInfrastructureTests、MarketsTerminalTests、ProviderBoundaryTests、KeychainAndFXInfrastructureTests、CacheIsolationTests；串行、单次test-without-building明确引用本轮隔离副本。原件/副本结构差异仅enabled AureusTests宿主参数增加一个`--aureus-temporary-store`；准确本轮宿主PID94098实际观察到参数。未修改UITargetApp参数、TestHost、签名策略、Scheme或全局目录变量。
+
+最后业务项为既有`concurrencyAndCredits()`；没有到达新增D-05断言。用户授权正常取消后，仅向准确xcodebuild PID94086发送一次SIGINT；wrapper立即记录实际返回73。唯一canonical failure是`Testing was canceled`，两个bundle均含Info.plist；不称0-business、incomplete或PASS。取消后本轮xcodebuild与host已退出，没有强杀、repair、重跑或后续Gate。并发fixture等待交错是源码层可能解释，运行时根因仍UNKNOWN，不归因于历史应用断连或本轮四处错误传播。
+
+全部UI、Release、真实Provider/用户Store/Keychain验证及人工QA：NOT RUN。旧UI不作新源码UI PASS；D-01/D-03/D-04继续开放，D-06旧26ms为HISTORICAL ONLY。Provider live requests NOT RUN；synthetic/mock操作独立分类，全进程计数NOT VERIFIED；persistent writes Disabled，retention rights BLOCKED，Stages12–14 NO-GO。
+
 ## Settings Cache Cleanup Time — S11-06 / D-02
 
 **Stage 11 Settings Cache Cleanup Time Candidate — Awaiting Reviewer Gate**。Reviewer 已接受 Scope and Evidence Audit；本轮仅实现已批准的清理时间显示合同，不决定 Stage 11 总 Gate。

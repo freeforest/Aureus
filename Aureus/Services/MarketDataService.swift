@@ -403,7 +403,7 @@ actor MarketDataService {
                     try await requireCurrent(generation, providerIdentifier: providerIdentifier)
                     return instruments
                 }
-                throw ProviderBoundaryError.missing
+                throw error
             }
             throw error
         }
@@ -458,7 +458,7 @@ actor MarketDataService {
                         freshness: .stale
                     )
                 }
-                throw ProviderBoundaryError.missing
+                throw error
             }
             throw error
         }
@@ -544,7 +544,7 @@ actor MarketDataService {
                         providerIdentifier: page.providerIdentifier
                     )
                 }
-                throw ProviderBoundaryError.missing
+                throw error
             }
             throw error
         }
@@ -616,7 +616,7 @@ actor MarketDataService {
             if Self.allowsStaleFallback(error) {
                 guard let splits = Self.splits(from: splitLookup),
                       let dividends = Self.dividends(from: dividendLookup) else {
-                    throw ProviderBoundaryError.missing
+                    throw error
                 }
                 try await requireCurrent(generation, providerIdentifier: providerIdentifier)
                 return Self.sortedActions(splits + dividends)

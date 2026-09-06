@@ -316,6 +316,115 @@ struct MarketsTerminalTests {
         #expect(model.searchResults.first?.symbol == "AAPL")
     }
 
+    @Test("Explicit Search preserves empty-session offline timeout and missing disclosure", arguments: EmptySessionFailure.allCases)
+    @MainActor
+    func emptySessionSearchFailure(failure: EmptySessionFailure) async throws {
+        let clock = FixedClock(instant: .init(millisecondsSince1970: 1_700_000_000_000))
+        let provider = CountingMarketProvider(clock: clock, failure: failure.error)
+        let dependencies = try await makeMarketDependencies(provider: provider)
+        let model = MarketsFeatureModel(
+            marketDataService: dependencies.service, marketProvider: provider,
+            sessionStore: dependencies.session,
+            preferences: MarketPreferencesStore(suiteName: nil, memoryOnly: true),
+            clock: clock, mode: .local
+        )
+        await model.start()
+        #expect(model.state == .noSessionData)
+        #expect(await provider.searchCount == 0)
+        #expect(await provider.historyCount == 0)
+        model.query = "AAPL"
+        model.submitSearch()
+        try await waitForSessionFailure(model, pendingState: .searching)
+        #expect(model.state == failure.state)
+        #expect(model.errorDisclosure == failure.disclosure)
+        #expect(await provider.searchCount == 1)
+        #expect(await provider.historyCount == 0)
+        #expect(model.searchResults.isEmpty)
+        #expect(model.ephemeralInstruments.isEmpty)
+        #expect(model.selectedInstrument == nil)
+        #expect(model.historyPage == nil)
+        #expect(model.chartPayload == nil)
+        #expect(model.indicatorSnapshot == nil)
+        #expect(model.visibleBars.isEmpty)
+        #expect(model.visibleSummary == nil)
+        #expect((await dependencies.session.statistics()).entryCount == 0)
+    }
+
+    @Test("Explicit History preserves empty-session offline timeout and missing disclosure", arguments: EmptySessionFailure.allCases)
+    @MainActor
+    func emptySessionHistoryFailure(failure: EmptySessionFailure) async throws {
+        let clock = FixedClock(instant: .init(millisecondsSince1970: 1_700_000_000_000))
+        let provider = CountingMarketProvider(clock: clock, failure: failure.error)
+        let dependencies = try await makeMarketDependencies(provider: provider)
+        let model = MarketsFeatureModel(
+            marketDataService: dependencies.service, marketProvider: provider,
+            sessionStore: dependencies.session,
+            preferences: MarketPreferencesStore(suiteName: nil, memoryOnly: true),
+            clock: clock, mode: .local
+        )
+        await model.start()
+        #expect(model.state == .noSessionData)
+        #expect(await provider.searchCount == 0)
+        #expect(await provider.historyCount == 0)
+        let instrument = MarketInstrument(
+            id: UUID(uuidString: "00000000-0000-4000-8000-000000000777")!,
+            symbol: "AAPL", mic: "XNGS", currency: .usd, displayName: "Synthetic Instrument"
+        )
+        model.select(instrument)
+        #expect(await provider.historyCount == 0)
+        model.refreshSelectedHistory()
+        try await waitForSessionFailure(model, pendingState: .loadingHistory)
+        #expect(model.state == failure.state)
+        #expect(model.errorDisclosure == failure.disclosure)
+        #expect(await provider.searchCount == 0)
+        #expect(await provider.historyCount == 1)
+        #expect(model.selectedInstrument == instrument)
+        #expect(model.searchResults.isEmpty)
+        #expect(model.historyPage == nil)
+        #expect(model.chartPayload == nil)
+        #expect(model.indicatorSnapshot == nil)
+        #expect(model.visibleBars.isEmpty)
+        #expect(model.visibleSummary == nil)
+        #expect((await dependencies.session.statistics()).entryCount == 0)
+    }
+
+    enum EmptySessionFailure: CaseIterable, Sendable {
+        case offline, timeout, missing
+
+        var error: ProviderBoundaryError {
+            switch self {
+            case .offline: .offline
+            case .timeout: .timeout
+            case .missing: .missing
+            }
+        }
+
+        var state: MarketsTerminalState {
+            switch self {
+            case .offline: .offline
+            case .timeout: .timeout
+            case .missing: .missing
+            }
+        }
+
+        var disclosure: String {
+            switch self {
+            case .offline: "Market Data Unavailable Offline."
+            case .timeout: "Provider request timed out."
+            case .missing: "Requested session data is missing."
+            }
+        }
+    }
+
+    @MainActor
+    private func waitForSessionFailure(_ model: MarketsFeatureModel, pendingState: MarketsTerminalState) async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while model.state == pendingState && ContinuousClock.now < deadline {
+            await Task.yield()
+        }
+        try #require(model.state != pendingState, "Explicit market request did not reach a terminal state")
+    }
+
     @Test("Daily ranges stay daily and one day is Latest Daily Bar")
     func dailyRangeSemantics() {
         #expect(MarketRange.oneDay.outputSize == 1)
@@ -537,9 +646,13 @@ private actor CountingMarketProvider: MarketDataProvider {
     private(set) var searchCount = 0
     private(set) var historyCount = 0
     private var capabilitySnapshot: MarketProviderCapabilities?
+    private let failure: ProviderBoundaryError?
     let clock: any Clock
 
-    init(clock: any Clock) { self.clock = clock }
+    init(clock: any Clock, failure: ProviderBoundaryError? = nil) {
+        self.clock = clock
+        self.failure = failure
+    }
 
     func capabilities() -> MarketProviderCapabilities {
         capabilitySnapshot ?? MarketProviderCapabilities(provider: descriptor, entitlement: .basic, observedPlanName: "Synthetic", markets: [], supportsSearch: true, supportsHistoricalPrices: true, supportsCorporateActions: false, endpointCapabilities: [], observedAt: clock.now())
@@ -549,6 +662,7 @@ private actor CountingMarketProvider: MarketDataProvider {
 
     func search(query: String) async throws -> [MarketInstrument] {
         searchCount += 1
+        if let failure { throw failure }
         return [MarketInstrument(id: UUID(uuidString: "00000000-0000-4000-8000-000000000777")!, symbol: query.uppercased(), mic: "XNGS", currency: .usd, displayName: "Synthetic Instrument")]
     }
 
@@ -556,6 +670,7 @@ private actor CountingMarketProvider: MarketDataProvider {
 
     func historicalBars(_ request: MarketHistoryRequest) async throws -> MarketHistoryPage {
         historyCount += 1
+        if let failure { throw failure }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let start = calendar.date(byAdding: .day, value: -79, to: clock.now().date)!
