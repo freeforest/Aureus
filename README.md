@@ -19,13 +19,15 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+最新 fixture closure：**Stage 11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。本轮只修复 Unit 的一次性会合/取消 fixture；全部 Product 冻结。Focused **107 definitions / 121 executions，121/0/0 PASS，exit0**；四请求并发、独立第五请求、取消回归及全部 Offline Service/Model 参数通过。Full Unit 完整 **470/555，554/1/0 Failed，exit65**，唯一失败方法为冻结的 `PortfolioTerminalTests.disclosureSemantics()`：旧 missing 状态/文案预期与现有 offline 传播不一致（373、374行）。未扩权修改或重跑；Clean/signed BFT/UI/Release/人工QA均NOT RUN。详见[本轮报告](/private/tmp/Aureus-Stage11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01-KnRyjx/ExecutionReport.md)。Stage11总Gate仍PARTIAL；历史实际停滞交错及UI断连原因仍UNKNOWN。
+
 当前总状态：**Stage 11 PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受 External Backup Restore UI Runtime 子关卡（Ledger `1/1`、Existing focused `12/12`、Full UI `18/18 PASS`），但这不代表 Stage 11 全部冻结要求已实现。
 
 最新 D-05 回合：**Stage 11-MARKET-SESSION-OFFLINE-ERROR-01 PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受下述 Cache Cleanup Time 子关卡。本轮仅将 MarketDataService 四个无可用 session fallback 的 offline/timeout 原样传播，并新增 Service/Model Unit 断言；Markets Model/View、FX 路径及 cleanup-time 测试未改。
 
 新 unsigned Unit BFT succeeded（exit0、canonical errors0、既存 warnings4），隔离副本及实际宿主 `--aureus-temporary-store` 已核验。Focused 在既有 `concurrencyAndCredits` 长时间未完成后，用户授权一次正常取消；最终完整 canonical **Failed，44 definitions / 44 executions，43/1/0**，expected failures0，underlying exit **73**，Info.plist存在、summary/tests parsers0/0，唯一 failure为 `Testing was canceled`。新增D-05断言尚未到达，不能计为已验证。Full Unit、Clean Build、signed BFT、全部UI/Release/人工QA均NOT RUN；无repair/retry。详见 [Final Execution Report](/private/tmp/Aureus-Stage11-MARKET-SESSION-OFFLINE-ERROR-01-kpBbOx/FinalExecutionReport.md)。取消后准确本轮进程已退出，才更新文档。
 
-S11-10 / D-05 当前为实现已修改、验证未闭合；实际offline UI仍NOT RUN。D-01、D-03、D-04继续待处理，D-06旧26ms仍HISTORICAL ONLY。下述记录保留原轮次语境，不冒充本轮新源码通过证据。
+S11-10 / D-05 的新增Service/Model限定自动化已由最新fixture closure实际验证；全量回归仍未闭合，实际offline UI仍NOT RUN。D-01、D-03、D-04继续待处理，D-06旧26ms仍HISTORICAL ONLY。下述记录保留原轮次语境，不冒充本轮新源码通过证据。
 
 Reviewer 已接受 Scope and Evidence Audit；总范围索引见 [Stage 11 Scope Evidence Matrix](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md)。本轮仅补齐 S11-06 / D-02，状态为 **Stage 11 Settings Cache Cleanup Time Candidate — Awaiting Reviewer Gate**。
 

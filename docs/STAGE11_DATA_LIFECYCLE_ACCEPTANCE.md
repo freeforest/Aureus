@@ -6,6 +6,27 @@
 
 ## Market Session Offline Error — S11-10 / D-05
 
+### Unit concurrency fixture closure — 最新限定证据
+
+**Stage 11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。
+
+仅修改 `MarketDataInfrastructureTests.swift` 的会合fixture、原并发测试、一个取消测试及紧邻支持代码。会合完成后永久解除配对等待；取消注册检查及actor内取出/清空保证continuation只恢复一次，defer归还active。原四query仍并发且maximum=2，另一个独立第五query验证不重新等待；首请求实际pending后取消，终态active=0/pending=false。10秒保护只失败/取消，不制造成功。
+
+| 本轮 Gate | 实际结果 | underlying exit / parser | duration |
+|---|---|---|---|
+| B unsigned Unit BFT | succeeded，errors0、既存warnings4 | 0 / build0 | 39.138s |
+| C Focused Unit | 107 definitions / 121 executions，121/0/0，expected failures0 | 0 / summary0、tests0 | 38.292s |
+| D Full Unit | 470 definitions / 555 executions，554/1/0，expected failures0 | 65 / summary0、tests0 | 65.950s |
+| E Clean / F fresh signed BFT | NOT RUN，D失败后停止 | N/A | N/A |
+
+三个bundle完整且Info.plist存在；[Execution Report](/private/tmp/Aureus-Stage11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01-KnRyjx/ExecutionReport.md)保存准确命令、产品、计数与范围。Focused五suite与Full均引用同一新unsigned隔离副本；唯一区别是enabled AureusTests宿主增加一次temporary-store参数，两个实际宿主均观察到该参数。全部Product及其他冻结测试不变。
+
+两项fixture测试与六个Offline Service/Model参数化定义（20个arguments）在Focused和Full中均Passed，限定自动化为VERIFIED。Full唯一失败方法为 `PortfolioTerminalTests.disclosureSemantics()`，旧373/374行仍要求benchmarkMissing及not-loaded文案，而当前公开调用返回benchmarkOffline及“Benchmark unavailable offline.”。一个失败方法含两个assertion issues；不把它写成两个失败方法。该测试冻结，本轮不修复、不重跑；正常取消次数0，business/infrastructure retry均0。
+
+上一轮kpBbOx的43/1/0取消失败保留如下。fixture存在可构造永久等待缺陷，本轮限定修复/断言通过；历史实际是否采用该交错仍UNKNOWN，不归因于Production RequestGate死锁或历史UI断连。UI、Release、真实Provider/用户数据验证及人工QA全部NOT RUN；D-01/D-03/D-04/D-06及Stage11总Gate保持原限制。
+
+### 前轮 Offline Error 原始结果（保留）
+
 **Stage 11-MARKET-SESSION-OFFLINE-ERROR-01 PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受下节 Cache Cleanup Time 子关卡；本节不追溯改变其初始AX失败或历史证据缺口。
 
 MarketDataService 仅四个 market-session fallback miss 改为原样抛出 offline/timeout；Provider原生missing保持missing。新增Unit覆盖空session四入口、stale Search/Quote/History值及provenance、complete/empty/partial action pair、普通错误不得被stale隐藏、disk sentinel，以及Model公开Search/History的三种终态和exact disclosure。MarketsFeatureModel/View、FX referenceRate、generation/entitlement/helpers、Settings和UI Test不变。实现已编译，新增断言未形成运行通过证据。

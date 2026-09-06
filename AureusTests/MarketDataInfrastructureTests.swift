@@ -307,7 +307,9 @@ private actor AdvancingProviderSleeper: ProviderSleeper {
 private actor ConcurrencyHTTPTransport: HTTPTransport {
     private var active = 0
     private var maximum = 0
-    private var firstWaiter: CheckedContinuation<Void, Never>?
+    private var calls = 0
+    private var rendezvousCompleted = false
+    private var firstWaiter: (id: UUID, continuation: CheckedContinuation<Void, Error>)?
     private let response = HTTPTransportResponse(
         data: Data(#"{"data":[{"symbol":"SYN","instrument_name":"Synthetic Concurrency","mic_code":"XNAS","currency":"USD"}]}"#.utf8),
         statusCode: 200,
@@ -315,21 +317,67 @@ private actor ConcurrencyHTTPTransport: HTTPTransport {
     )
 
     func data(for request: URLRequest) async throws -> HTTPTransportResponse {
+        try Task.checkCancellation()
+        calls += 1
         active += 1
+        defer { active -= 1 }
         maximum = max(maximum, active)
-        if active == 1 {
-            await withCheckedContinuation { continuation in
-                firstWaiter = continuation
+        if !rendezvousCompleted {
+            if active == 1 {
+                let id = UUID()
+                try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation {
+                        (continuation: CheckedContinuation<Void, Error>) in
+                        guard !Task.isCancelled else {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        firstWaiter = (id, continuation)
+                    }
+                } onCancel: {
+                    Task { await self.cancelWaiter(id: id) }
+                }
+            } else {
+                rendezvousCompleted = true
+                let waiter = firstWaiter
+                firstWaiter = nil
+                waiter?.continuation.resume()
             }
-        } else if let waiter = firstWaiter {
-            firstWaiter = nil
-            waiter.resume()
         }
-        active -= 1
+        try Task.checkCancellation()
         return response
     }
 
+    private func cancelWaiter(id: UUID) {
+        guard let waiter = firstWaiter, waiter.id == id else { return }
+        firstWaiter = nil
+        waiter.continuation.resume(throwing: CancellationError())
+    }
+
     func maximumConcurrent() -> Int { maximum }
+    func callCount() -> Int { calls }
+    func activeCount() -> Int { active }
+    func hasPendingWaiter() -> Bool { firstWaiter != nil }
+}
+
+private enum ConcurrencyFixtureError: Error {
+    case deadlineExceeded
+}
+
+// This deadline only fails and cancels the test operation; it never releases
+// the rendezvous or supplies a successful transport response.
+private func withConcurrencyFixtureDeadline(
+    _ operation: @escaping @Sendable () async throws -> Void
+) async throws {
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        defer { group.cancelAll() }
+        group.addTask(operation: operation)
+        group.addTask {
+            try await Task.sleep(for: .seconds(10))
+            throw ConcurrencyFixtureError.deadlineExceeded
+        }
+        try await group.next()
+    }
 }
 
 private actor SessionMarketProvider: MarketDataProvider {
@@ -1588,13 +1636,24 @@ struct MarketDataInfrastructureTests {
     func concurrencyAndCredits() async throws {
         let transport = ConcurrencyHTTPTransport()
         let client = try await makeClient(transport: transport, minuteLimit: 100)
-        try await withThrowingTaskGroup(of: Int.self) { group in
-            for index in 0..<4 {
-                group.addTask { try await client.search(query: "query-\(index)").count }
+        try await withConcurrencyFixtureDeadline {
+            try await withThrowingTaskGroup(of: Int.self) { group in
+                for index in 0..<4 {
+                    group.addTask { try await client.search(query: "query-\(index)").count }
+                }
+                var completed = 0
+                for try await count in group {
+                    #expect(count == 1)
+                    completed += 1
+                }
+                #expect(completed == 4)
             }
-            for try await count in group { #expect(count == 1) }
+            #expect(try await client.search(query: "standalone-fifth-query").count == 1)
         }
         #expect(await transport.maximumConcurrent() == 2)
+        #expect(await transport.callCount() == 5)
+        #expect(await transport.activeCount() == 0)
+        #expect(await transport.hasPendingWaiter() == false)
 
         let gate = ProviderRequestGate(
             maximumConcurrentRequests: 2,
@@ -1609,6 +1668,29 @@ struct MarketDataInfrastructureTests {
         )) {
             _ = try await gate.execute(credits: 2) { 1 }
         }
+    }
+
+    @Test("Concurrency fixture cancels its first waiting request without a partner")
+    func concurrencyFixtureCancellation() async throws {
+        let transport = ConcurrencyHTTPTransport()
+        let request = URLRequest(url: URL(string: "https://synthetic-provider.invalid/cancel")!)
+        try await withConcurrencyFixtureDeadline {
+            let first = Task { try await transport.data(for: request) }
+            defer { first.cancel() }
+            while !(await transport.hasPendingWaiter()) {
+                try Task.checkCancellation()
+                await Task.yield()
+            }
+            #expect(await transport.activeCount() == 1)
+            first.cancel()
+            await #expect(throws: CancellationError.self) {
+                _ = try await first.value
+            }
+        }
+        #expect(await transport.callCount() == 1)
+        #expect(await transport.maximumConcurrent() == 1)
+        #expect(await transport.activeCount() == 0)
+        #expect(await transport.hasPendingWaiter() == false)
     }
 
     @Test("Request gate resets at provider minute and UTC day boundaries")
