@@ -6,6 +6,28 @@
 
 ## Market Session Offline Error — S11-10 / D-05
 
+### Portfolio Benchmark Offline expectation closure — 当前限定 Candidate
+
+**Stage 11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。Stage11总Gate仍PARTIAL，由Reviewer决定。
+
+本轮所有技术测试/构建Gate均通过，但Mandatory Read的两处定位补读未完全保持规定顺序（内容均在修改前实际审阅）。该前置流程缺口不自行豁免，故本轮保持PARTIAL；不以技术通过宣称全部授权条件满足。
+
+本轮只改Portfolio测试的获准区域。原异步 `loadSessionBenchmark` 在空session Search收到offline后，直接验证benchmarkOffline与“Benchmark unavailable offline.”及空comparison；删除旧missing预期和该处手工注入。相邻三参数测试直接调用既有typed mapper，分别验证missing/offline/timeout的exact状态、文案、Provider policy不变及无伪造comparison；它不是missing/timeout的Provider端到端请求证据。success、clear、unsupported与全部共享helper原样保留。
+
+| Gate | 当前完整结果 | underlying exit / parsers | duration |
+|---|---|---|---|
+| B unsigned Unit BFT | succeeded，errors0、既存warnings4 | 0 / build0 | 59.272s |
+| C Focused六suite | 129 definitions / 145 executions，145/0/0 | 0 / summary0、tests0 | 45.742s |
+| D Full AureusTests | 471 definitions / 558 executions，558/0/0 | 0 / summary0、tests0 | 58.383s |
+| E Clean Debug arm64 | succeeded，errors0、既存warnings4 | 0 / build0 | 34.079s |
+| F fresh signed Debug arm64 BFT | succeeded，errors0、既存warnings4 | 0 / build0 | 48.134s |
+
+全部Info.plist存在；Unit expected failures/skipped均0。disclosureSemantics、新映射3参数、两项concurrency fixture及六个Offline定义20参数在C/D均Passed。方法开始/完成分别129/129、471/471，动态执行数不与参数日志或内部循环混算。C/D明确复用同一新unsigned隔离产品；原件/副本递归diff仅AureusTests宿主增加一个temporary-store参数，两次准确宿主均实际观察到参数。F的App/Runner strict codesign均0，arm64，local ad hoc；BFT不计UI执行。
+
+完整[ExecutionReport](/private/tmp/Aureus-Stage11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01-rIq8RG/ExecutionReport.md)记录argv/PID/UTC、结果、产品Hash与117项审计。测试期间只有获准Test变化且冻结，全部invocation结束后才更新三份文档。无编译失败、business repair/retry、infrastructure retry、re-observation或SIGINT；parser复读0。
+
+本轮UI、Release、真实Provider/用户Store、人工QA均NOT RUN。D-01 preferences、D-03 OSLog、D-04 Settings stale/offline及D-06当前Export Release仍未闭合，旧26ms为HISTORICAL ONLY。历史kpBbOx取消失败、新断言当时未到达，以及KnRyjx Full单方法两个issues均保留如下；历史实际停滞交错和UI断连根因仍UNKNOWN。
+
 ### Unit concurrency fixture closure — 最新限定证据
 
 **Stage 11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。

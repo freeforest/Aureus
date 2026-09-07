@@ -19,6 +19,12 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+最新 Portfolio 预期闭合：**Stage 11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。仅修正 `PortfolioTerminalTests.disclosureSemantics()` 的过期 offline 预期，并新增 missing/offline/timeout 三参数的有限展示映射测试；全部 Product 和其他测试冻结。当前源码 Focused **129 definitions / 145 executions，145/0/0 PASS**，Full **471/558，558/0/0 PASS**；unsigned Unit BFT、Clean Debug arm64 Build、fresh signed BFT 均通过，underlying exits 全0，完整 canonical 解析通过。两次 Unit 均使用同一已核验 temporary-store 副本，实际宿主参数均被观察到；无业务修复/重跑/取消。详见[本轮报告](/private/tmp/Aureus-Stage11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01-rIq8RG/ExecutionReport.md)及[范围矩阵](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md) E-PBO。
+
+本轮所有技术测试/构建Gate均通过，但Mandatory Read的两处定位补读未完全保持规定顺序（内容均在修改前实际审阅）。该前置流程缺口不自行豁免，故本轮保持PARTIAL；不以技术通过宣称全部授权条件满足。
+
+本轮仅闭合限定 Service/Markets/Portfolio Unit 与构建证据，Stage11总Gate仍 **PARTIAL**。真实Offline UI、所有UI suites、Release和人工QA均 **NOT RUN**；D-01、D-03、D-04、D-06继续开放。下述kpBbOx取消失败、KnRyjx Full 554/1/0及两个旧预期issues原样保留；历史停滞交错及UI断连原因仍UNKNOWN，不以本轮通过追溯改写。
+
 最新 fixture closure：**Stage 11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。本轮只修复 Unit 的一次性会合/取消 fixture；全部 Product 冻结。Focused **107 definitions / 121 executions，121/0/0 PASS，exit0**；四请求并发、独立第五请求、取消回归及全部 Offline Service/Model 参数通过。Full Unit 完整 **470/555，554/1/0 Failed，exit65**，唯一失败方法为冻结的 `PortfolioTerminalTests.disclosureSemantics()`：旧 missing 状态/文案预期与现有 offline 传播不一致（373、374行）。未扩权修改或重跑；Clean/signed BFT/UI/Release/人工QA均NOT RUN。详见[本轮报告](/private/tmp/Aureus-Stage11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01-KnRyjx/ExecutionReport.md)。Stage11总Gate仍PARTIAL；历史实际停滞交错及UI断连原因仍UNKNOWN。
 
 当前总状态：**Stage 11 PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受 External Backup Restore UI Runtime 子关卡（Ledger `1/1`、Existing focused `12/12`、Full UI `18/18 PASS`），但这不代表 Stage 11 全部冻结要求已实现。

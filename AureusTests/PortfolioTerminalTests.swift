@@ -368,16 +368,40 @@ struct PortfolioTerminalTests {
                 #expect(candidate.model.state == .benchmarkDenied)
                 #expect(candidate.model.benchmarkDisclosure == "Benchmark requires current entitlement.")
             } else {
-                // With no stale session baseline, MarketDataService deliberately
-                // contracts a recoverable offline failure to typed missing.
-                #expect(candidate.model.state == .benchmarkMissing)
-                #expect(candidate.model.benchmarkDisclosure == PortfolioFeatureModel.benchmarkNotLoadedDisclosure)
-                candidate.model.applyBenchmarkFailure(.offline)
                 #expect(candidate.model.state == .benchmarkOffline)
                 #expect(candidate.model.benchmarkDisclosure == "Benchmark unavailable offline.")
+                #expect(candidate.model.benchmarkComparison.isEmpty)
             }
             #expect(candidate.model.providerPolicyDisclosure == policy)
         }
+    }
+
+    @Test("Typed Benchmark failures preserve finite disclosure and Provider policy",
+          arguments: [ProviderBoundaryError.missing, .offline, .timeout])
+    @MainActor
+    func benchmarkFailureMapping(error: ProviderBoundaryError) async throws {
+        let fixture = try await makeFeatureModel(scenario: .success, withBenchmarkSnapshots: false)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let policy = fixture.model.providerPolicyDisclosure
+        #expect(fixture.model.benchmarkComparison.isEmpty)
+
+        fixture.model.applyBenchmarkFailure(error)
+
+        switch error {
+        case .missing:
+            #expect(fixture.model.state == .benchmarkMissing)
+            #expect(fixture.model.benchmarkDisclosure == "Benchmark session data not loaded.")
+        case .offline:
+            #expect(fixture.model.state == .benchmarkOffline)
+            #expect(fixture.model.benchmarkDisclosure == "Benchmark unavailable offline.")
+        case .timeout:
+            #expect(fixture.model.state == .benchmarkTimeout)
+            #expect(fixture.model.benchmarkDisclosure == "Benchmark request timed out. Session data was not loaded.")
+        default:
+            Issue.record("Unexpected Benchmark mapping test argument")
+        }
+        #expect(fixture.model.providerPolicyDisclosure == policy)
+        #expect(fixture.model.benchmarkComparison.isEmpty)
     }
 
     @Test("One grouped summary pass preserves 100 holding semantics and deterministic order")
