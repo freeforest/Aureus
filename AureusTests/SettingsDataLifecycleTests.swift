@@ -5,13 +5,69 @@ import Testing
 
 @Suite("Settings internal data lifecycle")
 struct SettingsDataLifecycleTests {
+    @Test("Post-commit inventory failure is not an External Restore rollback")
+    @MainActor
+    func committedRestoreRefreshFailureDiagnostics() async throws {
+        let context = try lifecycleContext()
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        try await context.store.insertIsolationSentinel(id: "original", name: "Synthetic Private Original")
+        let setup = context.model()
+        #expect(await setup.createBackup())
+        #expect(setup.selectGeneration(try #require(setup.generations.first?.id)))
+        #expect(await setup.exportSelected(to: context.destination))
+        let source = try #require(FileManager.default.contentsOfDirectory(at: context.destination, includingPropertiesForKeys: nil).first)
+        try await context.store.insertIsolationSentinel(id: "later", name: "Synthetic Later Value")
+        let live = context.externalRestoreClient
+        let backupRoot = context.paths.internalBackupDirectoryURL
+        let retained = context.root.appendingPathComponent("SyntheticRetainedBackups")
+        let client = SettingsDataLifecycleExternalRestoreClient { url, version, instant, operation, safety in
+            let result = try await live.restore(url, version, instant, operation, safety)
+            try FileManager.default.moveItem(at: backupRoot, to: retained)
+            try Data("synthetic inventory failure".utf8).write(to: backupRoot)
+            return result
+        }
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(externalRestoreClient: client, diagnostics: sink.diagnostics)
+        #expect(!(await model.restoreExternal(from: source)))
+        #expect(model.state == .failed(.externalRestoreFailed))
+        #expect(!model.isRecoveryRequired)
+        #expect(try await context.store.isolationSentinels() == ["Synthetic Private Original"])
+        #expect(FileManager.default.fileExists(atPath: retained.path))
+        #expect(sink.events == [.init(operation: .settingsExternalRestoreWorkflow, outcome: .failed, errorCategory: .inventoryRefreshAfterCommit)])
+    }
+
+    @Test("Guard rejection and raw synthetic error payload never become diagnostic payload")
+    @MainActor
+    func diagnosticPrivacyAndGuards() async throws {
+        let context = try lifecycleContext()
+        defer { try? FileManager.default.removeItem(at: context.root) }
+        let sink = RecordingDataLifecycleSink()
+        let client = SettingsDataLifecycleExportClient { _, _, _ in
+            throw NSError(domain: "Synthetic.Private.Account", code: 1, userInfo: [NSLocalizedDescriptionKey: "/synthetic/private/backup-secret.sqlite"])
+        }
+        let model = context.model(exportClient: client, diagnostics: sink.diagnostics)
+        await model.load()
+        #expect(!(await model.restoreSelected(confirmed: false)))
+        #expect(!(await model.restoreSelected(confirmed: true)))
+        #expect(!(await model.exportSelected(to: context.destination)))
+        model.externalSourceSelectionFailed()
+        model.externalDestinationSelectionFailed()
+        #expect(sink.events.isEmpty)
+        #expect(await model.createBackup())
+        #expect(model.selectGeneration(try #require(model.generations.first?.id)))
+        #expect(!(await model.exportSelected(to: context.destination)))
+        #expect(model.state == .failed(.exportFailed))
+        #expect(sink.events == [.init(operation: .settingsBackupWorkflow, outcome: .succeeded, errorCategory: .none), .init(operation: .settingsExportWorkflow, outcome: .failed, errorCategory: .unknown)])
+    }
+
     @Test("Initial load and reconstruction remain read-only and empty")
     @MainActor
     func initialLoadIsReadOnly() async throws {
         let context = try lifecycleContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
 
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         #expect(model.state == .idle)
         #expect(model.generations.isEmpty)
         await model.load()
@@ -22,6 +78,7 @@ struct SettingsDataLifecycleTests {
         #expect(replacement.state == .idle)
         #expect(replacement.validGenerationCount == 0)
         #expect(!FileManager.default.fileExists(atPath: context.paths.internalBackupDirectoryURL.path))
+        #expect(sink.events.isEmpty)
     }
 
     @Test("Valid inventory preserves Foundation order and ignored diagnostics")
@@ -63,7 +120,8 @@ struct SettingsDataLifecycleTests {
     func explicitCreate() async throws {
         let context = try lifecycleContext(ids: [lifecycleUUID(10)])
         defer { try? FileManager.default.removeItem(at: context.root) }
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         await model.load()
         #expect(await model.createBackup())
         #expect(model.state == .ready)
@@ -72,6 +130,7 @@ struct SettingsDataLifecycleTests {
         #expect(try await context.store.permanentBackupInventory(
             in: context.paths.internalBackupDirectoryURL
         ).validGenerations.count == 1)
+        #expect(sink.events == [.init(operation: .settingsBackupWorkflow, outcome: .succeeded, errorCategory: .none)])
     }
 
     @Test("Create failure publishes no fabricated row")
@@ -79,17 +138,20 @@ struct SettingsDataLifecycleTests {
     func createFailureHasNoFakeGeneration() async throws {
         let context = try lifecycleContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
+        let sink = RecordingDataLifecycleSink()
         let model = SettingsDataLifecycleModel(
             store: context.store,
             backupRoot: context.root.appendingPathComponent("NotBackups"),
             appVersion: lifecycleAppVersion,
             clock: lifecycleClock,
             exportClient: context.exportClient,
-            externalRestoreClient: context.externalRestoreClient
+            externalRestoreClient: context.externalRestoreClient,
+            diagnostics: sink.diagnostics
         )
         #expect(!(await model.createBackup()))
         #expect(model.state == .failed(.createFailed))
         #expect(model.generations.isEmpty)
+        #expect(sink.events == [.init(operation: .settingsBackupWorkflow, outcome: .failed, errorCategory: .backup)])
     }
 
     @Test("Reload revalidates inventory and clears stale selection")
@@ -132,7 +194,8 @@ struct SettingsDataLifecycleTests {
     func explicitExternalExport() async throws {
         let context = try lifecycleContext(ids: [lifecycleUUID(22), lifecycleUUID(23)])
         defer { try? FileManager.default.removeItem(at: context.root) }
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         await model.load()
         #expect(await model.createBackup())
         let identity = try #require(model.generations.first?.id)
@@ -187,6 +250,7 @@ struct SettingsDataLifecycleTests {
         #expect(reconstructed.externalExportResult == nil)
         #expect(reconstructed.selectedGenerationID == nil)
         #expect(!reconstructed.canExport)
+        #expect(sink.events == [.init(operation: .settingsBackupWorkflow, outcome: .succeeded, errorCategory: .none), .init(operation: .settingsExportWorkflow, outcome: .succeeded, errorCategory: .none)])
     }
 
     @Test("Export failure is finite recoverable and never recovery-required")
@@ -197,7 +261,8 @@ struct SettingsDataLifecycleTests {
         let failing = SettingsDataLifecycleExportClient { _, _, _ in
             throw PermanentBackupExportError.destinationCollision
         }
-        let model = context.model(exportClient: failing)
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(exportClient: failing, diagnostics: sink.diagnostics)
         await model.load()
         #expect(await model.createBackup())
         let identity = try #require(model.generations.first?.id)
@@ -209,6 +274,7 @@ struct SettingsDataLifecycleTests {
         #expect(model.selectedGenerationID == identity)
         #expect(model.canExport)
         #expect(model.externalExportResult == nil)
+        #expect(sink.events.last == .init(operation: .settingsExportWorkflow, outcome: .failed, errorCategory: .export))
     }
 
     @Test("Exporting blocks Create Restore and a second Export")
@@ -220,7 +286,8 @@ struct SettingsDataLifecycleTests {
         let client = SettingsDataLifecycleExportClient { source, destination, operationID in
             try await blocker.export(source, destination, operationID)
         }
-        let model = context.model(exportClient: client)
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(exportClient: client, diagnostics: sink.diagnostics)
         await model.load()
         #expect(await model.createBackup())
         let identity = try #require(model.generations.first?.id)
@@ -242,6 +309,7 @@ struct SettingsDataLifecycleTests {
         blocker.finish()
         #expect(await first.value)
         #expect(model.state == .ready)
+        #expect(sink.events.filter { $0.operation == .settingsExportWorkflow }.count == 1)
     }
 
     @Test("Foundation revalidation rejects a stale source after selection")
@@ -353,7 +421,8 @@ struct SettingsDataLifecycleTests {
             id: "settings-external-original",
             name: "Synthetic Settings External Original"
         )
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         await model.load()
         #expect(await model.createBackup())
         let internalIdentity = try #require(model.generations.first?.id)
@@ -405,6 +474,7 @@ struct SettingsDataLifecycleTests {
         #expect(reconstructed.externalRestoreResult == nil)
         #expect(reconstructed.selectedGenerationID == nil)
         #expect(reconstructed.canRestoreExternal)
+        #expect(sink.events == [.init(operation: .settingsBackupWorkflow, outcome: .succeeded, errorCategory: .none), .init(operation: .settingsExportWorkflow, outcome: .succeeded, errorCategory: .none), .init(operation: .settingsExternalRestoreWorkflow, outcome: .succeeded, errorCategory: .none)])
     }
 
     @Test("Invalid External candidate is a finite sanitized failure before safety Backup")
@@ -412,7 +482,8 @@ struct SettingsDataLifecycleTests {
     func invalidExternalRestorePresentation() async throws {
         let context = try lifecycleContext(ids: [lifecycleUUID(39), lifecycleUUID(40)])
         defer { try? FileManager.default.removeItem(at: context.root) }
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         await model.load()
         #expect(!(await model.restoreExternal(from: context.destination)))
         #expect(model.state == .failed(.externalRestoreFailed))
@@ -422,6 +493,7 @@ struct SettingsDataLifecycleTests {
             in: context.paths.internalBackupDirectoryURL
         ).validGenerations.isEmpty)
         #expect(await context.store.maintenanceState == .ready)
+        #expect(sink.events == [.init(operation: .settingsExternalRestoreWorkflow, outcome: .failed, errorCategory: .externalRestore)])
     }
 
     @Test("External Restore rollback success and failure have bounded states")
@@ -434,7 +506,8 @@ struct SettingsDataLifecycleTests {
         let rolledBack = SettingsDataLifecycleExternalRestoreClient { _, _, _, _, _ in
             throw PermanentExternalRestoreError.restoreFailedRollbackSucceeded(.migration)
         }
-        let finite = context.model(externalRestoreClient: rolledBack)
+        let sink = RecordingDataLifecycleSink()
+        let finite = context.model(externalRestoreClient: rolledBack, diagnostics: sink.diagnostics)
         await finite.load()
         #expect(!(await finite.restoreExternal(from: context.destination)))
         #expect(finite.state == .failed(.externalRestoreRolledBack))
@@ -444,9 +517,10 @@ struct SettingsDataLifecycleTests {
         let failedRollback = SettingsDataLifecycleExternalRestoreClient { _, _, _, _, _ in
             throw PermanentExternalRestoreError.rollbackFailed
         }
-        let recovery = context.model(externalRestoreClient: failedRollback)
+        let recovery = context.model(externalRestoreClient: failedRollback, diagnostics: sink.diagnostics)
         await recovery.load()
         #expect(!(await recovery.restoreExternal(from: context.destination)))
+        #expect(sink.events == [.init(operation: .settingsExternalRestoreWorkflow, outcome: .rolledBack, errorCategory: .externalRestore), .init(operation: .settingsExternalRestoreWorkflow, outcome: .recoveryRequired, errorCategory: .externalRestore)])
         #expect(recovery.state == .recoveryRequired)
         #expect(recovery.recoveryRequiredLabel != nil)
         #expect(!recovery.canCreateBackup)
@@ -495,7 +569,8 @@ struct SettingsDataLifecycleTests {
     func unconfirmedRestore() async throws {
         let context = try lifecycleContext(ids: [lifecycleUUID(30)])
         defer { try? FileManager.default.removeItem(at: context.root) }
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         #expect(await model.createBackup())
         let identity = try #require(model.generations.first?.id)
         #expect(model.selectGeneration(identity))
@@ -505,6 +580,8 @@ struct SettingsDataLifecycleTests {
             in: context.paths.internalBackupDirectoryURL
         ).validGenerations.count == 1)
         #expect(await context.store.maintenanceState == .ready)
+        #expect(sink.events.count == 1)
+        #expect(sink.events[0].operation == .settingsBackupWorkflow)
     }
 
     @Test("Confirmed Restore retains candidate and safety and rebinds the same Store")
@@ -518,7 +595,8 @@ struct SettingsDataLifecycleTests {
             id: "settings-restore-original",
             name: "Synthetic Settings Restore Original"
         )
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         #expect(await model.createBackup())
         let candidateIdentity = try #require(model.generations.first?.id)
         let candidate = try #require(try await context.store.permanentBackupInventory(
@@ -548,6 +626,7 @@ struct SettingsDataLifecycleTests {
             $0.directoryURL.lastPathComponent != candidateIdentity
         })
         #expect(try lifecycleAccountNames(in: safety).contains("Synthetic Settings Restore Current Only"))
+        #expect(sink.events == [.init(operation: .settingsBackupWorkflow, outcome: .succeeded, errorCategory: .none), .init(operation: .settingsInternalRestoreWorkflow, outcome: .succeeded, errorCategory: .none)])
     }
 
     @Test("Rollback-succeeded Restore is a finite failed state")
@@ -563,7 +642,8 @@ struct SettingsDataLifecycleTests {
             id: "settings-rollback-old",
             name: "Synthetic Settings Rollback Old"
         )
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         #expect(await model.createBackup())
         let identity = try #require(model.generations.first?.id)
         #expect(model.selectGeneration(identity))
@@ -571,6 +651,7 @@ struct SettingsDataLifecycleTests {
         #expect(model.state == .failed(.restoreRolledBack))
         #expect(model.errorLabel?.contains("recovered from the safety Backup") == true)
         #expect(try await context.store.isolationSentinels() == ["Synthetic Settings Rollback Old"])
+        #expect(sink.events.last == .init(operation: .settingsInternalRestoreWorkflow, outcome: .rolledBack, errorCategory: .restore))
     }
 
     @Test("Rollback failure enters recoveryRequired and blocks mutations")
@@ -582,7 +663,8 @@ struct SettingsDataLifecycleTests {
             operations: operations
         )
         defer { try? FileManager.default.removeItem(at: context.root) }
-        let model = context.model()
+        let sink = RecordingDataLifecycleSink()
+        let model = context.model(diagnostics: sink.diagnostics)
         #expect(await model.createBackup())
         let identity = try #require(model.generations.first?.id)
         #expect(model.selectGeneration(identity))
@@ -597,6 +679,7 @@ struct SettingsDataLifecycleTests {
         #expect(!(await model.exportSelected(to: context.destination)))
         #expect(!(await model.restoreExternal(from: context.destination)))
         #expect(!model.selectGeneration(identity))
+        #expect(sink.events.last == .init(operation: .settingsInternalRestoreWorkflow, outcome: .recoveryRequired, errorCategory: .restore))
     }
 
     @Test("A restoring operation rejects concurrent mutation")
@@ -761,7 +844,8 @@ private struct LifecycleContext {
     @MainActor
     func model(
         exportClient: SettingsDataLifecycleExportClient? = nil,
-        externalRestoreClient: SettingsDataLifecycleExternalRestoreClient? = nil
+        externalRestoreClient: SettingsDataLifecycleExternalRestoreClient? = nil,
+        diagnostics: DataLifecycleDiagnostics = .disabled
     ) -> SettingsDataLifecycleModel {
         SettingsDataLifecycleModel(
             store: store,
@@ -771,7 +855,8 @@ private struct LifecycleContext {
             generationID: { ids.next() },
             restoreFileOperations: operations,
             exportClient: exportClient ?? self.exportClient,
-            externalRestoreClient: externalRestoreClient ?? self.externalRestoreClient
+            externalRestoreClient: externalRestoreClient ?? self.externalRestoreClient,
+            diagnostics: diagnostics
         )
     }
 }

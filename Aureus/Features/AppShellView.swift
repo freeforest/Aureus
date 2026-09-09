@@ -112,7 +112,8 @@ struct AppShellView: View {
                     dataLifecycleGenerationID: dependencies.dataLifecycleGenerationID,
                     clock: dependencies.clock,
                     mode: mode,
-                    generalPreferences: dependencies.generalPreferencesStore
+                    generalPreferences: dependencies.generalPreferencesStore,
+                    diagnostics: dependencies.diagnostics
                 )
             } else {
                 VStack(spacing: 0) {

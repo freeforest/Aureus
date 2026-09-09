@@ -4,6 +4,43 @@
 
 **Stage 11 PARTIAL — Awaiting Reviewer Gate**
 
+## E-OSL — Privacy-safe OSLog 有限实现
+
+2026-09-09：**PARTIAL — Awaiting Reviewer Gate**。本轮 D-03 的 typed adapter 仅接收三个有限枚举，无自由文本、Error、URL、identity 或金融字段。固定 `com.aureus.wealthterminal` / `data-lifecycle`，成功 info，其余终态 error；六处动态插值均显式 private。AppDependencies 在 WealthStore 创建前选 backend，并向 Store、Settings 两个 model 传递同 graph diagnostics；Production OSLog、temporary disabled，View 布局/文案/AX 未改。
+
+| 本轮实际 Gate | canonical / 底层 exit | 证据边界 |
+|---|---|---|
+| Unsigned Unit BFT | succeeded，0 errors，exit 0，build parser 0 | Fresh arm64 产品；四条 warning 位于未改的 PortfolioView |
+| Focused 11 suites | 205 definitions / 264 executions，264/0/0，expected failures 0；exit 0；parsers 0/0 | 所有选定定义/参数 Passed，15.288 s |
+| Full AureusTests | 488 definitions / 587 executions，587/0/0，expected failures 0；exit 0；parsers 0/0 | 同一冻结隔离产品，55.698 s；fixture 两项、Offline 20 参数、Portfolio mapping 三参数均 Passed |
+
+九类事件：Settings Backup、内部 Restore、Export、External Restore workflow；手动 removeExpired、clearSession、resetCache、applyMaximum；Permanent migration。真实 synthetic 成功/有限失败、内部真实 rollback succeeded/failed、外部受控 rollback 呈现、guard 拒绝、四项手动缓存及真实容量 overflow 失败、fresh/legacy 迁移和 current no-op 均有断言。迁移 preflight 缺配置为真实失败；其他 migration 分类仅 mapping coverage。External Restore 实际提交后故意破坏 inventory 读取，验证事件为 `failed / inventoryRefreshAfterCommit`，而 Store 已恢复、未伪称 rollback；Backup/内部 Restore 同阶段分支为静态接线核对，未单独注入该刷新故障。
+
+显式 synthetic Error/路径/账户哨兵不进入事件，固定枚举 OSLog smoke 只验证调用路径。真实 OSLogStore/Console、日志最终交付/留存/端到端人工脱敏 **NOT RUN / NOT VERIFIED**。无系统日志读取。没有 source repair、业务重跑、基础设施重试或取消；实现阶段及文档阶段各一次 apply_patch 上下文/顺序匹配失败，均在应用前失败，未产生部分修改。Project Sources 710–729 行在新增 adapter 后、Project 修改前补读，此阅读顺序偏差不追溯消除。
+
+本轮原 120 项保留并新增两项；测试期间源码/Project 冻结，测试后仅更新三份文档。Unit 原件保留，同 Products 副本唯一结构差异为 enabled AureusTests 的 `--aureus-temporary-store`；Focused/Full 准确宿主均观察到该参数。完整命令、Hash、结果与局部审计见 [ExecutionReport](/private/tmp/Aureus-Stage11-PRIVACY-SAFE-OSLOG-01-Dlr35W/ExecutionReport.md)。
+
+Reviewer 已接受下述 E-GSC D-01/D-04 及 E-GSC-AUTH 四 UI 技术证据；本轮 inherited / NOT RUN。旧 UI 产品与本轮产品不同，不声称 current-source UI PASS。所有 UI、signed BFT、Clean、Release、真实 Provider/离线及人工 QA 本轮 NOT RUN；D-06、S11-05 全字段 AX、剩余集中验收仍开放。历史初始化 Failed、用户认证 USER REPORTED、UNKNOWN、取消及 Mandatory Read/numeric-exit 缺口均保留。
+
+## E-GSC-AUTH — 有值守 Runner 授权诊断
+
+2026-09-09：**Settings UI closure 完成，四项 UI PASS — Awaiting Reviewer Gate**。本轮零 Product/Test 修改、零 build/re-sign。用户回复“我授权。”同意当次有值守运行，结束后明确确认看见系统认证框并由本人完成认证；这是用户自报，不是 Executor 读取认证画面。Executor 未操作认证或安全设置。
+
+唯一串行 `test-without-building`：wrapper PID 38962、xcodebuild PID 38967，UTC `2026-09-09T11:16:06.478051Z` → `2026-09-09T11:21:14.589839Z`；underlying exit **0**、signal null。完整 `SettingsFocusedUI.xcresult` canonical **Passed**，**4 definitions / 4 executions、4/0/0**、expected failures 0；methods started / completed workflows **4/4**。Info.plist 存在，summary/tests parser exits **0/0**；canonical duration **302.860 s**。
+
+| Exact method（前缀 AureusUITests/AureusUITests/） | 结果 / duration | 限定业务证据 |
+|---|---|---|
+| testStage11GeneralPreferencesAffectWealthWithoutChangingValuation | Passed / 84.618 s | CNY/On → USD/Off，同 graph 新建默认/手动选择、金额与 AX、CNY/USD 编辑保留金额/FX、返回保持、temporary 重启默认 |
+| testStage11SettingsCacheStatusTracksSessionAndClear | Passed / 39.465 s | Session/disk 独立空状态、Not checked、真实 synthetic search 后 Session TTL 内 1/disk 0、Clear 回 0、唯一 AX/session-only |
+| testStage6SettingsCredentialEntitlementAndCacheLifecycle | Passed / 88.062 s | 既有 synthetic credential/session/cache/cleanup-time/reset/同 graph 导航与隔离断言 |
+| testWealthCNYUSDLiabilityCRUDAndDynamicTotals | Passed / 79.065 s | 既有隔离 CNY/USD/liability 新建、编辑、删除与动态总额断言 |
+
+运行前后 `automationmodetool` 无参数查询 exit0，均显示 disabled 且启用需要认证；disabled 本身不是异常。可报告本次用户处理认证后运行恢复，不能认定所有历史超时的唯一根因。canonical 保留两个内部 QoS runtime warnings，不是 failure 或因果证明。本轮使用原工作包唯一基础设施重试 **1/1**，无第二次调用、repair、取消或信号。
+
+测试前后 120 项与 BASE 四项产品 Hash 全匹配；arm64/Bundle IDs/strict codesign 通过。结束后准确相关进程无残留，才更新三份文档。E-GSC Focused131/163、Full480/576及 unsigned/signed BFT 为 **VERIFIED inherited evidence / NOT RUN in this diagnostic**。[ExecutionReport](/private/tmp/Aureus-Stage11-UI-AUTOMATION-AUTH-DIAGNOSTIC-01-dtbH84/ExecutionReport.md)包含命令、身份、完整结果与审计。
+
+下述 Twl3v5 Failed、历史 UNKNOWN/阅读/退出码缺口保持。Full UI、Release、真实 Provider/离线与人工 QA 本轮 NOT RUN；expired/legacy/failure UI 分支、S11-05 全字段 AX、D-03 OSLog、D-06 当前 Export Release 及集中验收不由四项 PASS 自动关闭。Stage11 总 Gate PARTIAL，Stages12–14 NO-GO。
+
 ## Settings Preferences / Cache Status UI continuation — 初始化失败
 
 2026-09-09：**PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受下述 E-GSC Unit/BFT，当前以 **VERIFIED inherited evidence / NOT RUN in this continuation** 继承。120 项源码及四项 frozen signed 产品身份完全匹配，arm64、Bundle IDs、App/Runner strict codesign 通过；用户在本次完整桌面条件问题后回复“确认。”。

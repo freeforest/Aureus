@@ -116,6 +116,7 @@ final class SettingsDataLifecycleModel {
     @ObservationIgnored private let restoreFileOperations: any PermanentRestoreFileOperations
     @ObservationIgnored private let exportClient: SettingsDataLifecycleExportClient
     @ObservationIgnored private let externalRestoreClient: SettingsDataLifecycleExternalRestoreClient
+    @ObservationIgnored private let diagnostics: DataLifecycleDiagnostics
     @ObservationIgnored private var generationURLs: [String: URL] = [:]
     @ObservationIgnored private var revision = 0
 
@@ -127,7 +128,8 @@ final class SettingsDataLifecycleModel {
         generationID: @escaping @Sendable () -> UUID = { UUID() },
         restoreFileOperations: any PermanentRestoreFileOperations = LocalPermanentRestoreFileOperations(),
         exportClient: SettingsDataLifecycleExportClient,
-        externalRestoreClient: SettingsDataLifecycleExternalRestoreClient
+        externalRestoreClient: SettingsDataLifecycleExternalRestoreClient,
+        diagnostics: DataLifecycleDiagnostics = .disabled
     ) {
         self.store = store
         self.backupRoot = backupRoot
@@ -137,6 +139,7 @@ final class SettingsDataLifecycleModel {
         self.restoreFileOperations = restoreFileOperations
         self.exportClient = exportClient
         self.externalRestoreClient = externalRestoreClient
+        self.diagnostics = diagnostics
     }
 
     var validGenerationCount: Int { generations.count }
@@ -251,6 +254,7 @@ final class SettingsDataLifecycleModel {
     func createBackup() async -> Bool {
         guard canCreateBackup else { return false }
         let token = begin(.creatingBackup)
+        var committed = false
         do {
             _ = try await store.createPermanentBackup(
                 in: backupRoot,
@@ -258,16 +262,19 @@ final class SettingsDataLifecycleModel {
                 createdAt: clock.now(),
                 generationID: generationID()
             )
+            committed = true
             let inventory = try await store.permanentBackupInventory(in: backupRoot)
             guard token == revision else { return false }
             publish(inventory, clearingSelection: true)
             operationMessage = "Backup Created"
             state = .ready
+            diagnostics.record(.init(operation: .settingsBackupWorkflow, outcome: .succeeded, errorCategory: .none))
             return true
         } catch {
             guard token == revision else { return false }
             selectedGenerationID = nil
             state = .failed(.createFailed)
+            diagnostics.record(.init(operation: .settingsBackupWorkflow, outcome: .failed, errorCategory: committed ? .inventoryRefreshAfterCommit : (error is PermanentBackupError ? .backup : .unknown)))
             return false
         }
     }
@@ -298,6 +305,7 @@ final class SettingsDataLifecycleModel {
         }
 
         let token = begin(.restoring)
+        var committed = false
         do {
             let revalidated = try await store.validatePermanentBackup(
                 generationURL,
@@ -315,11 +323,13 @@ final class SettingsDataLifecycleModel {
                 safetyGenerationID: generationID(),
                 fileOperations: restoreFileOperations
             )
+            committed = true
             let inventory = try await store.permanentBackupInventory(in: backupRoot)
             guard token == revision else { return false }
             publish(inventory, clearingSelection: true)
             operationMessage = "Restore Completed"
             state = .ready
+            diagnostics.record(.init(operation: .settingsInternalRestoreWorkflow, outcome: .succeeded, errorCategory: .none))
             return true
         } catch let error as PermanentRestoreError {
             guard token == revision else { return false }
@@ -327,16 +337,20 @@ final class SettingsDataLifecycleModel {
             switch error {
             case .rollbackFailed:
                 state = .recoveryRequired
+                diagnostics.record(.init(operation: .settingsInternalRestoreWorkflow, outcome: committed ? .failed : .recoveryRequired, errorCategory: committed ? .inventoryRefreshAfterCommit : .restore))
             case .restoreFailedRollbackSucceeded:
                 state = .failed(.restoreRolledBack)
+                diagnostics.record(.init(operation: .settingsInternalRestoreWorkflow, outcome: committed ? .failed : .rolledBack, errorCategory: committed ? .inventoryRefreshAfterCommit : .restore))
             default:
                 state = .failed(.restoreFailed)
+                diagnostics.record(.init(operation: .settingsInternalRestoreWorkflow, outcome: .failed, errorCategory: committed ? .inventoryRefreshAfterCommit : .restore))
             }
             return false
         } catch {
             guard token == revision else { return false }
             selectedGenerationID = nil
             state = .failed(.restoreFailed)
+            diagnostics.record(.init(operation: .settingsInternalRestoreWorkflow, outcome: .failed, errorCategory: committed ? .inventoryRefreshAfterCommit : (error is PermanentBackupError ? .backup : .unknown)))
             return false
         }
     }
@@ -367,11 +381,13 @@ final class SettingsDataLifecycleModel {
             )
             operationMessage = "External Backup Export Completed"
             state = .ready
+            diagnostics.record(.init(operation: .settingsExportWorkflow, outcome: .succeeded, errorCategory: .none))
             return true
         } catch {
             guard token == revision else { return false }
             externalExportResult = nil
             state = .failed(.exportFailed)
+            diagnostics.record(.init(operation: .settingsExportWorkflow, outcome: .failed, errorCategory: error is PermanentBackupExportError ? .export : .unknown))
             return false
         }
     }
@@ -395,6 +411,7 @@ final class SettingsDataLifecycleModel {
         guard canRestoreExternal else { return false }
 
         let token = begin(.restoringExternalBackup)
+        var committed = false
         do {
             let result = try await externalRestoreClient.restore(
                 generationURL,
@@ -403,6 +420,7 @@ final class SettingsDataLifecycleModel {
                 generationID(),
                 generationID()
             )
+            committed = true
             let inventory = try await store.permanentBackupInventory(in: backupRoot)
             guard token == revision else { return false }
             publish(inventory, clearingSelection: true)
@@ -415,6 +433,7 @@ final class SettingsDataLifecycleModel {
             )
             operationMessage = "External Backup Restore Completed"
             state = .ready
+            diagnostics.record(.init(operation: .settingsExternalRestoreWorkflow, outcome: .succeeded, errorCategory: .none))
             return true
         } catch let error as PermanentExternalRestoreError {
             guard token == revision else { return false }
@@ -423,10 +442,13 @@ final class SettingsDataLifecycleModel {
             switch error {
             case .rollbackFailed:
                 state = .recoveryRequired
+                diagnostics.record(.init(operation: .settingsExternalRestoreWorkflow, outcome: committed ? .failed : .recoveryRequired, errorCategory: committed ? .inventoryRefreshAfterCommit : .externalRestore))
             case .restoreFailedRollbackSucceeded:
                 state = .failed(.externalRestoreRolledBack)
+                diagnostics.record(.init(operation: .settingsExternalRestoreWorkflow, outcome: committed ? .failed : .rolledBack, errorCategory: committed ? .inventoryRefreshAfterCommit : .externalRestore))
             default:
                 state = .failed(.externalRestoreFailed)
+                diagnostics.record(.init(operation: .settingsExternalRestoreWorkflow, outcome: .failed, errorCategory: committed ? .inventoryRefreshAfterCommit : .externalRestore))
             }
             return false
         } catch {
@@ -434,6 +456,7 @@ final class SettingsDataLifecycleModel {
             selectedGenerationID = nil
             externalRestoreResult = nil
             state = .failed(.externalRestoreFailed)
+            diagnostics.record(.init(operation: .settingsExternalRestoreWorkflow, outcome: .failed, errorCategory: committed ? .inventoryRefreshAfterCommit : .unknown))
             return false
         }
     }

@@ -275,10 +275,45 @@ struct GeneralSettingsTests {
         try queue.close()
     }
 
-    private func model(_ graph: AppDependencies) -> SettingsFeatureModel {
+    @Test("Only completed manual cache workflows emit finite diagnostics")
+    func manualCacheDiagnostics() async throws {
+        let root = try directory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let graph = try await AppDependencies.make(configuration: LaunchConfiguration(dataMode: .local, usesTemporaryStores: true, temporaryRoot: root))
+        #expect(!graph.diagnostics.isEnabled)
+        #expect(!(await graph.wealthStore.diagnostics.isEnabled))
+        try await graph.wealthStore.insertIsolationSentinel(id: "diagnostic-sentinel", name: "Synthetic Private Account")
+        let sink = RecordingDataLifecycleSink()
+        let model = model(graph, diagnostics: sink.diagnostics)
+        await model.load()
+        await model.refreshCacheStatus()
+        #expect(sink.events.isEmpty)
+        await model.removeExpired()
+        await model.clearSessionMarketData()
+        await model.resetCache()
+        model.selectedMaximumMiB = 256
+        await model.applyMaximum()
+        #expect(model.errorMessage == nil)
+        #expect(sink.events == [
+            .init(operation: .settingsRemoveExpiredWorkflow, outcome: .succeeded, errorCategory: .none),
+            .init(operation: .settingsClearSessionWorkflow, outcome: .succeeded, errorCategory: .none),
+            .init(operation: .settingsResetCacheWorkflow, outcome: .succeeded, errorCategory: .none),
+            .init(operation: .settingsApplyMaximumWorkflow, outcome: .succeeded, errorCategory: .none)
+        ])
+        model.selectedMaximumMiB = Int.max
+        await model.applyMaximum()
+        #expect(model.errorMessage != nil)
+        #expect(sink.events.count == 5)
+        #expect(sink.events.last == .init(operation: .settingsApplyMaximumWorkflow, outcome: .failed, errorCategory: .cachePolicy))
+        #expect(try await graph.marketCacheStore.statistics().maximumBytes == 256 * CachePolicyConfiguration.mebibyte)
+        #expect(try await graph.wealthStore.isolationSentinels() == ["Synthetic Private Account"])
+    }
+
+    private func model(_ graph: AppDependencies, diagnostics: DataLifecycleDiagnostics = .disabled) -> SettingsFeatureModel {
         SettingsFeatureModel(provider: graph.marketDataProvider, marketDataService: graph.marketDataService,
             credentialCoordinator: graph.credentialCoordinator, cache: graph.marketCacheStore,
-            sessionStore: graph.marketSessionStore, clock: graph.clock, generalPreferences: graph.generalPreferencesStore)
+            sessionStore: graph.marketSessionStore, clock: graph.clock, generalPreferences: graph.generalPreferencesStore,
+            diagnostics: diagnostics)
     }
 
     private func directory() throws -> URL {

@@ -25,6 +25,7 @@ struct AppDependencies: Sendable {
     let permanentExternalRestoreConfiguration: PermanentExternalRestoreConfiguration
     let appVersion: String
     let dataLifecycleGenerationID: @Sendable () -> UUID
+    let diagnostics: DataLifecycleDiagnostics
 
     static func make(
         configuration: LaunchConfiguration,
@@ -46,6 +47,7 @@ struct AppDependencies: Sendable {
             createdAt: { clock.now() },
             generationID: { UUID() }
         )
+        let diagnostics: DataLifecycleDiagnostics = configuration.usesTemporaryStores ? .disabled : .osLog
         let wealthStore = try WealthStore(
             databaseURL: paths.permanentDatabaseURL,
             migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration(
@@ -53,7 +55,8 @@ struct AppDependencies: Sendable {
                 appVersion: safetyInputs.appVersion,
                 createdAt: safetyInputs.createdAt,
                 generationID: safetyInputs.generationID
-            )
+            ),
+            diagnostics: diagnostics
         )
         let permanentBackupExportConfiguration = PermanentBackupExportConfiguration(
             internalBackupRootURL: paths.internalBackupDirectoryURL,
@@ -171,7 +174,8 @@ struct AppDependencies: Sendable {
             permanentBackupExportConfiguration: permanentBackupExportConfiguration,
             permanentExternalRestoreConfiguration: permanentExternalRestoreConfiguration,
             appVersion: safetyInputs.appVersion,
-            dataLifecycleGenerationID: safetyInputs.generationID
+            dataLifecycleGenerationID: safetyInputs.generationID,
+            diagnostics: diagnostics
         )
     }
 

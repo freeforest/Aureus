@@ -26,23 +26,35 @@ private final class MigrationInvocationCounter: @unchecked Sendable {
 
 @Suite("Permanent migration safety")
 struct PermanentMigrationSafetyTests {
+    @Test("Migration error mapping drops synthetic associated payloads; not engine failure coverage")
+    func diagnosticErrorMapping() {
+        #expect(WealthStore.migrationDiagnosticCategory(PermanentMigrationSafetyError.preMigrationBackupFailed) == .migrationBackup)
+        #expect(WealthStore.migrationDiagnosticCategory(PermanentMigrationSafetyError.migrationFailed(preMigrationGenerationIdentity: "Synthetic-Private-Generation", storeState: .unchangedLegacy)) == .migrationExecution)
+        #expect(WealthStore.migrationDiagnosticCategory(PermanentMigrationSafetyError.postMigrationValidationFailed(preMigrationGenerationIdentity: "/synthetic/private/generation")) == .migrationPostValidation)
+        #expect(WealthStore.migrationDiagnosticCategory(SyntheticMigrationSafetyFailure.intentional) == .unknown)
+    }
+
     @Test("Fresh Store migrates without creating a pre-migration Backup")
     func freshStore() async throws {
+        let sink = RecordingDataLifecycleSink()
         let context = try migrationSafetyContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
 
         let store = try WealthStore(
             databaseURL: context.paths.permanentDatabaseURL,
-            migrationSafetyConfiguration: context.configuration(id: 1)
+            migrationSafetyConfiguration: context.configuration(id: 1),
+            diagnostics: sink.diagnostics
         )
 
         #expect(try await store.schemaVersion() == 6)
         #expect(try migrationInventory(context).validGenerations.isEmpty)
         #expect(await store.lastMigrationSafetyResult?.initialState == .fresh)
+        #expect(sink.events == [.init(operation: .permanentMigration, outcome: .succeeded, errorCategory: .none)])
     }
 
     @Test("Current Store performs an idempotent no-op without Backup")
     func currentStore() async throws {
+        let sink = RecordingDataLifecycleSink()
         let context = try migrationSafetyContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
         let first = try WealthStore(databaseURL: context.paths.permanentDatabaseURL)
@@ -53,24 +65,28 @@ struct PermanentMigrationSafetyTests {
 
         let reopened = try WealthStore(
             databaseURL: context.paths.permanentDatabaseURL,
-            migrationSafetyConfiguration: context.configuration(id: 2)
+            migrationSafetyConfiguration: context.configuration(id: 2),
+            diagnostics: sink.diagnostics
         )
         try await reopened.migrate()
 
         #expect(try await reopened.isolationSentinels() == ["Synthetic Current Sentinel"])
         #expect(try migrationInventory(context).validGenerations.isEmpty)
         #expect(await reopened.lastMigrationSafetyResult?.initialState == .current)
+        #expect(sink.events.isEmpty)
     }
 
     @Test("Recognized legacy v1 through v5 Backup exactly once before migration", arguments: [1, 2, 3, 4, 5])
     func legacyVersions(version: Int) async throws {
+        let sink = RecordingDataLifecycleSink()
         let context = try migrationSafetyContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
         try prepareLegacyStore(context.paths.permanentDatabaseURL, version: version)
 
         let store = try WealthStore(
             databaseURL: context.paths.permanentDatabaseURL,
-            migrationSafetyConfiguration: context.configuration(id: version)
+            migrationSafetyConfiguration: context.configuration(id: version),
+            diagnostics: sink.diagnostics
         )
         let inventory = try migrationInventory(context)
         let generation = try #require(inventory.validGenerations.only)
@@ -88,6 +104,7 @@ struct PermanentMigrationSafetyTests {
                     preMigrationGenerationIdentity: generation.directoryURL.lastPathComponent
                 )
         )
+        #expect(sink.events == [.init(operation: .permanentMigration, outcome: .succeeded, errorCategory: .none)])
     }
 
     @Test("Pre-migration generation preserves legacy schema and synthetic record")
@@ -117,14 +134,16 @@ struct PermanentMigrationSafetyTests {
 
     @Test("Missing safety configuration rejects a pending legacy migration")
     func missingConfiguration() throws {
+        let sink = RecordingDataLifecycleSink()
         let context = try migrationSafetyContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
         try prepareLegacyStore(context.paths.permanentDatabaseURL, version: 1)
 
         #expect(throws: PermanentMigrationSafetyError.missingBackupConfiguration) {
-            _ = try WealthStore(databaseURL: context.paths.permanentDatabaseURL)
+            _ = try WealthStore(databaseURL: context.paths.permanentDatabaseURL, diagnostics: sink.diagnostics)
         }
         #expect(try rawSchemaVersion(context.paths.permanentDatabaseURL) == 1)
+        #expect(sink.events == [.init(operation: .permanentMigration, outcome: .failed, errorCategory: .migrationPreflight)])
     }
 
     @Test("Backup validation failure prevents migrator invocation and preserves live Store")

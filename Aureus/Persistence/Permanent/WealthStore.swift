@@ -7,32 +7,66 @@ actor WealthStore {
     var queue: DatabaseQueue
     let migrator: DatabaseMigrator
     let migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration?
+    let diagnostics: DataLifecycleDiagnostics
     private(set) var lastMigrationSafetyResult: PermanentMigrationSafetyResult?
     var maintenanceState: PermanentRestoreMaintenanceState = .ready
 
     init(
         databaseURL: URL,
-        migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration? = nil
+        migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration? = nil,
+        diagnostics: DataLifecycleDiagnostics = .disabled
     ) throws {
         self.databaseURL = databaseURL
         self.queue = try DatabaseQueueFactory.open(at: databaseURL)
         self.migrator = DatabaseMigrations.permanentMigrator()
         self.migrationSafetyConfiguration = migrationSafetyConfiguration
-        self.lastMigrationSafetyResult = try PermanentMigrationSafetyService.migrate(
+        self.diagnostics = diagnostics
+        do {
+            self.lastMigrationSafetyResult = try PermanentMigrationSafetyService.migrate(
             queue,
             databaseURL: databaseURL,
             migrator: migrator,
             configuration: migrationSafetyConfiguration
-        )
+            )
+            if lastMigrationSafetyResult?.migrationRan == true {
+                diagnostics.record(.init(operation: .permanentMigration, outcome: .succeeded, errorCategory: .none))
+            }
+        } catch {
+            diagnostics.record(.init(operation: .permanentMigration, outcome: .failed, errorCategory: Self.migrationDiagnosticCategory(error)))
+            throw error
+        }
     }
 
     func migrate() throws {
-        lastMigrationSafetyResult = try PermanentMigrationSafetyService.migrate(
+        do {
+            lastMigrationSafetyResult = try PermanentMigrationSafetyService.migrate(
             queue,
             databaseURL: databaseURL,
             migrator: migrator,
             configuration: migrationSafetyConfiguration
-        )
+            )
+            if lastMigrationSafetyResult?.migrationRan == true {
+                diagnostics.record(.init(operation: .permanentMigration, outcome: .succeeded, errorCategory: .none))
+            }
+        } catch {
+            diagnostics.record(.init(operation: .permanentMigration, outcome: .failed, errorCategory: Self.migrationDiagnosticCategory(error)))
+            throw error
+        }
+    }
+
+    static func migrationDiagnosticCategory(_ error: Error) -> DataLifecycleErrorCategory {
+        switch error {
+        case PermanentMigrationSafetyError.rejected, PermanentMigrationSafetyError.missingBackupConfiguration:
+            .migrationPreflight
+        case PermanentMigrationSafetyError.preMigrationBackupFailed:
+            .migrationBackup
+        case PermanentMigrationSafetyError.migrationFailed:
+            .migrationExecution
+        case PermanentMigrationSafetyError.postMigrationValidationFailed:
+            .migrationPostValidation
+        default:
+            .unknown
+        }
     }
 
     func schemaVersion() throws -> Int {

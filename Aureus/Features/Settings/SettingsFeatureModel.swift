@@ -61,6 +61,7 @@ final class SettingsFeatureModel {
     @ObservationIgnored private let cache: MarketCacheStore
     @ObservationIgnored private let sessionStore: TransientMarketSessionStore
     @ObservationIgnored private let clock: any Clock
+    @ObservationIgnored private let diagnostics: DataLifecycleDiagnostics
 
     init(
         provider: any MarketDataProvider,
@@ -69,7 +70,8 @@ final class SettingsFeatureModel {
         cache: MarketCacheStore,
         sessionStore: TransientMarketSessionStore,
         clock: any Clock,
-        generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore()
+        generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore(),
+        diagnostics: DataLifecycleDiagnostics = .disabled
     ) {
         self.provider = provider
         self.marketDataService = marketDataService
@@ -78,6 +80,7 @@ final class SettingsFeatureModel {
         self.sessionStore = sessionStore
         self.clock = clock
         self.generalPreferences = generalPreferences
+        self.diagnostics = diagnostics
     }
 
     func load() async {
@@ -185,7 +188,9 @@ final class SettingsFeatureModel {
             let result = try await cache.removeExpired(now: clock.now())
             statusMessage = "Removed \(result.removedEntries) expired recoverable cache entries."
             try await refreshCacheStatistics()
+            diagnostics.record(.init(operation: .settingsRemoveExpiredWorkflow, outcome: .succeeded, errorCategory: .none))
         } catch {
+            diagnostics.record(.init(operation: .settingsRemoveExpiredWorkflow, outcome: .failed, errorCategory: error is CachePolicyError ? .cachePolicy : .unknown))
             errorMessage = safeMessage(for: error)
         }
         await refreshCacheStatus()
@@ -199,7 +204,9 @@ final class SettingsFeatureModel {
             let result = try await marketDataService.clearSessionMarketData()
             statusMessage = "Cleared \(result.removedEntries) Session Market Data entries (\(result.removedBytes) logical bytes)."
             await refreshSessionStatistics()
+            diagnostics.record(.init(operation: .settingsClearSessionWorkflow, outcome: .succeeded, errorCategory: .none))
         } catch {
+            diagnostics.record(.init(operation: .settingsClearSessionWorkflow, outcome: .failed, errorCategory: error is CachePolicyError ? .cachePolicy : .unknown))
             errorMessage = safeMessage(for: error)
         }
         await refreshCacheStatus()
@@ -214,7 +221,9 @@ final class SettingsFeatureModel {
             statusMessage = "Market Cache reset and rebuilt. Permanent wealth data was outside this operation."
             selectedMaximumMiB = 512
             try await refreshCacheStatistics()
+            diagnostics.record(.init(operation: .settingsResetCacheWorkflow, outcome: .succeeded, errorCategory: .none))
         } catch {
+            diagnostics.record(.init(operation: .settingsResetCacheWorkflow, outcome: .failed, errorCategory: error is CachePolicyError ? .cachePolicy : .unknown))
             errorMessage = safeMessage(for: error)
         }
         await refreshCacheStatus()
@@ -232,7 +241,9 @@ final class SettingsFeatureModel {
             let result = try await cache.updateMaximumBytes(product.partialValue, now: clock.now())
             statusMessage = "Market Cache capacity updated to \(selectedMaximumMiB) MiB; removed \(result.removedEntries) recoverable entries (\(result.removedBytes) bytes)."
             try await refreshCacheStatistics()
+            diagnostics.record(.init(operation: .settingsApplyMaximumWorkflow, outcome: .succeeded, errorCategory: .none))
         } catch {
+            diagnostics.record(.init(operation: .settingsApplyMaximumWorkflow, outcome: .failed, errorCategory: error is CachePolicyError ? .cachePolicy : .unknown))
             errorMessage = safeMessage(for: error)
         }
         await refreshCacheStatus()

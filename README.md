@@ -19,6 +19,16 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+2026-09-09，E-OSL：**PARTIAL — Awaiting Reviewer Gate**。D-03 已接入仅含 operation/outcome/errorCategory 三个有限枚举的 OSLog adapter；Production 显式注入，temporary 默认 disabled。限定九类 Settings workflow/manual cache/Permanent migration 终态，区分 rollback、recoveryRequired、提交后 inventory refresh 失败及 migration no-op；所有动态日志插值显式 private，不记录任意 Error、路径或业务 payload。
+
+本轮 unsigned BFT PASS；Focused **205 definitions / 264 executions，264/0/0**，Full **488/587，587/0/0**；underlying exits 全 0、完整 canonical 解析通过，失败/跳过/expected failures 均 0。sink、真实 synthetic workflow、有限错误映射、静态插值检查与固定枚举 OSLog smoke 均通过；smoke 不证明系统日志最终留存或 Console 脱敏。Project 一段 Sources 清单在首个新增文件后补读，阅读顺序偏差保留，不据技术通过宣布整轮完全合规。详见[ExecutionReport](/private/tmp/Aureus-Stage11-PRIVACY-SAFE-OSLOG-01-Dlr35W/ExecutionReport.md)及[范围矩阵](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md)。
+
+Reviewer 已接受 E-GSC 的 D-01/D-04 有限合同、Unit/BFT 和 E-GSC-AUTH 四项 UI PASS；本轮为 inherited / NOT RUN，旧产品结果不自动升级为本轮新产品 UI 证据。UI、signed BFT、Clean、Release、系统日志读取及人工 QA 本轮均 NOT RUN；D-06 当前同源 Export Release、S11-05 全字段 AX 和其他集中验收继续开放。Stage11 总 Gate PARTIAL，Stages12–14 NO-GO。以下历史段落保留当时语境。
+
+2026-09-09，E-GSC-AUTH：**Settings UI closure 完成，四项 UI PASS — Awaiting Reviewer Gate**。用户当次授权有值守诊断，并在结束后确认看见认证框且亲自完成认证；同一次冻结产品调用得到 exit **0**、signal null、canonical **Passed，4 definitions / 4 executions，4/0/0**、expected failures 0、Info.plist 完整、summary/tests **0/0**。两个新增 Settings/Wealth 方法及两个既有回归均完整通过。120 项测试输入与四项产品 Hash 前后不变，无修改代码、build 或 re-sign；仅随后更新三份文档。详见[本轮报告](/private/tmp/Aureus-Stage11-UI-AUTOMATION-AUTH-DIAGNOSTIC-01-dtbH84/ExecutionReport.md)。
+
+运行前后只读 Automation Mode 均为 disabled / requires authentication；本次成功不证明历史超时的唯一根因。原工作包一次 infrastructure retry 已使用，不追加运行。E-GSC Unit/BFT 为 **VERIFIED inherited evidence / NOT RUN in this diagnostic**。下述历史初始化失败与 PARTIAL 原样保留；本次四项不是 Full UI、真实离线或人工 QA。Stage11 总 Gate 仍 PARTIAL，D-03、D-06、S11-05 及剩余集中验收开放，Stages12–14 NO-GO。
+
 2026-09-09，Settings UI continuation：**PARTIAL — Awaiting Reviewer Gate**。已取得当次桌面确认并复用 E-GSC 冻结 signed 产品；唯一四 selector invocation 底层 exit **65**，Runner 初始化失败：`Timed out while enabling automation mode.`。完整结果有 Info.plist，canonical **Failed**、parsers **0/0**；唯一 canonical 节点为 Runner 错误（0/1/0），四个业务方法开始/到达均 **0**，对应 UI 检查点仍 **NOT VERIFIED**。没有外部原因已解除的证据，未重试、修复、重建或重签；源码/产品复验不变。详见[续跑报告](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-UI-01-Twl3v5/ExecutionReport.md)。E-GSC Unit/BFT 为 **VERIFIED inherited evidence / NOT RUN in this continuation**；Stage11 总 Gate PARTIAL，剩余边界不变。
 
 2026-09-09，P11 Settings preferences/cache status：**PARTIAL — Awaiting Reviewer Gate / UI session confirmation**。D-01 已实现同 graph 的 CNY/USD 新建 Wealth 默认币种（默认 CNY）与 Wealth 金额 grouping（默认 On），仅影响新空白表单与限定显示；统一 CNY、已有记录/FX、打开的草稿及 canonical CSV 不变。D-04 分开展示 Session 与 Authorized Persistent Cache 的只读 TTL 元数据，保留各自 `>` / `>=` 边界、legacy 分类及 `Network connectivity: Not checked`，不承诺离线请求成功。

@@ -28,7 +28,8 @@ struct SettingsView: View {
         dataLifecycleGenerationID: @escaping @Sendable () -> UUID,
         clock: any Clock,
         mode: AppDataMode,
-        generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore()
+        generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore(),
+        diagnostics: DataLifecycleDiagnostics = .disabled
     ) {
         _model = State(initialValue: SettingsFeatureModel(
             provider: provider,
@@ -37,7 +38,8 @@ struct SettingsView: View {
             cache: cache,
             sessionStore: sessionStore,
             clock: clock,
-            generalPreferences: generalPreferences
+            generalPreferences: generalPreferences,
+            diagnostics: diagnostics
         ))
         _dataLifecycleModel = State(initialValue: SettingsDataLifecycleModel(
             store: wealthStore,
@@ -49,7 +51,8 @@ struct SettingsView: View {
             externalRestoreClient: .live(
                 store: wealthStore,
                 configuration: permanentExternalRestoreConfiguration
-            )
+            ),
+            diagnostics: diagnostics
         ))
         self.mode = mode
     }
