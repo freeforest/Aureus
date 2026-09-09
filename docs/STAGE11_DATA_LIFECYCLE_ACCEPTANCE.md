@@ -4,6 +4,16 @@
 
 **Stage 11 PARTIAL — Awaiting Reviewer Gate**
 
+## Settings Preferences / Cache Status UI continuation — 初始化失败
+
+2026-09-09：**PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受下述 E-GSC Unit/BFT，当前以 **VERIFIED inherited evidence / NOT RUN in this continuation** 继承。120 项源码及四项 frozen signed 产品身份完全匹配，arm64、Bundle IDs、App/Runner strict codesign 通过；用户在本次完整桌面条件问题后回复“确认。”。
+
+唯一四项串行 `test-without-building` 未进入任何业务方法：Runner 36657 在启用 Automation mode 时超时。wrapper 36645 / xcodebuild 36650，UTC 10:41:02.448734 → 10:42:19.206845，underlying exit **65**、signal **none**；canonical duration **71.963s**。完整 Info.plist、summary/tests parsers **0/0**、canonical **Failed**。结果树包含一个 Runner 初始化错误节点，outcomes **0/1/0**、expected failures 0；它不是四个 selector 的业务执行，业务 definitions/executions、methods started、workflows reached 均 **0**。
+
+偏好→Wealth、Session search→TTL/Clear、既有 Settings lifecycle、Wealth CRUD 四项 UI 业务均 **NOT RUN / NOT VERIFIED**。没有真实权限框或已解除外部原因的直接证据；不将 timeout 推定为 TCC、Product defect 或历史断连根因。无 repair/retry/rebuild/re-sign/取消/信号，原工作包预算没有因续跑重置。失败后 120 项及产品 Hash 不变，相关 invocation/Runner/App 已无残留；只更新三份状态文档。
+
+[ExecutionReport](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-UI-01-Twl3v5/ExecutionReport.md)与同目录 `SettingsFocusedUI.xcresult` 保留完整失败。D-03、D-06、S11-05 与剩余集中 UI/人工验收继续开放；真实离线/Provider/人工/Release NOT RUN。下述前轮等待确认状态原样保留，不追溯改写。Stage11 总 Gate PARTIAL，Stages12–14 NO-GO。
+
 ## P11 Settings Preferences / Cache Status — D-01 / D-04
 
 2026-09-09：**PARTIAL — Awaiting Reviewer Gate / UI session confirmation**。实现与 Unit/构建已完成，四项限定 UI 尚未取得当次桌面条件确认，因此未启动。没有运行中 invocation。完整[ExecutionReport](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-01-Krpxdh/ExecutionReport.md)及 E-GSC [矩阵](STAGE11_SCOPE_EVIDENCE_MATRIX.md)记录源码/产品冻结、实际命令与限制。

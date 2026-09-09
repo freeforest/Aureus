@@ -19,6 +19,8 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+2026-09-09，Settings UI continuation：**PARTIAL — Awaiting Reviewer Gate**。已取得当次桌面确认并复用 E-GSC 冻结 signed 产品；唯一四 selector invocation 底层 exit **65**，Runner 初始化失败：`Timed out while enabling automation mode.`。完整结果有 Info.plist，canonical **Failed**、parsers **0/0**；唯一 canonical 节点为 Runner 错误（0/1/0），四个业务方法开始/到达均 **0**，对应 UI 检查点仍 **NOT VERIFIED**。没有外部原因已解除的证据，未重试、修复、重建或重签；源码/产品复验不变。详见[续跑报告](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-UI-01-Twl3v5/ExecutionReport.md)。E-GSC Unit/BFT 为 **VERIFIED inherited evidence / NOT RUN in this continuation**；Stage11 总 Gate PARTIAL，剩余边界不变。
+
 2026-09-09，P11 Settings preferences/cache status：**PARTIAL — Awaiting Reviewer Gate / UI session confirmation**。D-01 已实现同 graph 的 CNY/USD 新建 Wealth 默认币种（默认 CNY）与 Wealth 金额 grouping（默认 On），仅影响新空白表单与限定显示；统一 CNY、已有记录/FX、打开的草稿及 canonical CSV 不变。D-04 分开展示 Session 与 Authorized Persistent Cache 的只读 TTL 元数据，保留各自 `>` / `>=` 边界、legacy 分类及 `Network connectivity: Not checked`，不承诺离线请求成功。
 
 本轮新源码 unsigned Unit BFT、Focused **131 definitions / 163 executions，163/0/0**、Full **480/576，576/0/0**、fresh signed BFT 均通过；exits 0、canonical parsers 0，App/Runner strict codesign 0。四项限定 UI **NOT RUN — Awaiting UI session confirmation**；没有执行全量 UI、Release 或人工 QA。详见[本轮报告](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-01-Krpxdh/ExecutionReport.md)与[范围矩阵](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md) E-GSC。Stage11 总 Gate 仍 PARTIAL；D-03 OSLog、D-06 当前 Export Release、剩余 UI/人工及 S11-05 全字段 AX 证据仍开放，Stages12–14 NO-GO。

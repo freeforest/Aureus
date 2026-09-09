@@ -2,6 +2,8 @@
 
 **Stage 11 总 Gate：PARTIAL — Awaiting Reviewer Gate**
 
+E-GSC-UI 续跑：已取得当次桌面确认，但唯一 invocation 在 Runner 初始化时报 `Timed out while enabling automation mode.`，exit65、完整 canonical Failed、parsers0/0。唯一 Runner 错误节点 0/1/0；四个业务方法开始/到达0，D-01/D-04及两个既有回归的 UI 检查点仍 NOT VERIFIED。没有已解除外部原因证据，未重跑或修复；Product/Test/签名产品不变。E-GSC Unit/BFT 已由 Reviewer 接受，**VERIFIED inherited evidence / NOT RUN in this continuation**。前轮等待确认状态及历史失败保留。
+
 最新 E-GSC（2026-09-09）：P11 Settings D-01/D-04 已实现，Unit/构建通过；四项限定 UI **NOT RUN — Awaiting UI session confirmation**，本轮仍 PARTIAL。Reviewer 已有限接受 E-PBO test-only 与 B–F 技术 PASS，原整体 PARTIAL/两处阅读顺序偏差保留。下文历史段落的“本轮/当前源码”属于其原轮次，不将旧 145/558 或 18/18 当作新源码结果。
 
 最新限定证据 E-PBO：**Stage 11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。Portfolio过期offline测试预期已按新授权修正；三参数直接映射与真实异步offline路径分开。当前Focused129/145、Full471/558全部PASS，unsigned Unit BFT、Clean及signed BFT通过。Product和其他测试冻结；UI、Release、人工QA本轮NOT RUN。下面历史E-MSO/E-UCF失败与当时限制保留，不追溯改写。
@@ -33,6 +35,7 @@
 
 | ID | 准确 artifact / 接受来源 | 本轮身份核验、复用范围及限制 |
 |---|---|---|
+| E-GSC-UI | [ExecutionReport](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-UI-01-Twl3v5/ExecutionReport.md)；同目录 SettingsFocusedUI.xcresult | 120 项及 frozen 产品一致；取得当次确认；exit65、Info.plist完整、canonical Failed、parsers0/0、71.963s。一个 Runner 初始化错误节点，业务四项均未进入；不是4/4或四项业务失败。无修复/重试；Stage11仍PARTIAL。 |
 | E-GSC | [ExecutionReport](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-01-Krpxdh/ExecutionReport.md)；同目录 UnitBFT、FocusedUnit、FullUnit、SignedBFT.xcresult | 新源码 Focused 131/163、Full 480/576，全部 Passed，exit 0、tests parsers 0/0；两个 BFT succeeded/build parser 0/Info.plist 完整，App/Runner strict 0、arm64/local ad hoc。Unit temporary 参数两次实测，同一冻结产品。四项 UI 等待桌面确认未运行；Release/人工 NOT RUN。 |
 | E-PBO | `/private/tmp/Aureus-Stage11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01-rIq8RG/`：`UnitBFT.xcresult`、`FocusedUnit.xcresult`、`FullUnit.xcresult`、`CleanDebugBuild.xcresult`、`SignedBFT.xcresult`；[ExecutionReport](/private/tmp/Aureus-Stage11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01-rIq8RG/ExecutionReport.md) | 当前源码Focused129/145、145/0/0；Full471/558、558/0/0；所有exit0、Info.plist完整、build parser0/tests0/0。disclosureSemantics、新映射3参数、两fixture、原Offline20参数在两suite均Passed。全部Product冻结，Unit同一隔离副本且两宿主参数实测；signed App/Runner strict0。无repair/retry/取消；UI/Release/人工QA NOT RUN。 |
 | E-UCF | `/private/tmp/Aureus-Stage11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01-KnRyjx/`：`UnitBFT.xcresult`、`FocusedUnit.xcresult`、`FullUnit.xcresult`；[ExecutionReport](/private/tmp/Aureus-Stage11-UNIT-CONCURRENCY-FIXTURE-CLOSURE-01-KnRyjx/ExecutionReport.md) | BFT succeeded；Focused107/121、121/0/0 exit0；Full470/555、554/1/0 exit65，唯一失败方法PortfolioTerminalTests.disclosureSemantics（2 issues）。三个Info.plist完整，build0/tests0/0；两fixture及六Offline参数定义全部Passed；Product/其他冻结测试Hash不变。无取消/repair/retry；后续Clean/signed BFT/UI/Release/人工QA NOT RUN。 |
@@ -111,7 +114,7 @@
 
 ## 6. 最小补齐候选合同与集中决策
 
-D-01/D-04 的有限合同已由 P11 明确批准并实施，当前限定 Unit/构建证据见 E-GSC，UI 尚未执行；D-02 已接受，D-05 的 E-PBO 技术子关卡已被 Reviewer 有限接受。D-03/D-06 等剩余项仍按各行限制处理，不得自行扩展范围或将 Stage11 缺口挪到 Stage12。
+D-01/D-04 的有限合同已由 P11 明确批准并实施，当前限定 Unit/构建证据见已接受 E-GSC；E-GSC-UI 取得确认后的尝试因 Runner 初始化失败未进入业务。以下各行 UI 未运行/待确认是 E-GSC 原时点记录，当前缺口为未取得业务 runtime evidence。D-02 已接受，D-05 的 E-PBO 技术子关卡已被 Reviewer 有限接受。D-03/D-06 等剩余项不自行扩展或移至 Stage12。
 
 | 决策/缺口 | 冻结文本已经确定 / 尚未确定 | 最小候选与影响范围 | 验证状态 / 尚需验证 |
 |---|---|---|---|
