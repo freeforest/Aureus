@@ -18,6 +18,30 @@ final class SettingsFeatureModel {
     private(set) var statusMessage: String?
     private(set) var errorMessage: String?
     var selectedMaximumMiB = 512
+    private(set) var sessionFreshness: CacheFreshnessStatus = .notLoaded
+    private(set) var persistentFreshness: CacheFreshnessStatus = .notLoaded
+    let generalPreferences: GeneralPreferencesStore
+
+    var newWealthCurrency: CurrencyCode {
+        get { generalPreferences.snapshot.newWealthCurrency }
+        set { generalPreferences.setNewWealthCurrency(newValue) }
+    }
+
+    var groupWealthAmounts: Bool {
+        get { generalPreferences.snapshot.groupWealthAmounts }
+        set { generalPreferences.setGroupWealthAmounts(newValue) }
+    }
+
+    /// Explicit refresh reads local metadata only, without provider validation or LRU writes.
+    func refreshCacheStatus() async {
+        let now = clock.now()
+        sessionFreshness = .available(await sessionStore.freshnessSnapshot(now: now))
+        do {
+            persistentFreshness = .available(try await cache.freshnessSnapshot(now: now))
+        } catch {
+            persistentFreshness = .unavailable
+        }
+    }
 
     static func lastCleanupTimeLabel(for instant: UTCInstant?) -> String {
         guard let instant else {
@@ -44,7 +68,8 @@ final class SettingsFeatureModel {
         credentialCoordinator: ProviderCredentialCoordinator,
         cache: MarketCacheStore,
         sessionStore: TransientMarketSessionStore,
-        clock: any Clock
+        clock: any Clock,
+        generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore()
     ) {
         self.provider = provider
         self.marketDataService = marketDataService
@@ -52,6 +77,7 @@ final class SettingsFeatureModel {
         self.cache = cache
         self.sessionStore = sessionStore
         self.clock = clock
+        self.generalPreferences = generalPreferences
     }
 
     func load() async {
@@ -65,6 +91,7 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+        await refreshCacheStatus()
     }
 
     func saveCredential() async {
@@ -84,6 +111,7 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+        await refreshCacheStatus()
     }
 
     func validateCredential() async {
@@ -102,6 +130,7 @@ final class SettingsFeatureModel {
             errorMessage = safeMessage(for: error)
             await refreshCapabilities()
         }
+        await refreshCacheStatus()
     }
 
     func disconnect() async {
@@ -123,6 +152,7 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+        await refreshCacheStatus()
     }
 
     func deleteCredential() async {
@@ -144,6 +174,7 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+        await refreshCacheStatus()
     }
 
     func removeExpired() async {
@@ -157,6 +188,7 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+        await refreshCacheStatus()
     }
 
     func clearSessionMarketData() async {
@@ -170,6 +202,7 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+        await refreshCacheStatus()
     }
 
     func resetCache() async {
@@ -184,6 +217,7 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+        await refreshCacheStatus()
     }
 
     func applyMaximum() async {
@@ -201,6 +235,7 @@ final class SettingsFeatureModel {
         } catch {
             errorMessage = safeMessage(for: error)
         }
+        await refreshCacheStatus()
     }
 
     func capability(for mic: String) -> MarketCapability? {

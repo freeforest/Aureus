@@ -230,6 +230,12 @@ actor TransientMarketSessionStore {
         return result
     }
 
+    func freshnessSnapshot(now: UTCInstant) -> CacheFreshnessSnapshot {
+        let fresh = entries.values.filter { $0.value.expiresAt > now }.count
+        return CacheFreshnessSnapshot(observedAt: now, freshCount: fresh,
+            expiredCount: entries.count - fresh, legacyCount: 0)
+    }
+
     func statistics() -> TransientMarketSessionStatistics {
         TransientMarketSessionStatistics(
             entryCount: entries.count,

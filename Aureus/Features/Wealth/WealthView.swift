@@ -4,8 +4,9 @@ struct WealthView: View {
     @State private var model: WealthFeatureModel
     let mode: AppDataMode
 
-    init(store: WealthStore, clock: any Clock, mode: AppDataMode) {
-        _model = State(initialValue: WealthFeatureModel(store: store, clock: clock))
+    init(store: WealthStore, clock: any Clock, mode: AppDataMode,
+         generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore()) {
+        _model = State(initialValue: WealthFeatureModel(store: store, clock: clock, generalPreferences: generalPreferences))
         self.mode = mode
     }
 
@@ -30,7 +31,7 @@ struct WealthView: View {
                     .background(.orange.opacity(0.08))
                     .accessibilityIdentifier("wealth.delete.protected")
             }
-            WealthSummaryView(summary: model.summary)
+            WealthSummaryView(summary: model.summary, grouping: model.generalPreferences.snapshot.groupWealthAmounts)
             Divider()
             wealthContent(selection: $bindable.selection)
         }
@@ -98,9 +99,9 @@ struct WealthView: View {
     private var pageAccessibilityLabel: String {
         var parts = [
             mode == .syntheticDemo ? "Synthetic Demo Wealth" : "Local Wealth Store",
-            "Total Assets, \(WealthDisplay.money(model.summary.totalAssetsCNY))",
-            "Total Liabilities, \(WealthDisplay.money(model.summary.totalLiabilitiesCNY))",
-            "Net Worth, \(WealthDisplay.money(model.summary.netWorthCNY))"
+            "Total Assets, \(WealthDisplay.money(model.summary.totalAssetsCNY, grouping: model.generalPreferences.snapshot.groupWealthAmounts))",
+            "Total Liabilities, \(WealthDisplay.money(model.summary.totalLiabilitiesCNY, grouping: model.generalPreferences.snapshot.groupWealthAmounts))",
+            "Net Worth, \(WealthDisplay.money(model.summary.netWorthCNY, grouping: model.generalPreferences.snapshot.groupWealthAmounts))"
         ]
         switch model.loadState {
         case .loading:
@@ -147,7 +148,7 @@ struct WealthView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .ready:
             List(model.records, selection: selection) { record in
-                WealthContainerRow(record: record)
+                WealthContainerRow(record: record, grouping: model.generalPreferences.snapshot.groupWealthAmounts)
                     .tag(record.id)
             }
             .listStyle(.inset)
@@ -185,6 +186,7 @@ private struct WealthModeHeader: View {
 
 private struct WealthSummaryView: View {
     let summary: WealthSummary
+    let grouping: Bool
 
     var body: some View {
         HStack(spacing: 14) {
@@ -220,7 +222,7 @@ private struct WealthSummaryView: View {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(WealthDisplay.money(value))
+            Text(WealthDisplay.money(value, grouping: grouping))
                 .font(.title2.monospacedDigit().weight(.semibold))
                 .foregroundStyle(color)
                 .lineLimit(1)
@@ -230,13 +232,14 @@ private struct WealthSummaryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(WealthDisplay.money(value))")
+        .accessibilityLabel("\(title), \(WealthDisplay.money(value, grouping: grouping))")
         .accessibilityIdentifier(identifier)
     }
 }
 
 private struct WealthContainerRow: View {
     let record: WealthContainer
+    let grouping: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -278,9 +281,9 @@ private struct WealthContainerRow: View {
             }
             Spacer(minLength: 20)
             VStack(alignment: .trailing, spacing: 4) {
-                Text(WealthDisplay.money(record.originalValue))
+                Text(WealthDisplay.money(record.originalValue, grouping: grouping))
                     .font(.body.monospacedDigit())
-                Text("CNY \(WealthDisplay.number(record.convertedCNYValue.decimal, fractionDigits: 2))")
+                Text("CNY \(WealthDisplay.amount(record.convertedCNYValue.decimal, grouping: grouping))")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -290,8 +293,8 @@ private struct WealthContainerRow: View {
         .accessibilityLabel(
             "\(record.container.name), \(record.container.kind.title)"
             + (record.container.kind.isManualSecurity ? ", Manual Valuation" : "")
-            + ", original \(WealthDisplay.money(record.originalValue))"
-            + ", converted CNY \(WealthDisplay.number(record.convertedCNYValue.decimal, fractionDigits: 2))"
+            + ", original \(WealthDisplay.money(record.originalValue, grouping: grouping))"
+            + ", converted CNY \(WealthDisplay.amount(record.convertedCNYValue.decimal, grouping: grouping))"
         )
         .accessibilityIdentifier(
             "wealth.row.\(record.container.kind.rawValue)."
@@ -321,8 +324,7 @@ private struct WealthEditorSheet: View {
         self.presentation = presentation
         self.model = model
         _draft = State(
-            initialValue: presentation.existing.map(WealthEditorDraft.init(existing:))
-                ?? WealthEditorDraft()
+            initialValue: presentation.initialDraft
         )
     }
 
@@ -485,6 +487,20 @@ private struct WealthEditorSheet: View {
 }
 
 enum WealthDisplay {
+    static func money(_ money: Money, grouping: Bool, locale: Locale = .current) -> String {
+        "\(money.currency.rawValue) \(amount(money.decimal, grouping: grouping, locale: locale))"
+    }
+
+    static func amount(_ value: Decimal, grouping: Bool, locale: Locale = .current) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = locale
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = grouping
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: value)) ?? "—"
+    }
+
     static func money(_ money: Money) -> String {
         "\(money.currency.rawValue) \(number(money.decimal, fractionDigits: 2))"
     }

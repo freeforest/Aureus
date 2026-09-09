@@ -19,6 +19,12 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+2026-09-09，P11 Settings preferences/cache status：**PARTIAL — Awaiting Reviewer Gate / UI session confirmation**。D-01 已实现同 graph 的 CNY/USD 新建 Wealth 默认币种（默认 CNY）与 Wealth 金额 grouping（默认 On），仅影响新空白表单与限定显示；统一 CNY、已有记录/FX、打开的草稿及 canonical CSV 不变。D-04 分开展示 Session 与 Authorized Persistent Cache 的只读 TTL 元数据，保留各自 `>` / `>=` 边界、legacy 分类及 `Network connectivity: Not checked`，不承诺离线请求成功。
+
+本轮新源码 unsigned Unit BFT、Focused **131 definitions / 163 executions，163/0/0**、Full **480/576，576/0/0**、fresh signed BFT 均通过；exits 0、canonical parsers 0，App/Runner strict codesign 0。四项限定 UI **NOT RUN — Awaiting UI session confirmation**；没有执行全量 UI、Release 或人工 QA。详见[本轮报告](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-01-Krpxdh/ExecutionReport.md)与[范围矩阵](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md) E-GSC。Stage11 总 Gate 仍 PARTIAL；D-03 OSLog、D-06 当前 Export Release、剩余 UI/人工及 S11-05 全字段 AX 证据仍开放，Stages12–14 NO-GO。
+
+Reviewer 已有限接受下述 E-PBO test-only 修正及 B–F 技术子关卡 PASS；原执行整体 PARTIAL 与两处 Mandatory Read 顺序偏差不追溯改写。以下“本轮/当前源码”均保留各历史段落当时语境；旧 145/558 与 18/18 不是本轮新源码证据。
+
 最新 Portfolio 预期闭合：**Stage 11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01 PARTIAL — Awaiting Reviewer Gate**。仅修正 `PortfolioTerminalTests.disclosureSemantics()` 的过期 offline 预期，并新增 missing/offline/timeout 三参数的有限展示映射测试；全部 Product 和其他测试冻结。当前源码 Focused **129 definitions / 145 executions，145/0/0 PASS**，Full **471/558，558/0/0 PASS**；unsigned Unit BFT、Clean Debug arm64 Build、fresh signed BFT 均通过，underlying exits 全0，完整 canonical 解析通过。两次 Unit 均使用同一已核验 temporary-store 副本，实际宿主参数均被观察到；无业务修复/重跑/取消。详见[本轮报告](/private/tmp/Aureus-Stage11-PORTFOLIO-BENCHMARK-OFFLINE-EXPECTATION-CLOSURE-01-rIq8RG/ExecutionReport.md)及[范围矩阵](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md) E-PBO。
 
 本轮所有技术测试/构建Gate均通过，但Mandatory Read的两处定位补读未完全保持规定顺序（内容均在修改前实际审阅）。该前置流程缺口不自行豁免，故本轮保持PARTIAL；不以技术通过宣称全部授权条件满足。

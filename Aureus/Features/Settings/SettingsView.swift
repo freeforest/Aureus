@@ -27,7 +27,8 @@ struct SettingsView: View {
         appVersion: String,
         dataLifecycleGenerationID: @escaping @Sendable () -> UUID,
         clock: any Clock,
-        mode: AppDataMode
+        mode: AppDataMode,
+        generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore()
     ) {
         _model = State(initialValue: SettingsFeatureModel(
             provider: provider,
@@ -35,7 +36,8 @@ struct SettingsView: View {
             credentialCoordinator: credentialCoordinator,
             cache: cache,
             sessionStore: sessionStore,
-            clock: clock
+            clock: clock,
+            generalPreferences: generalPreferences
         ))
         _dataLifecycleModel = State(initialValue: SettingsDataLifecycleModel(
             store: wealthStore,
@@ -57,6 +59,7 @@ struct SettingsView: View {
             settingsBanner
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    generalPreferencesSection
                     dataLifecycleSection
                     providerSection
                     sessionSection
@@ -290,9 +293,50 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings.provider")
     }
 
+    private var generalPreferencesSection: some View {
+        GroupBox("Wealth preferences") {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("Default currency for new Wealth containers", selection: $model.newWealthCurrency) {
+                    Text("CNY").tag(CurrencyCode.cny)
+                    Text("USD").tag(CurrencyCode.usd)
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("settings.general.currency")
+                Picker("Group digits in Wealth amounts", selection: $model.groupWealthAmounts) {
+                    Text("On").tag(true)
+                    Text("Off").tag(false)
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("settings.general.grouping")
+                Text("The default currency affects only new Wealth containers. Unified valuation remains CNY; existing records and open drafts are unchanged. USD still requires manual FX.")
+                    .font(.caption)
+                    .accessibilityIdentifier("settings.general.disclosure")
+            }
+            .padding(10)
+        }
+    }
+
+    private func freshnessText(_ status: CacheFreshnessStatus, title: String, identifier: String) -> some View {
+        let label = status.label(for: title)
+        return Text(label)
+            .font(.caption)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier(identifier)
+    }
+
     private var sessionSection: some View {
         GroupBox("Session Market Data") {
             VStack(alignment: .leading, spacing: 14) {
+                Text("Network connectivity: Not checked")
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Network connectivity: Not checked")
+                    .accessibilityIdentifier("settings.cache.connectivity")
+                freshnessText(model.sessionFreshness, title: "Session Market Data",
+                    identifier: "settings.session.freshness")
+                Button("Refresh cache status") { Task { await model.refreshCacheStatus() } }
+                    .disabled(model.isWorking)
+                    .accessibilityIdentifier("settings.cache.refresh")
                 if let statistics = model.sessionStatistics {
                     Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                         GridRow { Text("Entries"); Text("\(statistics.entryCount)") }
@@ -326,6 +370,8 @@ struct SettingsView: View {
     private var cacheSection: some View {
         GroupBox("Authorized Persistent Market Cache") {
             VStack(alignment: .leading, spacing: 14) {
+                freshnessText(model.persistentFreshness, title: "Authorized Persistent Market Cache",
+                    identifier: "settings.cache.freshness")
                 if let statistics = model.cacheStatistics {
                     Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
                         GridRow { Text("Current usage"); Text(byteString(statistics.currentBytes)) }

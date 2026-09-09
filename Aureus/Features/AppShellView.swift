@@ -59,7 +59,8 @@ struct AppShellView: View {
                 WealthView(
                     store: dependencies.wealthStore,
                     clock: dependencies.clock,
-                    mode: mode
+                    mode: mode,
+                    generalPreferences: dependencies.generalPreferencesStore
                 )
             } else if model.selection == .ledger, let dependencies = model.dependencies {
                 LedgerView(
@@ -110,7 +111,8 @@ struct AppShellView: View {
                     appVersion: dependencies.appVersion,
                     dataLifecycleGenerationID: dependencies.dataLifecycleGenerationID,
                     clock: dependencies.clock,
-                    mode: mode
+                    mode: mode,
+                    generalPreferences: dependencies.generalPreferencesStore
                 )
             } else {
                 VStack(spacing: 0) {

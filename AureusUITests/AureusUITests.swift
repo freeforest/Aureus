@@ -28,6 +28,112 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    func testStage11GeneralPreferencesAffectWealthWithoutChangingValuation() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+        defer { app.terminate() }
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "settings.general.currency", containing: "CNY", timeout: 5))
+        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "settings.general.grouping", containing: "On", timeout: 5))
+        selectPicker(app: app, identifier: "settings.general.currency", title: "USD")
+        selectPicker(app: app, identifier: "settings.general.grouping", title: "Off")
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.row.bankCash.usd"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.summary.netWorth"],
+            containing: "CNY " + generalSettingsAmount("150672.06", grouping: false), timeout: 5))
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
+            containing: "original USD " + generalSettingsAmount("1000", grouping: false), timeout: 5))
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
+            containing: "converted CNY " + generalSettingsAmount("7125", grouping: false), timeout: 5))
+        app.descendants(matching: .any)["wealth.add"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.form.fx.rate"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["wealth.form.currency.cny"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["wealth.form.fx.rate"], timeout: 5))
+        app.descendants(matching: .any)["wealth.form.cancel"].click()
+        selectRow(app: app, kind: "bankCash", currency: "cny")
+        app.descendants(matching: .any)["wealth.edit"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.form.amount"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["wealth.form.fx.rate"].exists)
+        XCTAssertTrue(waitForValue(app.descendants(matching: .any)["wealth.form.amount"], containing: "125000", timeout: 5))
+        app.descendants(matching: .any)["wealth.form.cancel"].click()
+        selectRow(app: app, kind: "bankCash", currency: "usd")
+        app.descendants(matching: .any)["wealth.edit"].click()
+        XCTAssertTrue(waitForValue(app.descendants(matching: .any)["wealth.form.fx.rate"], containing: "7.125", timeout: 5))
+        XCTAssertTrue(waitForValue(app.descendants(matching: .any)["wealth.form.amount"], containing: "1000", timeout: 5))
+        app.descendants(matching: .any)["wealth.form.cancel"].click()
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "settings.general.currency", containing: "USD", timeout: 5))
+        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "settings.general.grouping", containing: "Off", timeout: 5))
+        selectPicker(app: app, identifier: "settings.general.grouping", title: "On")
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.summary.netWorth"],
+            containing: "CNY " + generalSettingsAmount("150672.06", grouping: true), timeout: 5))
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
+            containing: "original USD " + generalSettingsAmount("1000", grouping: true), timeout: 5))
+        launchApp(app)
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "settings.general.currency", containing: "CNY", timeout: 5))
+        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "settings.general.grouping", containing: "On", timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.error"].exists)
+    }
+
+    @MainActor
+    func testStage11SettingsCacheStatusTracksSessionAndClear() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+        launchApp(app)
+        defer { app.terminate() }
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        assertUniqueSettingsDataLifecycleElement(in: app, identifier: "settings.cache.connectivity",
+            expectedLabel: "Network connectivity: Not checked")
+        assertGeneralSettingsFreshness(in: app, session: true, count: 0)
+        assertGeneralSettingsFreshness(in: app, session: false, count: 0)
+        app.descendants(matching: .any)["sidebar.markets"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["markets.search.field"].waitForExistence(timeout: 5))
+        replaceText(in: app.descendants(matching: .any)["markets.search.field"], with: "SYN")
+        XCTAssertTrue(waitForEnabled(app.descendants(matching: .any)["markets.search.submit"], timeout: 5))
+        app.descendants(matching: .any)["markets.search.submit"].click()
+        XCTAssertEqual(waitForMarketsSearchTerminal(in: app, timeout: 8), "Ready")
+        XCTAssertTrue(app.descendants(matching: .any)["markets.search.result.SYN-CNY.XSYN"].exists)
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.cache.refresh"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["settings.cache.refresh"].click()
+        assertGeneralSettingsFreshness(in: app, session: true, count: 1)
+        assertGeneralSettingsFreshness(in: app, session: false, count: 0)
+        app.descendants(matching: .any)["settings.session.clear"].click()
+        assertGeneralSettingsFreshness(in: app, session: true, count: 0)
+        assertUniqueSettingsDataLifecycleElement(in: app, identifier: "settings.cache.connectivity",
+            expectedLabel: "Network connectivity: Not checked")
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["settings.session.disclosure"],
+            containing: "only in memory", timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["settings.error"].exists)
+    }
+
+    private func generalSettingsAmount(_ value: String, grouping: Bool) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = .current
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = grouping
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(string: value))!
+    }
+
+    @MainActor
+    private func assertGeneralSettingsFreshness(in app: XCUIApplication, session: Bool, count: Int) {
+        let title = session ? "Session Market Data" : "Authorized Persistent Market Cache"
+        let state = count == 0 ? "Empty" : "Within TTL"
+        let limitation = count == 0 ? "No entries are currently available."
+            : "Offline coverage depends on the requested data and existing authorization."
+        assertUniqueSettingsDataLifecycleElement(in: app,
+            identifier: session ? "settings.session.freshness" : "settings.cache.freshness",
+            expectedLabel: "\(title): \(state). As of 2026-01-15 00:00:00.000 UTC. "
+                + "\(count) total entries; \(count) TTL-classified; \(count) within TTL; 0 expired; 0 legacy. "
+                + limitation + " TTL does not prove market real-time freshness or entitlement.")
+    }
+
+    @MainActor
     func testEmptyAppLaunchesAndAllDestinationsNavigateRepeatedly() throws {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments()

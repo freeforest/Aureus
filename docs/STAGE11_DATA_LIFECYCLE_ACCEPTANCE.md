@@ -4,6 +4,28 @@
 
 **Stage 11 PARTIAL — Awaiting Reviewer Gate**
 
+## P11 Settings Preferences / Cache Status — D-01 / D-04
+
+2026-09-09：**PARTIAL — Awaiting Reviewer Gate / UI session confirmation**。实现与 Unit/构建已完成，四项限定 UI 尚未取得当次桌面条件确认，因此未启动。没有运行中 invocation。完整[ExecutionReport](/private/tmp/Aureus-Stage11-SETTINGS-PREFERENCES-CACHE-STATUS-01-Krpxdh/ExecutionReport.md)及 E-GSC [矩阵](STAGE11_SCOPE_EVIDENCE_MATRIX.md)记录源码/产品冻结、实际命令与限制。
+
+- D-01：`GeneralPreferencesStore` 只存 version、新 Wealth 默认币种及 grouping。Production 显式应用作用域 UserDefaults；temporary/demo/UI graph memory-only，无跨 graph singleton。安全默认 CNY/On，未知币种逐字段回退，损坏/未知版本默认且读取不写回。Settings→Wealth 同 graph 消费；新表单捕获当时币种，编辑用记录币种，打开草稿不重置。限定 Wealth summary/row/AX 使用局部 locale-aware Decimal formatter；旧共享 formatter、输入/CSV、统一 CNY 与金融存储不变。
+- D-04：Session snapshot 按 `expiresAt > now`，disk 按 `expiresAt >= now`；disk generic entries 仅计数/时间元数据，两个 legacy 表独立计数，不解码 payload。新 API 不修改 LRU、generation、清理记录或请求 Provider。Settings 进入及现有相关动作后刷新；显式 Refresh 只读。空、TTL 内、过期、混合、legacy-only、未加载/失败分开，失败不伪装为零条目。网络固定 Not checked；TTL 不证明实时行情、entitlement 或任意离线覆盖，Twelve Data session-only / persistent writes Disabled 保持。
+- `GeneralSettingsTests` 9 definitions / 18 dynamic executions 全部通过：持久化/隔离与 fallback、真实 draft 消费、两 Locale 金额、expiry 三边界、legacy/payload 不解码及无写入、LRU/generation、Clear/Remove/Reset/Permanent sentinel、mock Provider 零调用与 unavailable。原 cleanup-time、并发 fixture、Offline 测试未改；Full 中六个 Offline 定义 20 参数 Passed。
+
+| Gate | 实际结果 | underlying exit / canonical parser | duration |
+|---|---|---|---|
+| C unsigned Unit BFT | succeeded，errors 0，既存 warnings 4 | 0 / build 0 | 34.447s |
+| D Focused 七 suite | 131 definitions / 163 executions，163/0/0 | 0 / summary 0、tests 0 | 7.056s |
+| E Full AureusTests | 480 definitions / 576 executions，576/0/0 | 0 / summary 0、tests 0 | 57.314s |
+| F fresh signed BFT | succeeded，errors 0，既存 warnings 4 | 0 / build 0；App/Runner strict 0 | 35.237s |
+| G 四项 Settings/Wealth UI | NOT RUN — Awaiting UI session confirmation | N/A | N/A |
+
+四个实际 bundle 均有 Info.plist；Unit skipped/expected failures 为 0。两次 Unit 复用同一隔离 xctestrun，唯一结构差异为 AureusTests host 参数添加一次 `--aureus-temporary-store`，两次准确宿主参数均实际观察。signed 产品为 arm64/local ad hoc，不等同发行签名或 UI execution。正式 repair/retry/重复/取消均 0；只读临时检查脚本误报修正不计产品测试重跑。
+
+基线为 rIq8RG/FinalInventory.json，self SHA-256 `6aafc980d7ae4d25bc2eabb354db0c87fa59c022e4d770a5a8d8fd37633444a9`；117 项修改前完全匹配，本轮新增获准三个文件，最终 120 项。测试冻结与最终文档变化分开记录，不为文档重跑测试。未运行独立 Clean（本轮未要求）、Release、全量 UI、人工/真实离线/真实 Provider。新增 UI 的 expired/legacy/failure 分支没有 UI runtime 证据。
+
+Reviewer 已接受 E-PBO test-only 及 B–F 技术 PASS；下述原整体 PARTIAL、Mandatory Read 两处偏差、历史取消/Failed/incomplete/UNKNOWN/numeric-exit 缺口保留。D-03 OSLog、D-06 同源 Export Release（旧 26ms HISTORICAL ONLY）、剩余 UI/人工和 S11-05 全字段 AX 未自动闭合。Stage11 总 Gate PARTIAL；Stages12–14 NO-GO。
+
 ## Market Session Offline Error — S11-10 / D-05
 
 ### Portfolio Benchmark Offline expectation closure — 当前限定 Candidate

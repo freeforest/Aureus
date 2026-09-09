@@ -98,6 +98,9 @@
 		A2000000000000000000001A /* PermanentExternalRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000001A /* PermanentExternalRestoreTests.swift */; };
 		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
 		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
+		A10000000000000000000044 /* GeneralPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* GeneralPreferences.swift */; };
+		A10000000000000000000045 /* CacheFreshnessSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* CacheFreshnessSnapshot.swift */; };
+		A2000000000000000000001B /* GeneralSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000001B /* GeneralSettingsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -211,6 +214,9 @@
 		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000003 /* AureusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000044 /* GeneralPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralPreferences.swift; sourceTree = "<group>"; };
+		B10000000000000000000045 /* CacheFreshnessSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheFreshnessSnapshot.swift; sourceTree = "<group>"; };
+		B2000000000000000000001B /* GeneralSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -355,6 +361,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000027 /* MarketIndicators.swift */,
+				B10000000000000000000045 /* CacheFreshnessSnapshot.swift */,
 				B10000000000000000000028 /* MarketPreferences.swift */,
 			);
 			path = Markets;
@@ -481,6 +488,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000025 /* SettingsFeatureModel.swift */,
+				B10000000000000000000044 /* GeneralPreferences.swift */,
 				B1000000000000000000003D /* SettingsDataLifecycleModel.swift */,
 				B10000000000000000000026 /* SettingsView.swift */,
 			);
@@ -575,6 +583,7 @@
 				B20000000000000000000018 /* SettingsDataLifecycleTests.swift */,
 				B20000000000000000000019 /* PermanentBackupExportTests.swift */,
 				B2000000000000000000001A /* PermanentExternalRestoreTests.swift */,
+				B2000000000000000000001B /* GeneralSettingsTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -718,8 +727,10 @@
 				A10000000000000000000027 /* MarketNetworking.swift in Sources */,
 				A10000000000000000000028 /* MarketDataService.swift in Sources */,
 				A10000000000000000000029 /* SettingsFeatureModel.swift in Sources */,
+				A10000000000000000000044 /* GeneralPreferences.swift in Sources */,
 				A1000000000000000000002A /* SettingsView.swift in Sources */,
 				A1000000000000000000002B /* MarketIndicators.swift in Sources */,
+				A10000000000000000000045 /* CacheFreshnessSnapshot.swift in Sources */,
 				A1000000000000000000002C /* MarketPreferences.swift in Sources */,
 				A1000000000000000000002D /* MarketsFeatureModel.swift in Sources */,
 				A1000000000000000000002E /* MarketsView.swift in Sources */,
@@ -776,6 +787,7 @@
 				A20000000000000000000018 /* SettingsDataLifecycleTests.swift in Sources */,
 				A20000000000000000000019 /* PermanentBackupExportTests.swift in Sources */,
 				A2000000000000000000001A /* PermanentExternalRestoreTests.swift in Sources */,
+				A2000000000000000000001B /* GeneralSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

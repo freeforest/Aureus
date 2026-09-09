@@ -14,6 +14,7 @@ struct AppDependencies: Sendable {
     let fxRateProvider: any FXRateProvider
     let marketDataService: MarketDataService
     let marketPreferencesStore: MarketPreferencesStore
+    let generalPreferencesStore: GeneralPreferencesStore
     let portfolioPreferencesStore: PortfolioPreferencesStore
     let credentialStore: any CredentialStore
     let credentialCoordinator: ProviderCredentialCoordinator
@@ -68,6 +69,9 @@ struct AppDependencies: Sendable {
         )
         let marketCacheStore = try MarketCacheStore(databaseURL: paths.marketCacheDatabaseURL)
         let marketSessionStore = TransientMarketSessionStore()
+        let generalPreferencesStore = await MainActor.run {
+            configuration.usesTemporaryStores ? GeneralPreferencesStore() : .production()
+        }
         let marketPreferencesStore = MarketPreferencesStore(
             suiteName: nil,
             memoryOnly: configuration.usesTemporaryStores
@@ -157,6 +161,7 @@ struct AppDependencies: Sendable {
             fxRateProvider: fxRateProvider,
             marketDataService: marketDataService,
             marketPreferencesStore: marketPreferencesStore,
+            generalPreferencesStore: generalPreferencesStore,
             portfolioPreferencesStore: portfolioPreferencesStore,
             credentialStore: credentialStore,
             credentialCoordinator: credentialCoordinator,

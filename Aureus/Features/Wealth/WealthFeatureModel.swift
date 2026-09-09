@@ -10,6 +10,14 @@ enum WealthLoadState: Equatable {
 struct WealthEditorPresentation: Identifiable, Equatable {
     let id = UUID()
     let existing: WealthContainer?
+    var initialCurrency: CurrencyCode = .cny
+
+    var initialDraft: WealthEditorDraft {
+        if let existing { return WealthEditorDraft(existing: existing) }
+        var draft = WealthEditorDraft()
+        draft.currency = initialCurrency
+        return draft
+    }
 }
 
 struct WealthDeleteConfirmation: Identifiable, Equatable {
@@ -256,6 +264,7 @@ struct WealthEditorDraft: Equatable {
 @MainActor
 @Observable
 final class WealthFeatureModel {
+    let generalPreferences: GeneralPreferencesStore
     private(set) var records: [WealthContainer] = []
     private(set) var summary: WealthSummary = .zero
     private(set) var loadState: WealthLoadState = .loading
@@ -271,10 +280,12 @@ final class WealthFeatureModel {
     @ObservationIgnored private let timeZone: TimeZone
     @ObservationIgnored private var hasLoaded = false
 
-    init(store: WealthStore, clock: any Clock, timeZone: TimeZone = .current) {
+    init(store: WealthStore, clock: any Clock, timeZone: TimeZone = .current,
+         generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore()) {
         self.store = store
         self.clock = clock
         self.timeZone = timeZone
+        self.generalPreferences = generalPreferences
     }
 
     var selectedRecord: WealthContainer? {
@@ -306,7 +317,8 @@ final class WealthFeatureModel {
 
     func beginAdd() {
         editorErrorMessage = nil
-        editor = WealthEditorPresentation(existing: nil)
+        editor = WealthEditorPresentation(existing: nil,
+            initialCurrency: generalPreferences.snapshot.newWealthCurrency)
     }
 
     func beginEdit() {

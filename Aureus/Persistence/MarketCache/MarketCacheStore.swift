@@ -417,6 +417,24 @@ actor MarketCacheStore {
         }
     }
 
+    /// Does not flush pending accesses or decode payloads. Equality follows lookup, not cleanup.
+    func freshnessSnapshot(now: UTCInstant) throws -> CacheFreshnessSnapshot {
+        try queue.read { db in
+            let fresh = try Int.fetchOne(db, sql:
+                "SELECT COUNT(*) FROM market_cache_entries WHERE expires_at_ms >= ?",
+                arguments: [now.millisecondsSince1970]) ?? 0
+            let expired = try Int.fetchOne(db, sql:
+                "SELECT COUNT(*) FROM market_cache_entries WHERE expires_at_ms < ?",
+                arguments: [now.millisecondsSince1970]) ?? 0
+            let legacy = try Int.fetchOne(db, sql: """
+                SELECT (SELECT COUNT(*) FROM cached_instruments)
+                     + (SELECT COUNT(*) FROM cached_prices)
+                """) ?? 0
+            return CacheFreshnessSnapshot(observedAt: now, freshCount: fresh,
+                expiredCount: expired, legacyCount: legacy)
+        }
+    }
+
     func statistics() throws -> MarketCacheStatistics {
         try flushAccessTimes()
         return try queue.read { db in
