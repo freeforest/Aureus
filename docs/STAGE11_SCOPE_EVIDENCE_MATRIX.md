@@ -2,9 +2,15 @@
 
 **Stage 11 总 Gate：PARTIAL — Awaiting Reviewer Gate**
 
+## E-OSL-RB（2026-09-10）：PARTIAL — Awaiting Reviewer Gate
+
+当前 122 项规范化基线 `98770b9999b26b4808cbaea6417704463fa886fde28c320a2d57f114be64e9fc` 精确匹配；零源码修改。新 unsigned BFT exit 0/succeeded，单次 Full **488/587，587/0/0**，expected failures 0、parsers 0/0。同一 Full 中十一组 D-03 子集 **205/264** 全 Passed；**不是独立 Focused invocation**，独立 Focused NOT RUN。见[长期 ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-OSLOG-EVIDENCE-REBASELINE-01-DS0fIa/ExecutionReport.md)。本轮仅测试结束后更新三份文档，其余 119 项及运行产品冻结。
+
+旧 Dlr35W 原始证据已丢失，下述 E-OSL 数字/范围记录为 **HISTORICAL ONLY — 据报告通过，原始证据已丢失**。新当前证据不恢复旧 manifest，不证明旧 Allowlist 合规或消除旧 Mandatory Read 偏差。D-03 当前静态/Unit 待 Reviewer；系统日志交付、人工脱敏、D-06、S11-05、剩余 UI/人工仍开放。
+
 ## E-OSL（2026-09-09）：本轮 PARTIAL — Awaiting Reviewer Gate
 
-最小隐私安全 OSLog 已接入九类有限终态，Source/Project 冻结后 unsigned BFT、Focused **205/264，264/0/0**、Full **488/587，587/0/0** 均通过，底层 exits0、完整 canonical parsers0。真实 workflow 与 mapping-only、OSLog 调用 smoke 与系统交付证明分开；无读取系统日志。Project 一段 Sources 清单在首次新增文件后补读，流程偏差保留。见 [ExecutionReport](/private/tmp/Aureus-Stage11-PRIVACY-SAFE-OSLOG-01-Dlr35W/ExecutionReport.md)。
+旧报告记录最小隐私安全 OSLog 接入九类有限终态，unsigned BFT、Focused **205/264，264/0/0**、Full **488/587，587/0/0** 据报告通过，底层 exits0、canonical parsers0。原 `/private/tmp/Aureus-Stage11-PRIVACY-SAFE-OSLOG-01-Dlr35W/ExecutionReport.md` 与产物已丢失，不能用此摘要替代原件。真实 workflow 与 mapping-only、OSLog smoke 与系统交付证明保持区分；Project Sources 在首次新增文件后补读的旧偏差保留。
 
 Reviewer 已接受 E-GSC D-01/D-04 和 E-GSC-AUTH 四 UI；本轮 inherited / NOT RUN。下文各历史段落保持原时点；当前 D-01/D-04、D-03 和总范围状态以本节及第6/7节为准。UI/signed BFT/Clean/Release/人工 QA 均无本轮新增执行。
 
@@ -117,7 +123,7 @@ E-GSC-UI 续跑：已取得当次桌面确认，但唯一 invocation 在 Runner 
 | ID / 来源与Stage | 实现与调用关系 | 断言与artifact | 实现 / 自动化 | 限制与最小下一步 |
 |---|---|---|---|---|
 | S11-29；G Data Privacy、A668/673/708；Stage6→11 | Production Keychain authority，manual .secrets不作runtime源；BK/EX只允许db+manifest；Settings warning明确私密备份 | BT.manifestPrivacy/adjacentIsolation，RT.resultAndErrorPrivacy550，ET.sanitizedResultAndErrors451；E-U | `IMPLEMENTED / VERIFIED`（有限result/artifact）；本轮live NOT RUN | 不访问.secret连metadata也未访问；不能由无输出推断全系统无秘密 |
-| S11-30；S193、A670/675/712；Stage11 | DataLifecycleDiagnostics 三有限枚举；AD → WealthStore/Settings 两 model，九类终态；Production OSLog / temporary disabled | E-OSL：205/264 Focused、488/587 Full PASS；真实 synthetic workflows、sink/私密插值/固定枚举 smoke；migration 其他失败阶段仅 mapping | `IMPLEMENTED / VERIFIED`（限定 Unit + static）；本轮 PARTIAL 待 Reviewer | 系统交付/留存/Console 人工脱敏 NOT RUN；无任意 payload、文件日志或遥测；刷新后提交语义限制见 E-OSL |
+| S11-30；S193、A670/675/712；Stage11 | DataLifecycleDiagnostics 三有限枚举；AD → WealthStore/Settings 两 model，九类终态；Production OSLog / temporary disabled | E-OSL-RB：单次 Full 488/587；同包十一组 205/264 全 Passed，独立 Focused NOT RUN；旧 E-OSL HISTORICAL ONLY | `IMPLEMENTED / VERIFIED`（当前限定 Unit + static）；PARTIAL 待 Reviewer | 系统交付/留存/Console 人工脱敏 NOT RUN；外部 rollback 与其他 migration 错误为 mapping；提交后刷新限制见 acceptance |
 | S11-31；A563–568/675；Stage7→11 | MarketChartWebView70/85有限error映射→MarketChartInboundMessage.decode198 whitelist→bundled JS；CSP connect-src none，无console输出命中 | MarketsTerminalTests.inboundMessages171拒绝raw freeform error；E-U；Unit性能print与第三方诊断分开 | `IMPLEMENTED / VERIFIED`（桥接有限契约）；不是OSLog实现 | vendor仅受限符号扫描，不能保证系统WebKit永不诊断；Ledger本地error UI自由文本不能传进未来日志 |
 | S11-32；A677/711；Stage11 | SV580 disclosure不加应用层加密，external warnings636/640要求私密受控存储；无ZIP/encryption实现 | UI ExternalExport/Restore exact warning断言；E-UI，BT manifest字段无encryption伪声明 | `IMPLEMENTED / VERIFIED`（披露）；人工NOT RUN | sandbox/macOS保护不是Aureus独立加密；无新增加密授权 |
 | S11-33；A195/671、S129/131/193；Stage2…11 | LaunchConfiguration.current demo/ui-testing/temp→RP.temporary；AD.make selects InMemoryCredential/SyntheticProviders与memory prefs；真实local graph路径独立 | UI ExternalRestore尾部Local-mode空Goals/inventory0、无自动panel，Export artifact仍同；LT.temporaryCompositionRootIsolation646；E-U/E-UI | `IMPLEMENTED / VERIFIED`（temporary-store隔离） | 测试变量production仍隔离store，**不是实际用户Production Store验证**；不做全进程live计数推断 |
@@ -131,7 +137,7 @@ D-01/D-04 的有限合同、E-GSC Unit/BFT 与 E-GSC-AUTH 四项 UI 已由 Revie
 |---|---|---|---|
 | D-01 Currency/display | 已批准：新 Wealth 默认币种 CNY/USD（默认 CNY）；Wealth grouping On/Off（默认 On），A266 CNY 权威与 canonical 合同保持 | store 仅 version/currency/grouping；AD graph 注入，temporary memory-only；编辑自身币种、草稿捕获、Decimal/locale 显示 | Reviewer accepted E-GSC Unit/BFT、E-GSC-AUTH 四项 UI；本轮 inherited / NOT RUN，非新产品 UI；人工 NOT RUN |
 | D-02 Last cleanup time | 已裁决唯一来源lastCleanupAt；固定Gregorian/en_US_POSIX/UTC `yyyy-MM-dd HH:mm:ss.SSS UTC`；完整前缀`Last cleanup time: `，nil尾文`No cleanup record available`，epoch-zero有效 | 已实现SM纯展示投影、SV独立可见AX Text；statistics nil仍Cache status unavailable；不写metadata、不用当前Clock替代，不修改oldest/缓存语义。初始AX等待FAIL经唯一element语义repair后重验 | E-CCT：时间/reopen/失败保持/reset/同graph刷新及UI exact-label PASS；三项共享Settings回归3/3 PASS。人工QA NOT RUN；Stage11总验收仍由Reviewer决定 |
-| D-03 OSLog | 本 Prompt 批准九类 workflow 终态，仅 operation/outcome/errorCategory，成功 info、其他 error、动态插值 private | 已实现 typed adapter/disabled/OSLog/in-memory test sink；无 duration/count/credential/provider lifecycle；不移动提交、rollback 或 migration 调用 | E-OSL unsigned BFT、Focused205/264、Full488/587 PASS；真实终态与 mapping-only 分开；静态隐私与 smoke Passed 不等于系统日志交付；阅读顺序偏差保留，PARTIAL 待审 |
+| D-03 OSLog | 已批准九类 workflow 终态，仅 operation/outcome/errorCategory，成功 info、其他 error、动态插值 private | 已实现 typed adapter/disabled/OSLog/in-memory test sink；无 duration/count/credential/provider lifecycle；不移动提交、rollback 或 migration 调用 | E-OSL-RB 新 unsigned BFT、单次 Full488/587、同包子集205/264 Passed；独立 Focused NOT RUN。旧 E-OSL HISTORICAL ONLY；旧阅读/范围无法追溯补证。当前有限 static/Unit 待审，系统交付未验证 |
 | D-04 Settings stale/offline | 已批准当前条目 TTL 元数据+离线限制；不是网络状态。Session `>`、disk `>=` 边界保持，legacy 不冒充 TD 离线 fallback | 两只读 snapshot、不解码 payload、不改旧 statistics；进入/动作后及显式 Refresh 更新；独立可见 AX，失败不当0条目 | Reviewer accepted E-GSC Unit/BFT、E-GSC-AUTH 空→synthetic search→TTL→Clear UI；本轮 inherited / NOT RUN。expired/legacy/unavailable UI NOT VERIFIED；真实离线/人工 QA NOT RUN |
 | D-05 Offline empty-session呈现 | Reviewer已裁定四个Service入口保留原始offline/timeout；native missing不变，Model现有映射冻结 | E-PBO仅修正Portfolio过期预期并加三个有限mapping参数；保留E-MSO Service、E-UCF fixture、stale/action pair/FX/generation/无磁盘fallback合同 | E-PBO当前Focused/Full Unit与构建均PASS，限定Candidate待审；E-MSO取消和E-UCF旧预期失败保留。实际离线UI/人工QA仍NOT RUN / NOT VERIFIED |
 | D-06 Export Release同源证据 | 26ms旧PASS保留，但其共享validator已变；没有本轮补跑授权 | Reviewer决定接受额外依赖变化论证还是另行授权当前Export suite Release复验；本审计不替Reviewer豁免identity条件 | 确需复验时才按新授权真实10,000-row export+committed validation；不能拿Debug/18UI/Restore43ms替代 |
@@ -140,7 +146,7 @@ E-EP差异：`PermanentBackup.swift` 旧 `44ebae07ffbab669f984520c3efe751f5c8ba1
 
 ## 7. 结论与边界
 
-已有 accepted 子合同、E-CCT cleanup 时间和 E-GSC/E-GSC-AUTH preferences/TTL Unit、构建及四项 UI。D-03 现有有限实现与本轮 E-OSL Unit/static/smoke 证据待审；系统日志最终交付/人工脱敏未验证。D-06 当前同源 Release、剩余全量 UI/人工及 S11-05 全字段 AX 限制仍开放；本轮新产品没有 UI runtime 证据。不能用历史 18/18、四项 UI、Unit 或 BFT 宣布 Stage11 完整。
+已有 accepted 子合同、E-CCT cleanup 时间和 E-GSC/E-GSC-AUTH preferences/TTL Unit、构建及四项 UI，不因补证自动扩大或撤销。D-03 当前有限实现与 E-OSL-RB 单次 Full/static/smoke 证据待审；旧 E-OSL 原件丢失，只留历史摘要。系统日志最终交付/人工脱敏未验证。D-06 当前同源 Release、剩余全量 UI/人工及 S11-05 全字段 AX 限制仍开放；本轮新产品没有 UI runtime 证据。不能用历史 18/18、四项 UI、Unit 或 BFT 宣布 Stage11 完整。
 
 历史PID59940首次断连原因仍 `UNKNOWN`；jKe2QJ规定执行中未复现，不等于根因修复。h3ILCY只读审计没有执行；本轮限定Settings测试通过也不构成历史断连根因修复。历史完整Failed、unknown/0-test、incomplete、Mandatory Read与numeric-exit缺口原样保留在[Stage11 acceptance](STAGE11_DATA_LIFECYCLE_ACCEPTANCE.md)。
 

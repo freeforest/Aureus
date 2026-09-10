@@ -4,11 +4,29 @@
 
 **Stage 11 PARTIAL — Awaiting Reviewer Gate**
 
+## E-OSL-RB — 当前 OSLog 证据重新建立
+
+2026-09-10：**PARTIAL — Awaiting Reviewer Gate**。当前 122 项规范化清单 SHA256 `98770b9999b26b4808cbaea6417704463fa886fde28c320a2d57f114be64e9fc` 精确匹配。全程未修改 Product/Test/Project；新产品和完整原始结果直接保存在[长期证据报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-OSLOG-EVIDENCE-REBASELINE-01-DS0fIa/ExecutionReport.md)。
+
+| 本轮技术 Gate | 实际结果 | 证明范围 |
+|---|---|---|
+| A 阅读/当前身份/离线依赖/静态合同 | 完成；当前 122 项匹配 | 当前基线，不是旧 Dlr35W 基线恢复或旧范围审计证明 |
+| B 新 unsigned Unit BFT | succeeded；exit 0；build parser 0；0 errors、4 条 PortfolioView 弃用 warning | Debug arm64；canonical 40.370 s |
+| C 单次 Full AureusTests | 488 definitions / 587 executions；587/0/0；expected failures 0；exit 0；parsers 0/0 | 完整 Info.plist；canonical 58.252 s；30 参数化定义、129 参数节点 |
+| D 同 Full 包十一组子集 | 205 definitions / 264 executions，全部 Passed | 来自本次 FullUnit.xcresult，不是独立 Focused invocation；独立 Focused NOT RUN |
+| E 冻结复验/文档/最终审计 | 仅三份文档更新；其余 119 项不变，仍 122 项 | 产品/配置 Hash 不变，无新增、删除或重命名 |
+
+实际 Host PID 10762 于 `2026-09-10T06:55:54.519795Z` 观察到 `--aureus-temporary-store`；原配置保留，同 Products 副本唯一差异为 enabled AureusTests 增加该参数。Full 的两项 concurrency fixture、Offline 六定义全部 20 参数、Portfolio mapping 三参数均 Passed。D-03 adapter private-template/disabled/recording/severity/smoke、真实 workflow、内部 rollback、外部提交后刷新失败、migration fresh/legacy v1–v5/current no-op/missingConfiguration、四项缓存成功及一项 overflow 失败均在同包验证。
+
+外部 rollback 日志为受控错误映射证据；其他 migration 失败类别为 mapping-only。Backup/内部 Restore 提交后刷新失败为静态接线，未单独注入。OSLog smoke 不证明系统交付/留存/Console 脱敏。BFT 1/1、Full 1/1；修复/业务或基础设施重试/独立 Focused/取消均 0，所有本轮 invocation 已结束。UI、signed BFT、Clean、Release、真实 Provider/离线、系统日志读取及人工 QA NOT RUN。D-01/D-04 既有有限 Reviewer 接受不扩大或撤销；D-03 待 Reviewer，D-06、S11-05 与剩余集中验收开放。
+
 ## E-OSL — Privacy-safe OSLog 有限实现
+
+**HISTORICAL ONLY — 据报告通过，原始证据已丢失。** 用户确认 Dlr35W 无法找回；以下保留旧报告数字与旧阅读偏差，不作为当前运行证据，旧 Allowlist 合规无法追溯重证。本轮阅读不能修复旧顺序缺口。
 
 2026-09-09：**PARTIAL — Awaiting Reviewer Gate**。本轮 D-03 的 typed adapter 仅接收三个有限枚举，无自由文本、Error、URL、identity 或金融字段。固定 `com.aureus.wealthterminal` / `data-lifecycle`，成功 info，其余终态 error；六处动态插值均显式 private。AppDependencies 在 WealthStore 创建前选 backend，并向 Store、Settings 两个 model 传递同 graph diagnostics；Production OSLog、temporary disabled，View 布局/文案/AX 未改。
 
-| 本轮实际 Gate | canonical / 底层 exit | 证据边界 |
+| 历史报告 Gate（原件丢失） | 据报告 canonical / 底层 exit | 历史证明范围 |
 |---|---|---|
 | Unsigned Unit BFT | succeeded，0 errors，exit 0，build parser 0 | Fresh arm64 产品；四条 warning 位于未改的 PortfolioView |
 | Focused 11 suites | 205 definitions / 264 executions，264/0/0，expected failures 0；exit 0；parsers 0/0 | 所有选定定义/参数 Passed，15.288 s |
@@ -18,7 +36,7 @@
 
 显式 synthetic Error/路径/账户哨兵不进入事件，固定枚举 OSLog smoke 只验证调用路径。真实 OSLogStore/Console、日志最终交付/留存/端到端人工脱敏 **NOT RUN / NOT VERIFIED**。无系统日志读取。没有 source repair、业务重跑、基础设施重试或取消；实现阶段及文档阶段各一次 apply_patch 上下文/顺序匹配失败，均在应用前失败，未产生部分修改。Project Sources 710–729 行在新增 adapter 后、Project 修改前补读，此阅读顺序偏差不追溯消除。
 
-本轮原 120 项保留并新增两项；测试期间源码/Project 冻结，测试后仅更新三份文档。Unit 原件保留，同 Products 副本唯一结构差异为 enabled AureusTests 的 `--aureus-temporary-store`；Focused/Full 准确宿主均观察到该参数。完整命令、Hash、结果与局部审计见 [ExecutionReport](/private/tmp/Aureus-Stage11-PRIVACY-SAFE-OSLOG-01-Dlr35W/ExecutionReport.md)。
+旧报告称原 120 项保留并新增两项；测试期间源码/Project 冻结，测试后仅更新三份文档；同 Products Unit 副本唯一结构差异为 enabled AureusTests 的 `--aureus-temporary-store`，Focused/Full 宿主观察到该参数。原 `/private/tmp/Aureus-Stage11-PRIVACY-SAFE-OSLOG-01-Dlr35W/ExecutionReport.md`、清单、产品和结果已丢失，以上不能由旧原件复核。
 
 Reviewer 已接受下述 E-GSC D-01/D-04 及 E-GSC-AUTH 四 UI 技术证据；本轮 inherited / NOT RUN。旧 UI 产品与本轮产品不同，不声称 current-source UI PASS。所有 UI、signed BFT、Clean、Release、真实 Provider/离线及人工 QA 本轮 NOT RUN；D-06、S11-05 全字段 AX、剩余集中验收仍开放。历史初始化 Failed、用户认证 USER REPORTED、UNKNOWN、取消及 Mandatory Read/numeric-exit 缺口均保留。
 

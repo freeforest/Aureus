@@ -19,9 +19,13 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+2026-09-10，E-OSL-RB：**PARTIAL — Awaiting Reviewer Gate**。当前 122 项规范化清单 `98770b9999b26b4808cbaea6417704463fa886fde28c320a2d57f114be64e9fc` 核验通过，零源码修改；新 unsigned Unit BFT succeeded（exit 0），单次 Full **488 definitions / 587 executions，587/0/0**，expected failures 0，summary/tests exits 0/0。同一 Full 包内十一组 D-03 子集 **205/264** 全通过；独立 Focused **NOT RUN**，子集分析不是另一次执行。原始结果、产品、隔离配置及报告保存在[长期 ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-OSLOG-EVIDENCE-REBASELINE-01-DS0fIa/ExecutionReport.md)。仅测试结束后更新三份文档，其余 119 项冻结；Stage11 总 Gate PARTIAL，Stages12–14 NO-GO。
+
+旧 Dlr35W 原始证据已由用户确认无法找回，下述 E-OSL 旧计数及审计结论均为 **HISTORICAL ONLY — 据报告通过，原始证据已丢失**。本轮建立新的当前证据，不恢复旧结果、不追溯证明旧 Allowlist 或消除旧阅读偏差。OSLog 系统交付/留存/人工脱敏、UI、signed BFT、Clean、Release、真实 Provider/离线和人工 QA 本轮均 NOT RUN；D-06、S11-05 及剩余集中验收继续开放。
+
 2026-09-09，E-OSL：**PARTIAL — Awaiting Reviewer Gate**。D-03 已接入仅含 operation/outcome/errorCategory 三个有限枚举的 OSLog adapter；Production 显式注入，temporary 默认 disabled。限定九类 Settings workflow/manual cache/Permanent migration 终态，区分 rollback、recoveryRequired、提交后 inventory refresh 失败及 migration no-op；所有动态日志插值显式 private，不记录任意 Error、路径或业务 payload。
 
-本轮 unsigned BFT PASS；Focused **205 definitions / 264 executions，264/0/0**，Full **488/587，587/0/0**；underlying exits 全 0、完整 canonical 解析通过，失败/跳过/expected failures 均 0。sink、真实 synthetic workflow、有限错误映射、静态插值检查与固定枚举 OSLog smoke 均通过；smoke 不证明系统日志最终留存或 Console 脱敏。Project 一段 Sources 清单在首个新增文件后补读，阅读顺序偏差保留，不据技术通过宣布整轮完全合规。详见[ExecutionReport](/private/tmp/Aureus-Stage11-PRIVACY-SAFE-OSLOG-01-Dlr35W/ExecutionReport.md)及[范围矩阵](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md)。
+历史报告称 unsigned BFT PASS；Focused **205 definitions / 264 executions，264/0/0**，Full **488/587，587/0/0**；underlying exits 全 0、完整 canonical 解析通过，失败/跳过/expected failures 均 0。sink、真实 synthetic workflow、有限错误映射、静态插值检查与固定枚举 OSLog smoke 据报告通过；smoke 不证明系统日志最终留存或 Console 脱敏。Project 一段 Sources 清单在首个新增文件后补读，阅读顺序偏差保留。旧 `/private/tmp/Aureus-Stage11-PRIVACY-SAFE-OSLOG-01-Dlr35W/ExecutionReport.md` 已丢失，不能作为可复核原始证据；见[范围矩阵](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md)。
 
 Reviewer 已接受 E-GSC 的 D-01/D-04 有限合同、Unit/BFT 和 E-GSC-AUTH 四项 UI PASS；本轮为 inherited / NOT RUN，旧产品结果不自动升级为本轮新产品 UI 证据。UI、signed BFT、Clean、Release、系统日志读取及人工 QA 本轮均 NOT RUN；D-06 当前同源 Export Release、S11-05 全字段 AX 和其他集中验收继续开放。Stage11 总 Gate PARTIAL，Stages12–14 NO-GO。以下历史段落保留当时语境。
 
