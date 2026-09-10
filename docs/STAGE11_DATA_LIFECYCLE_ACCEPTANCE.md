@@ -2,7 +2,34 @@
 
 ## Status
 
-**Stage 11 PARTIAL — Awaiting Reviewer Gate**
+**Stage 11 PARTIAL — Awaiting Final Reviewer Gate**
+
+## E-FINAL — 当前有限接受与最终 Gate 提交（2026-09-10）
+
+**Stages12–14 NO-GO。** 本节是当前摘要；以下 E-CC 及更早章节保留原时点，不覆盖原 Failed、未到达、取消或流程缺口。本轮零运行验证，所有 Build/Unit/UI/Release/manual/Provider：**NOT RUN — DOCUMENTATION-ONLY ROUND**。
+
+| 已接受来源 | 继承事实 | 覆盖与限制 |
+|---|---|---|
+| E-LC | 单方法 1/1、1/0/0，exit0、signal null、expected failures0、canonical Passed、summary/tests exits0/0 | S11-05 明确 en/US 合同；不是 Full UI、多语言或人工 VoiceOver 验收 |
+| E-CC | Full Unit 491/597、597/0/0；Release Export 29/31、31/0/0；10,000-row export＋committed validation 28 ms；相关 BFT 限定接受 | 28 ms 非 p95/跨设备保证；Full UI 原件仍 21 executions、20/1/0 Failed、exit65，原20项有限 Passed 保留 |
+| E-OBS | 单方法 0/1/0 Failed、exit65、parsers0/0；summary count=1，完整 label 比较为 false | actual 为英语单位/U+0020，expected 为中文单位/U+2006；直接差异 VERIFIED，不推出历史唯一根因 |
+| E-OSL-RB | D-03 有限 static/Unit 已接受，Full488/587；同一 Full 十一组205/264通过 | 不是独立 Focused；sink/workflow/mapping/static/OSLog smoke 分开，系统交付、留存、Console人工脱敏仍 NOT VERIFIED |
+
+上述均为 **VERIFIED inherited evidence / NOT RUN in this round**。D-01/D-02/D-04/D-05 已接受合同保持各自边界。证据入口：[E-LC](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-CACHE-AUDIT-LOCALE-CONTRACT-01-Fv0v66/ExecutionReport.md)、[E-OBS](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-CACHE-AUDIT-DIRECT-OBSERVATION-01-eD7IAF/ExecutionReport.md)、[E-CC](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-CONSOLIDATED-CLOSURE-01-ZnXAET/ExecutionReport.md)、[E-OSL-RB](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-OSLOG-EVIDENCE-REBASELINE-01-DS0fIa/ExecutionReport.md)。
+
+### S11-05 的 17 条直接记录与身份边界
+
+E-LC [Observations.json](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-CACHE-AUDIT-LOCALE-CONTRACT-01-Fv0v66/Observations.json)与原始专用记录一致：initial 4、initial.legacy 1、capacity256 4、reset 4、returned 4；唯一匹配、完整 label 相等、未截断。初始 summary 的 768 bytes/512 MiB 对应 formatter 显示、0%/2条/原 cleanup，独立 oldest/cleanup UTC、provider 2条/768 bytes、legacy 限制；Apply256 后条目与 bytes 保持；Reset 后0条/default512/oldest None/provider empty/cleanup nil；返回同 graph 保持，最终无 Settings error。这里的字节单位仍由原 formatter 生成，未修改预期或归一化空白。Legacy 不代表 Twelve Data V1 有效 TTL/offline fallback，expired/unavailable UI 未由此验证。
+
+E-LC Repository 零修改、无重建重签，App/Runner 完整 manifest 与 E-OBS 一致。仅证据目录 UI target 的四字段改变：TestLanguage=en、TestRegion=US，CommandLineArguments 与 UITargetAppCommandLineArguments 各追加一次 `-AppleLanguages (en) -AppleLocale en_US`；其余配置不变，无系统持久偏好修改。配置与输出支持本次 en/US 效果，不能声称两进程 Locale getter 或任意系统 Locale 实测一致。本轮按获准报告继承产品身份，不重验二进制。
+
+### 最终提交限制与历史保留
+
+[矩阵第8节](STAGE11_SCOPE_EVIDENCE_MATRIX.md#8-最终-gate-对照表)将有限 Stage11 合同、仍需保留的人工证据、Stage12 全局 hardening 和历史/政策限制分列。A-016 明文要求人工 QA；与 A-014/A-015 的 Stage11 security-scoped panel、备份恢复确认、离线/签名 sandbox 工作流相应的人工观察仍未取得，不能由自动化替代。这些工作流涉及Stage11，但A-016未单独指定其全部人工观察必须在Stage11出口完成，不能仅从功能归属新增前置Gate。全局 VoiceOver/键盘体验、外观/图表及性能 hardening 保留 Stage12 明定职责；工作流专项人工记录的具体验收时点交Reviewer确认，不擅自豁免或迁移。未发现新的 Stage11 必需项阻塞，提交 Reviewer 最终裁决；这不表示V1人工QA已完成。
+
+旧 Dlr35W 永久 **HISTORICAL ONLY — 据报告通过，原始证据已丢失**；不恢复旧 manifest、旧 Allowlist 或阅读合规。保留 E-CC 文档提前草稿偏差、E-LC 父目录检查晚于创建目录偏差、旧 Mandatory Read/numeric-exit/incomplete/取消/Failed 与 UNKNOWN。用户本人完成系统认证仅 USER REPORTED，不是全部历史超时唯一根因。OSLog 系统交付/留存/人工脱敏尚未验证，但冻结有限 adapter 合同不据此新增本轮运行 Gate。真实 Provider/离线实验与人工 QA 本轮均未运行，当前 entitlement 不从 synthetic 推出。
+
+本轮起始122项规范化 SHA256：`5f45800a816c138efd446fe30f397f155a47041ceaf26582151d9f0dc09c0b8f`；E-LC AfterUIInventory self SHA256：`1ce435cfae8c5f470f58a81a799c74a8e20512b194da6a7967723537d458db4e`。三文档最终 Hash 与119项冻结结果见[本轮报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-FINAL-EVIDENCE-CLOSEOUT-01-vFX7aM/ExecutionReport.md)。Stage11 总 Gate 交由 Reviewer，不能据本次收尾宣布 PASS。
 
 ## E-CC — S11-05 limited implementation and current Release evidence
 

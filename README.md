@@ -19,6 +19,16 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+### E-FINAL（2026-09-10）：当前 Reviewer 提交状态
+
+**Stage11 PARTIAL — Awaiting Final Reviewer Gate；Stages12–14 NO-GO。** Reviewer 已接受 S11-05 的限定 en/US 自动化：E-LC 单方法 **1 definition / 1 execution，1/0/0，exit0，expected failures0，parsers0/0**。17 条直接记录覆盖 initial、legacy、Apply256、Reset 和同 graph 返回，全部原有字段、唯一性及最终无 Settings error 断言完成。见 [E-LC 原始证据报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-CACHE-AUDIT-LOCALE-CONTRACT-01-Fv0v66/ExecutionReport.md)。
+
+E-CC Full Unit **491/597、597/0/0**、Release Export **29/31、31/0/0** 与 10,000-row export＋committed validation **28 ms**、相关 BFT，以及 D-03 E-OSL-RB 限定 static/Unit 已接受。E-CC Full UI 永久保留 **20/1/0 Failed、exit65**；后续 E-LC 独立 1/1 不拼成新 Full UI 21/21。E-OBS 已直接记录 count=1、英语单位/U+0020 与中文单位/U+2006 的 label 差异；进程 Locale getter、历史语言选择机制和历史唯一根因仍未验证。
+
+本次仅文档收尾，以上均为 **VERIFIED inherited evidence / NOT RUN in this round**；Build/Unit/UI/Release/manual/Provider 均 **NOT RUN — DOCUMENTATION-ONLY ROUND**。A-016 人工证据仍缺，尚未找到将全部此类项目设为 Stage11 出口前置的明确依据，详见[最终 Gate 对照表](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md#8-最终-gate-对照表)；Stage12 全局 UX/性能职责、D-03 系统交付/人工脱敏限制与历史偏差分别保留，不自行豁免或增设 Gate。[本轮收尾报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-FINAL-EVIDENCE-CLOSEOUT-01-vFX7aM/ExecutionReport.md)记录安全清单及三文档差异。长期工程证据不是公开发布材料。
+
+### 历史记录（以下“当前／本轮／未到达”均为各原轮次时点）
+
 2026-09-10，E-CC：**PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受 E-OSL-RB 的限定 D-03 static/Unit 补证；旧 Dlr35W 丢失证据与阅读偏差仍保留。当前仅补齐 S11-05 oldest UTC 独立 AX、provider breakdown AX，以及三个参数同时启用的 temporary synthetic legacy cache audit fixture；普通启动/Demo/原20项 UI 默认不 seed。
 
 本轮新 unsigned Debug BFT、Full Unit **491 definitions / 597 executions，597/0/0**、unsigned Release BFT、Export suite **29/31，31/0/0**、fresh signed Debug BFT 均通过；上述 underlying exits 和 canonical parsers 全0。实际10,000-row export＋committed validation **28 ms**，不是旧26ms、p95或跨设备保证。App/Runner strict codesign 0，arm64、本地 ad-hoc。取得当次桌面确认后，单次 **Full UI 完整 Failed：21 definitions / 21 executions，20/1/0，exit65、signal null、parsers0/0**。唯一失败为新增 cache audit 的首次 summary 精确 label 联合等待（UI:66）；oldest/provider、Apply/Reset及返回检查点未到达，仍 NOT VERIFIED。原20项均通过；不修复、不重跑，人工 QA 因前置失败 NOT RUN。
