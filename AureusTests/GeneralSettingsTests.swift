@@ -8,6 +8,85 @@ import Testing
 struct GeneralSettingsTests {
     private let now = UTCInstant(millisecondsSince1970: 1_768_435_200_000)
 
+    @Test("Oldest entry uses fixed UTC and preserves nil and epoch zero")
+    func oldestEntryDisplay() {
+        #expect(SettingsFeatureModel.oldestEntryLabel(for: nil) == "Oldest cache entry: None")
+        #expect(SettingsFeatureModel.oldestEntryLabel(for: UTCInstant(millisecondsSince1970: 0))
+            == "Oldest cache entry: 1970-01-01 00:00:00.000 UTC")
+        #expect(SettingsFeatureModel.oldestEntryLabel(for: now)
+            == "Oldest cache entry: 2026-01-15 00:00:00.000 UTC")
+    }
+
+    @Test("Cache audit requires all three explicit arguments", arguments: Array(0...7))
+    func cacheAuditArguments(mask: Int) {
+        let flags = ["--aureus-ui-testing", "--aureus-demo", "--aureus-settings-cache-audit"]
+        let arguments = flags.enumerated().compactMap { index, flag in
+            mask & (1 << index) != 0 ? flag : nil
+        }
+        let configuration = LaunchConfiguration.current(arguments: arguments)
+        #expect(configuration.settingsCacheAuditEnabled == (mask == 7))
+        #expect(configuration.usesTemporaryStores == (mask & 3 != 0))
+        #expect((configuration.temporaryRoot != nil) == (mask & 3 != 0))
+        #expect(configuration.dataMode == (mask & 2 != 0 ? .syntheticDemo : .local))
+    }
+
+    @Test("Opt-in isolated cache audit seeds legacy metadata, capacity and reset preserve Permanent")
+    func cacheAuditGraph() async throws {
+        let configuration = LaunchConfiguration.current(arguments: [
+            "--aureus-ui-testing", "--aureus-demo", "--aureus-settings-cache-audit"
+        ])
+        let root = try #require(configuration.temporaryRoot)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let graph = try await AppDependencies.make(configuration: configuration)
+        try await graph.wealthStore.insertIsolationSentinel(id: "cache-audit", name: "Synthetic Cache Audit Sentinel")
+        let records = try await graph.wealthStore.fetchWealthContainers()
+        let settings = model(graph)
+        await settings.load()
+        let initial = try #require(settings.cacheStatistics)
+        #expect(initial.entryCount == 2 && initial.currentBytes == 768)
+        #expect(initial.maximumBytes == 512 * CachePolicyConfiguration.mebibyte)
+        #expect(initial.percentageBasisPoints == 0)
+        #expect(initial.oldestEntry == now)
+        #expect(initial.lastCleanupAt == now)
+        #expect(initial.lastCleanupResult == "sessionOnlyPolicy: removed 0 recoverable entries")
+        #expect(initial.providerBreakdown == [MarketCacheProviderUsage(
+            providerIdentifier: "synthetic.stage2.market", bytes: 768, entryCount: 2)])
+        #expect(settings.persistentFreshness.snapshot?.state == "Legacy only")
+        #expect(settings.persistentFreshness.snapshot?.legacyCount == 2)
+        #expect(settings.persistentFreshness.snapshot?.classifiedCount == 0)
+        settings.selectedMaximumMiB = 256
+        await settings.applyMaximum()
+        let reduced = try #require(settings.cacheStatistics)
+        #expect(reduced.maximumBytes == 256 * CachePolicyConfiguration.mebibyte)
+        #expect(reduced.currentBytes == initial.currentBytes && reduced.entryCount == initial.entryCount)
+        #expect(reduced.oldestEntry == initial.oldestEntry && reduced.providerBreakdown == initial.providerBreakdown)
+        #expect(reduced.lastCleanupResult == "capacityChange: removed 0 recoverable entries")
+        #expect(try await graph.wealthStore.isolationSentinels() == ["Synthetic Cache Audit Sentinel"])
+        #expect(try await graph.wealthStore.fetchWealthContainers() == records)
+        await settings.resetCache()
+        let reset = try #require(settings.cacheStatistics)
+        #expect(reset.maximumBytes == 512 * CachePolicyConfiguration.mebibyte)
+        #expect(reset.currentBytes == 0 && reset.entryCount == 0 && reset.percentageBasisPoints == 0)
+        #expect(reset.oldestEntry == nil && reset.providerBreakdown.isEmpty)
+        #expect(reset.lastCleanupAt == nil && reset.lastCleanupResult == nil)
+        let returned = model(graph)
+        await returned.load()
+        #expect(returned.cacheStatistics == reset)
+        #expect(returned.persistentFreshness.snapshot?.state == "Empty")
+        #expect(settings.errorMessage == nil && returned.errorMessage == nil)
+        #expect(try await graph.wealthStore.isolationSentinels() == ["Synthetic Cache Audit Sentinel"])
+        #expect(try await graph.wealthStore.fetchWealthContainers() == records)
+
+        let ordinaryRoot = try directory()
+        defer { try? FileManager.default.removeItem(at: ordinaryRoot) }
+        let ordinaryConfiguration = LaunchConfiguration(dataMode: .syntheticDemo,
+            usesTemporaryStores: true, temporaryRoot: ordinaryRoot)
+        #expect(!ordinaryConfiguration.settingsCacheAuditEnabled)
+        let ordinary = try await AppDependencies.make(configuration: ordinaryConfiguration)
+        #expect(try await ordinary.marketCacheStore.statistics().entryCount == 0)
+        #expect(try await ordinary.marketCacheStore.statistics().oldestEntry == nil)
+    }
+
     @Test("Preferences save both fields, reopen, and isolate random domains and memory")
     func preferencePersistence() throws {
         let suite = "Aureus-GeneralSettings-\(UUID().uuidString)"

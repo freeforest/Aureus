@@ -381,7 +381,6 @@ struct SettingsView: View {
                         GridRow { Text("Capacity"); Text(byteString(statistics.maximumBytes)) }
                         GridRow { Text("Usage"); Text("\(statistics.percentageBasisPoints / 100)%") }
                         GridRow { Text("Entries"); Text("\(statistics.entryCount)") }
-                        GridRow { Text("Oldest entry"); Text(statistics.oldestEntry.map { String($0.millisecondsSince1970) } ?? "None") }
                         GridRow { Text("Last cleanup"); Text(statistics.lastCleanupResult ?? "Not run") }
                     }
                     .accessibilityElement(children: .ignore)
@@ -394,15 +393,31 @@ struct SettingsView: View {
                     )
                     .accessibilityIdentifier("settings.cache.summary")
 
+                    let oldestEntry = SettingsFeatureModel.oldestEntryLabel(for: statistics.oldestEntry)
+                    Text(oldestEntry)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(oldestEntry)
+                        .accessibilityIdentifier("settings.cache.oldestEntry")
+
                     let cleanupTime = SettingsFeatureModel.lastCleanupTimeLabel(for: statistics.lastCleanupAt)
                     Text(cleanupTime)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(cleanupTime)
                         .accessibilityIdentifier("settings.cache.lastCleanupAt")
 
+                    if statistics.providerBreakdown.isEmpty {
+                        Text("Provider breakdown: None")
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Provider breakdown: None")
+                            .accessibilityIdentifier("settings.cache.providers.empty")
+                    }
                     ForEach(statistics.providerBreakdown) { provider in
-                        Text("\(provider.providerIdentifier): \(provider.entryCount) entries, \(byteString(provider.bytes))")
+                        let label = "\(provider.providerIdentifier): \(provider.entryCount) entries, \(byteString(provider.bytes))"
+                        Text(label)
                             .font(.caption)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(label)
+                            .accessibilityIdentifier("settings.cache.provider.\(provider.providerIdentifier)")
                     }
                 } else {
                     ContentUnavailableView("Cache status unavailable", systemImage: "externaldrive.badge.questionmark")

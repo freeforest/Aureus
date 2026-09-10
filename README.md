@@ -19,6 +19,12 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+2026-09-10，E-CC：**PARTIAL — Awaiting Reviewer Gate**。Reviewer 已接受 E-OSL-RB 的限定 D-03 static/Unit 补证；旧 Dlr35W 丢失证据与阅读偏差仍保留。当前仅补齐 S11-05 oldest UTC 独立 AX、provider breakdown AX，以及三个参数同时启用的 temporary synthetic legacy cache audit fixture；普通启动/Demo/原20项 UI 默认不 seed。
+
+本轮新 unsigned Debug BFT、Full Unit **491 definitions / 597 executions，597/0/0**、unsigned Release BFT、Export suite **29/31，31/0/0**、fresh signed Debug BFT 均通过；上述 underlying exits 和 canonical parsers 全0。实际10,000-row export＋committed validation **28 ms**，不是旧26ms、p95或跨设备保证。App/Runner strict codesign 0，arm64、本地 ad-hoc。取得当次桌面确认后，单次 **Full UI 完整 Failed：21 definitions / 21 executions，20/1/0，exit65、signal null、parsers0/0**。唯一失败为新增 cache audit 的首次 summary 精确 label 联合等待（UI:66）；oldest/provider、Apply/Reset及返回检查点未到达，仍 NOT VERIFIED。原20项均通过；不修复、不重跑，人工 QA 因前置失败 NOT RUN。
+
+当次确认在无确认收尾草稿写入后、最终回复前到达；三份文档在 Full UI 前已改动，作为顺序偏差保留。启动前重新冻结122项，UI期间全部输入及产品未变；结束后才作本次最终文档更新。详见[长期报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-CONSOLIDATED-CLOSURE-01-ZnXAET/ExecutionReport.md)与[矩阵](docs/STAGE11_SCOPE_EVIDENCE_MATRIX.md)。全部 invocation 已结束；Stage11 总 Gate PARTIAL，Stages12–14 NO-GO。S11-05完整AX、OSLog系统交付、真实离线/Provider及人工验收未关闭。
+
 2026-09-10，E-OSL-RB：**PARTIAL — Awaiting Reviewer Gate**。当前 122 项规范化清单 `98770b9999b26b4808cbaea6417704463fa886fde28c320a2d57f114be64e9fc` 核验通过，零源码修改；新 unsigned Unit BFT succeeded（exit 0），单次 Full **488 definitions / 587 executions，587/0/0**，expected failures 0，summary/tests exits 0/0。同一 Full 包内十一组 D-03 子集 **205/264** 全通过；独立 Focused **NOT RUN**，子集分析不是另一次执行。原始结果、产品、隔离配置及报告保存在[长期 ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-OSLOG-EVIDENCE-REBASELINE-01-DS0fIa/ExecutionReport.md)。仅测试结束后更新三份文档，其余 119 项冻结；Stage11 总 Gate PARTIAL，Stages12–14 NO-GO。
 
 旧 Dlr35W 原始证据已由用户确认无法找回，下述 E-OSL 旧计数及审计结论均为 **HISTORICAL ONLY — 据报告通过，原始证据已丢失**。本轮建立新的当前证据，不恢复旧结果、不追溯证明旧 Allowlist 或消除旧阅读偏差。OSLog 系统交付/留存/人工脱敏、UI、signed BFT、Clean、Release、真实 Provider/离线和人工 QA 本轮均 NOT RUN；D-06、S11-05 及剩余集中验收继续开放。

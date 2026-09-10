@@ -4,6 +4,26 @@
 
 **Stage 11 PARTIAL — Awaiting Reviewer Gate**
 
+## E-CC — S11-05 limited implementation and current Release evidence
+
+2026-09-10：**PARTIAL — Awaiting Reviewer Gate**。[完整长期报告与原始产物](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-CONSOLIDATED-CLOSURE-01-ZnXAET/ExecutionReport.md)。Reviewer 已接受 E-OSL-RB 的限定 static/Unit 补证；旧 Dlr35W HISTORICAL ONLY、全部历史失败/UNKNOWN/流程缺口保留，不追溯重证旧范围。
+
+S11-05：oldestEntry 唯一来源为现有 statistics，固定 Gregorian/en_US_POSIX/UTC 毫秒投影；nil 为 `Oldest cache entry: None`，epoch zero 有效，独立可见 `settings.cache.oldestEntry`。Provider row 以 providerIdentifier 稳定标识，空列表有 `settings.cache.providers.empty`；summary/lastCleanup 原合同、ByteCountFormatter、引擎与金融值不变。Audit seed 只在 UI-testing＋demo＋audit 三参数及 temporary graph 条件满足时，于既有启动清理后执行一次既有 fixture：2 legacy rows / 768 bytes，不是 Twelve Data persistent/offline fallback。
+
+| Gate | 本轮实际结果 | 范围 |
+|---|---|---|
+| A/B 阅读、122项基线、限定实现/静态 | 完成；六份实现/测试文件变化 | 原20 UI和既有Unit/helper保留；详见阅读记录中的两次路径定位错误及补读 |
+| C unsigned Debug BFT | succeeded；exit0、parser0；0 errors / 4既存warnings；47.479s | Unit/UI同时编译，未运行UI |
+| D Full Unit | 491 definitions / 597 executions；597/0/0；expected failures0；exit0、parsers0/0；60.063s | 新增oldest、8参数truth table、真实graph/capacity/reset/sentinel通过；原并发/Offline20/Portfolio3保护项通过 |
+| E Release BFT / Export suite | BFT succeeded，exit0/parser0，164.448s；Export29/31、31/0/0、expected failures0、exit0/parsers0/0，4.105s | `-O`/whole-module/testability；10,000 rows真实export＋committed validation 28ms，2 artifacts、源sentinel/digest保持 |
+| F signed Debug BFT | succeeded；exit0/parser0；42.115s；App/Runner strict codesign0 | 新arm64产品，本地ad-hoc；不是发布签名或UI执行 |
+| G Full UI | 完整 Failed；21 definitions /21 executions，20/1/0；expected failures0；exit65、signal null、parsers0/0；1658.663s | 当次用户确认后单次执行；新增cache audit首次summary联合等待失败（UI:66），其后oldest/provider/Apply/Reset/返回均未到达；原20项Passed |
+| H 人工 QA | NOT RUN | UI前置失败后停止，不再启动人工验收 |
+
+Debug/Release均保留原xctestrun，同Products副本唯一变化为enabled AureusTests追加一次 `--aureus-temporary-store`。实际Host PID17832/18507观察到该参数；临时fixture可在工程目录之外按既有合同创建。测试前冻结清单 `9d436061fb05ecc6b48de55145d0136c3a81e9add254eb09429d99cff6619ad7`；非UI构建/测试后身份一致。用户当次确认在三份无确认收尾文档草稿写入后、最终回复前到达，因此文档早于Full UI改动，顺序偏差不追溯隐藏。PreUIInventory重新冻结122项；PostUIAudit证明UI期间全部输入及Debug/Release/signed产品不变，全部invocation结束后再更新当前结论。
+
+本轮无编译失败，Full UI一项业务失败完整保留；source repair、retry、取消均0。一处文档patch上下文未匹配、一次受限ps读取失败后按正常权限只读复核，不是测试重跑。Release13条warnings为9条Apple测试支持库未strip提示＋4条既存PortfolioView弃用。原始性能行中的固定访问计数0仅为测试输出，不是全系统遥测。独立Focused、Clean、D-03专项、旧四UI专项、真实离线/Provider/系统日志/人工脱敏均NOT RUN。D-06取得当前限定Release实测，仍交Reviewer裁决；新增UI失败原因仅定位为首次summary谓词未完成，实际label/唯一性哪项不符未确定，不读AX/附件补诊断。S11-05完整AX、Full UI及人工验收未关闭。Stage11 PARTIAL；Stages12–14 NO-GO。
+
 ## E-OSL-RB — 当前 OSLog 证据重新建立
 
 2026-09-10：**PARTIAL — Awaiting Reviewer Gate**。当前 122 项规范化清单 SHA256 `98770b9999b26b4808cbaea6417704463fa886fde28c320a2d57f114be64e9fc` 精确匹配。全程未修改 Product/Test/Project；新产品和完整原始结果直接保存在[长期证据报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-OSLOG-EVIDENCE-REBASELINE-01-DS0fIa/ExecutionReport.md)。

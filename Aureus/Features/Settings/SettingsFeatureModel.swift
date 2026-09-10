@@ -55,6 +55,16 @@ final class SettingsFeatureModel {
         return "Last cleanup time: \(formatter.string(from: instant.date))"
     }
 
+    static func oldestEntryLabel(for instant: UTCInstant?) -> String {
+        guard let instant else { return "Oldest cache entry: None" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS 'UTC'"
+        return "Oldest cache entry: \(formatter.string(from: instant.date))"
+    }
+
     @ObservationIgnored private let provider: any MarketDataProvider
     @ObservationIgnored private let marketDataService: MarketDataService
     @ObservationIgnored private let credentialCoordinator: ProviderCredentialCoordinator

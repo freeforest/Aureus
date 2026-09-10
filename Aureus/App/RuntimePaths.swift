@@ -66,6 +66,7 @@ struct LaunchConfiguration: Equatable, Sendable {
     let dataMode: AppDataMode
     let usesTemporaryStores: Bool
     let temporaryRoot: URL?
+    var settingsCacheAuditEnabled = false
 
     static func current(arguments: [String] = ProcessInfo.processInfo.arguments) -> LaunchConfiguration {
         let isDemo = arguments.contains("--aureus-demo")
@@ -83,7 +84,10 @@ struct LaunchConfiguration: Equatable, Sendable {
         return LaunchConfiguration(
             dataMode: isDemo ? .syntheticDemo : .local,
             usesTemporaryStores: isTemporary,
-            temporaryRoot: temporaryRoot
+            temporaryRoot: temporaryRoot,
+            settingsCacheAuditEnabled: isDemo
+                && arguments.contains("--aureus-ui-testing")
+                && arguments.contains("--aureus-settings-cache-audit")
         )
     }
 }

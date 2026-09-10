@@ -28,6 +28,77 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    func testStage11SettingsCacheAuditFieldsCapacityAndReset() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true) + ["--aureus-settings-cache-audit"]
+        launchApp(app)
+        defer { app.terminate() }
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        assertCacheAuditFields(in: app, maximumMiB: 512, populated: true,
+            cleanup: "sessionOnlyPolicy: removed 0 recoverable entries")
+        assertCacheAuditLabel(in: app, identifier: "settings.cache.freshness", expected:
+            "Authorized Persistent Market Cache: Legacy only. As of 2026-01-15 00:00:00.000 UTC. "
+            + "2 total entries; 0 TTL-classified; 0 within TTL; 0 expired; 2 legacy. "
+            + "Offline coverage depends on the requested data and existing authorization. "
+            + "Legacy entries do not establish Twelve Data V1 offline availability. "
+            + "TTL does not prove market real-time freshness or entitlement.")
+        selectPicker(app: app, identifier: "settings.cache.maximum", title: "256 MiB")
+        app.descendants(matching: .any)["settings.cache.apply"].click()
+        assertCacheAuditFields(in: app, maximumMiB: 256, populated: true,
+            cleanup: "capacityChange: removed 0 recoverable entries")
+        app.descendants(matching: .any)["settings.cache.reset"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.cache.reset.confirm"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["settings.cache.reset.confirm"].click()
+        assertCacheAuditFields(in: app, maximumMiB: 512, populated: false, cleanup: "Not run")
+        app.descendants(matching: .any)["sidebar.dashboard"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["sidebar.settings"].click()
+        assertCacheAuditFields(in: app, maximumMiB: 512, populated: false, cleanup: "Not run")
+        XCTAssertFalse(app.descendants(matching: .any)["settings.error"].exists)
+    }
+
+    @MainActor
+    private func assertCacheAuditLabel(in app: XCUIApplication, identifier: String, expected: String) {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let matches = app.descendants(matching: .any).matching(identifier: identifier)
+            return matches.count == 1 && matches.element.label == expected
+        }, object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+        let matches = app.descendants(matching: .any).matching(identifier: identifier)
+        XCTAssertEqual(matches.count, 1)
+        XCTAssertEqual(matches.element.label, expected)
+    }
+
+    @MainActor
+    private func assertCacheAuditFields(in app: XCUIApplication, maximumMiB: Int64,
+                                       populated: Bool, cleanup: String) {
+        let bytes = ByteCountFormatter.string(fromByteCount: populated ? 768 : 0, countStyle: .binary)
+        let capacity = ByteCountFormatter.string(fromByteCount: maximumMiB * 1_048_576, countStyle: .binary)
+        assertCacheAuditLabel(in: app, identifier: "settings.cache.summary", expected:
+            "Authorized Persistent Market Cache. Current usage \(bytes). Capacity \(capacity). "
+            + "Usage 0 percent. Entries \(populated ? 2 : 0). Last cleanup \(cleanup).")
+        assertCacheAuditLabel(in: app, identifier: "settings.cache.oldestEntry", expected:
+            populated ? "Oldest cache entry: 2026-01-15 00:00:00.000 UTC" : "Oldest cache entry: None")
+        assertCacheAuditLabel(in: app, identifier: "settings.cache.lastCleanupAt", expected:
+            populated ? "Last cleanup time: 2026-01-15 00:00:00.000 UTC"
+                : "Last cleanup time: No cleanup record available")
+        let providerID = "settings.cache.provider.synthetic.stage2.market"
+        if populated {
+            assertCacheAuditLabel(in: app, identifier: providerID,
+                expected: "synthetic.stage2.market: 2 entries, \(bytes)")
+            XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(
+                format: "identifier BEGINSWITH %@", "settings.cache.provider.")).count, 1)
+            XCTAssertFalse(app.descendants(matching: .any)["settings.cache.providers.empty"].exists)
+        } else {
+            assertCacheAuditLabel(in: app, identifier: "settings.cache.providers.empty",
+                expected: "Provider breakdown: None")
+            XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(
+                format: "identifier BEGINSWITH %@", "settings.cache.provider.")).count, 0)
+        }
+        XCTAssertFalse(app.descendants(matching: .any)["settings.error"].exists)
+    }
+
+    @MainActor
     func testStage11GeneralPreferencesAffectWealthWithoutChangingValuation() throws {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)

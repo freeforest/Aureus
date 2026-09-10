@@ -156,6 +156,13 @@ struct AppDependencies: Sendable {
             now: clock.now()
         )
 
+        if configuration.settingsCacheAuditEnabled,
+           configuration.usesTemporaryStores,
+           configuration.temporaryRoot != nil,
+           configuration.dataMode == .syntheticDemo {
+            try await marketCacheStore.seedSyntheticCache()
+        }
+
         return AppDependencies(
             wealthStore: wealthStore,
             marketCacheStore: marketCacheStore,
