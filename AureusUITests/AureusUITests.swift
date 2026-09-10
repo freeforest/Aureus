@@ -34,9 +34,9 @@ final class AureusUITests: XCTestCase {
         launchApp(app)
         defer { app.terminate() }
         app.descendants(matching: .any)["sidebar.settings"].click()
-        assertCacheAuditFields(in: app, maximumMiB: 512, populated: true,
+        assertCacheAuditFields(in: app, checkpoint: "initial", maximumMiB: 512, populated: true,
             cleanup: "sessionOnlyPolicy: removed 0 recoverable entries")
-        assertCacheAuditLabel(in: app, identifier: "settings.cache.freshness", expected:
+        assertCacheAuditLabel(in: app, checkpoint: "initial.legacy", identifier: "settings.cache.freshness", expected:
             "Authorized Persistent Market Cache: Legacy only. As of 2026-01-15 00:00:00.000 UTC. "
             + "2 total entries; 0 TTL-classified; 0 within TTL; 0 expired; 2 legacy. "
             + "Offline coverage depends on the requested data and existing authorization. "
@@ -44,53 +44,138 @@ final class AureusUITests: XCTestCase {
             + "TTL does not prove market real-time freshness or entitlement.")
         selectPicker(app: app, identifier: "settings.cache.maximum", title: "256 MiB")
         app.descendants(matching: .any)["settings.cache.apply"].click()
-        assertCacheAuditFields(in: app, maximumMiB: 256, populated: true,
+        assertCacheAuditFields(in: app, checkpoint: "capacity256", maximumMiB: 256, populated: true,
             cleanup: "capacityChange: removed 0 recoverable entries")
         app.descendants(matching: .any)["settings.cache.reset"].click()
         XCTAssertTrue(app.descendants(matching: .any)["settings.cache.reset.confirm"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["settings.cache.reset.confirm"].click()
-        assertCacheAuditFields(in: app, maximumMiB: 512, populated: false, cleanup: "Not run")
+        assertCacheAuditFields(in: app, checkpoint: "reset", maximumMiB: 512, populated: false, cleanup: "Not run")
         app.descendants(matching: .any)["sidebar.dashboard"].click()
         XCTAssertTrue(app.descendants(matching: .any)["dashboard.content"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["sidebar.settings"].click()
-        assertCacheAuditFields(in: app, maximumMiB: 512, populated: false, cleanup: "Not run")
+        assertCacheAuditFields(in: app, checkpoint: "returned", maximumMiB: 512, populated: false, cleanup: "Not run")
         XCTAssertFalse(app.descendants(matching: .any)["settings.error"].exists)
     }
 
     @MainActor
-    private func assertCacheAuditLabel(in app: XCUIApplication, identifier: String, expected: String) {
+    private func assertCacheAuditLabel(in app: XCUIApplication, checkpoint: String,
+                                      identifier: String, expected: String) {
+        // Diagnostic output is restricted to this synthetic audit's six fields.
+        let allowed = ["settings.cache.summary", "settings.cache.oldestEntry",
+            "settings.cache.lastCleanupAt", "settings.cache.provider.synthetic.stage2.market",
+            "settings.cache.providers.empty", "settings.cache.freshness"]
+        precondition(allowed.contains(identifier))
+        func bounded(_ text: String) -> [String: Any] {
+            let limit = 1_024
+            return ["text": String(String.UnicodeScalarView(text.unicodeScalars.prefix(limit))),
+                    "truncated": text.unicodeScalars.count > limit,
+                    "scalarCount": text.unicodeScalars.count]
+        }
+        var sequence = 0
+        var first: [String: Any]?
+        var last: [String: Any]?
+        var changes: [[String: Any]] = []
+        var discardedChanges = 0
+        var priorCount: Int?
+        var priorLabel: String?
+        var priorEqual: Bool?
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             let matches = app.descendants(matching: .any).matching(identifier: identifier)
-            return matches.count == 1 && matches.element.label == expected
+            let count = matches.count
+            let actualLabel = count == 1 ? matches.element.label : nil
+            let countIsOne = count == 1
+            let labelEqualsExpected = actualLabel.map { $0 == expected }
+            let predicateResult = countIsOne && labelEqualsExpected == true
+            sequence += 1
+            let retainedLabel = actualLabel.map {
+                String(String.UnicodeScalarView($0.unicodeScalars.prefix(1_024)))
+            }
+            let sample: [String: Any] = [
+                "source": "predicate", "sequence": sequence, "count": count,
+                "label": actualLabel.map(bounded) ?? ["text": "NOT QUERIED",
+                    "reason": "nonUniqueOrMissing", "truncated": false],
+                "expected": bounded(expected), "countIsOne": countIsOne,
+                "labelEqualsExpected": labelEqualsExpected.map { $0 as Any } ?? NSNull(),
+                "predicateResult": predicateResult
+            ]
+            if first == nil {
+                first = sample
+            } else if priorCount != count || priorLabel != retainedLabel || priorEqual != labelEqualsExpected {
+                if changes.count < 6 { changes.append(sample) } else { discardedChanges += 1 }
+            }
+            last = sample
+            priorCount = count
+            priorLabel = retainedLabel
+            priorEqual = labelEqualsExpected
+            return predicateResult
         }, object: app)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
+        let waitResult = XCTWaiter.wait(for: [expectation], timeout: 5)
+        // These are separate, once-only post-wait observations, not predicate samples.
+        func supplemental(_ query: XCUIElementQuery) -> [String: Any] {
+            let count = query.count
+            guard count == 1 else {
+                return ["count": count, "label": "NOT QUERIED", "reason": "nonUniqueOrMissing"]
+            }
+            let element = query.element
+            return ["count": count, "identifier": bounded(element.identifier),
+                    "elementType": element.elementType.rawValue, "label": bounded(element.label),
+                    "stringValue": (element.value as? String).map(bounded)
+                        ?? ["text": "NOT STRING", "truncated": false]]
+        }
+        let originalPostWait = supplemental(app.descendants(matching: .any).matching(identifier: identifier))
+        let exactPostWait = supplemental(app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == %@", identifier)))
+        let presence = ["mode.demo", "mode.local", "settings.error"].reduce(into: [String: Int]()) {
+            $0[$1] = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@", $1)).count
+        }
+        let record: [String: Any] = [
+            "checkpoint": checkpoint, "identifier": identifier, "waitResult": waitResult.rawValue,
+            "expected": bounded(expected), "first": first as Any? ?? NSNull(),
+            "last": last as Any? ?? NSNull(), "changes": changes,
+            "sampleCount": sequence, "discardedChanges": discardedChanges,
+            "stateComparisonLimitScalars": 1_024,
+            "supplementalSource": "afterWaitBeforeAssertion",
+            "originalPostWait": originalPostWait, "exactIdentifierPostWait": exactPostWait,
+            "presenceOnly": presence
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]),
+           let json = String(data: data, encoding: .utf8) {
+            print("AUREUS_CACHE_AX_OBSERVATION \(json)")
+            let attachment = XCTAttachment(string: json)
+            attachment.name = "AUREUS_CACHE_AX_OBSERVATION.\(checkpoint).\(identifier)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        } else {
+            print("AUREUS_CACHE_AX_OBSERVATION {\"serializationFailed\":true}")
+        }
+        XCTAssertEqual(waitResult, .completed)
         let matches = app.descendants(matching: .any).matching(identifier: identifier)
         XCTAssertEqual(matches.count, 1)
         XCTAssertEqual(matches.element.label, expected)
     }
 
     @MainActor
-    private func assertCacheAuditFields(in app: XCUIApplication, maximumMiB: Int64,
+    private func assertCacheAuditFields(in app: XCUIApplication, checkpoint: String, maximumMiB: Int64,
                                        populated: Bool, cleanup: String) {
         let bytes = ByteCountFormatter.string(fromByteCount: populated ? 768 : 0, countStyle: .binary)
         let capacity = ByteCountFormatter.string(fromByteCount: maximumMiB * 1_048_576, countStyle: .binary)
-        assertCacheAuditLabel(in: app, identifier: "settings.cache.summary", expected:
+        assertCacheAuditLabel(in: app, checkpoint: checkpoint, identifier: "settings.cache.summary", expected:
             "Authorized Persistent Market Cache. Current usage \(bytes). Capacity \(capacity). "
             + "Usage 0 percent. Entries \(populated ? 2 : 0). Last cleanup \(cleanup).")
-        assertCacheAuditLabel(in: app, identifier: "settings.cache.oldestEntry", expected:
+        assertCacheAuditLabel(in: app, checkpoint: checkpoint, identifier: "settings.cache.oldestEntry", expected:
             populated ? "Oldest cache entry: 2026-01-15 00:00:00.000 UTC" : "Oldest cache entry: None")
-        assertCacheAuditLabel(in: app, identifier: "settings.cache.lastCleanupAt", expected:
+        assertCacheAuditLabel(in: app, checkpoint: checkpoint, identifier: "settings.cache.lastCleanupAt", expected:
             populated ? "Last cleanup time: 2026-01-15 00:00:00.000 UTC"
                 : "Last cleanup time: No cleanup record available")
         let providerID = "settings.cache.provider.synthetic.stage2.market"
         if populated {
-            assertCacheAuditLabel(in: app, identifier: providerID,
+            assertCacheAuditLabel(in: app, checkpoint: checkpoint, identifier: providerID,
                 expected: "synthetic.stage2.market: 2 entries, \(bytes)")
             XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(
                 format: "identifier BEGINSWITH %@", "settings.cache.provider.")).count, 1)
             XCTAssertFalse(app.descendants(matching: .any)["settings.cache.providers.empty"].exists)
         } else {
-            assertCacheAuditLabel(in: app, identifier: "settings.cache.providers.empty",
+            assertCacheAuditLabel(in: app, checkpoint: checkpoint, identifier: "settings.cache.providers.empty",
                 expected: "Provider breakdown: None")
             XCTAssertEqual(app.descendants(matching: .any).matching(NSPredicate(
                 format: "identifier BEGINSWITH %@", "settings.cache.provider.")).count, 0)
