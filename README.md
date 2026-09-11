@@ -19,7 +19,15 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
-### E-FINAL（2026-09-10）：当前 Reviewer 提交状态
+### Stage12 入场规划（2026-09-11）：Reviewer 阶段裁决
+
+**Stage11 总 Gate PASS（Reviewer 裁决）；当前进入 Stage12 文档与规划，运行验证 NOT RUN，Stage12 总 Gate 尚未通过；Stages13–14 NO-GO。** 本次仅更新阶段摘要并建立 [Stage12 hardening 计划](docs/STAGE12_HARDENING_PLAN.md)，不执行构建、测试、App 或人工 QA。
+
+A-016 的 VoiceOver、keyboard-only、security-scoped panels、backup/restore confirmation、offline behavior、chart interaction、appearance/contrast、signed sandbox 人工 QA 已由本次 Prompt 明确归属 **Stage12 必需验收**，不再等待归属裁决，也不能由自动化通过替代。性能候选指标、缺失 harness、OSLog 系统交付/留存/人工脱敏及新增授权要求见计划。已接受 Unit597、Release31/28ms、限定 BFT、D-03 static/Unit及 en/US 单方法1/1均为 inherited / NOT RUN in this round；不拼成 Full UI21/21。
+
+[本轮报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-ENTRY-AND-HARDENING-PLAN-01-sIcpKm/ExecutionReport.md)记录122→123清单及119项冻结。以下保留历史时点，Stage11 PASS不追溯改写失败、UNKNOWN、丢失证据或流程偏差，也不掩盖未来发现的数据安全缺陷。
+
+### E-FINAL（2026-09-10）：历史 Reviewer 提交状态
 
 **Stage11 PARTIAL — Awaiting Final Reviewer Gate；Stages12–14 NO-GO。** Reviewer 已接受 S11-05 的限定 en/US 自动化：E-LC 单方法 **1 definition / 1 execution，1/0/0，exit0，expected failures0，parsers0/0**。17 条直接记录覆盖 initial、legacy、Apply256、Reset 和同 graph 返回，全部原有字段、唯一性及最终无 Settings error 断言完成。见 [E-LC 原始证据报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage11-CACHE-AUDIT-LOCALE-CONTRACT-01-Fv0v66/ExecutionReport.md)。
 

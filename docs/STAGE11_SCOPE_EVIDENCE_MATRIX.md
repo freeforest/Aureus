@@ -1,8 +1,16 @@
 # Stage 11 完整范围与证据矩阵
 
-**Stage 11 总 Gate：PARTIAL — Awaiting Final Reviewer Gate；Stages12–14 NO-GO。**
+**Stage11 总 Gate：PASS（2026-09-11 Reviewer 裁决）。Stage12 入场文档/规划获准，运行 NOT RUN，总 Gate 尚未通过；Stages13–14 NO-GO。**
 
-## E-FINAL（2026-09-10）：当前最终提交摘要
+## Stage12 入场与人工归属裁决（2026-09-11）
+
+Prompt 12-ENTRY-AND-HARDENING-PLAN-01 明确通过Stage11，并将A-016八类人工QA安排为 **Stage12必需验收**。当前不再等待人工归属决定，实际VoiceOver、keyboard-only、security-scoped panels、backup/restore confirmation、offline behavior、chart interaction、appearance/contrast及signed sandbox观察仍需完成，自动化不替代。见 [Stage12要求矩阵、工作包及出口](STAGE12_HARDENING_PLAN.md)。
+
+既有Unit491/597、Release29/31及28ms、相关BFT、D-03限定static/Unit与S11-05 en/US独立1/1按已接受来源继承，本轮全部NOT RUN；不重新核验产品，不把历史Full UI20/1/0 Failed改成21/21 PASS。OSLog系统交付/留存/人工脱敏仍NOT VERIFIED；真实性、隐私与新授权限制保留。性能候选口径及HARNESS MISSING在新计划中提出，未降低阈值或执行测量。
+
+第3–8节保留E-FINAL时点的范围、证据与最终提交依据；其中旧阶段状态、等待人工归属的表述均为历史，不是当前待决事项。历史失败/丢失/UNKNOWN/流程偏差不追溯改写。当前阶段裁决以本节为准，未来发现功能或数据安全缺陷仍须登记及另行授权。[本轮报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-ENTRY-AND-HARDENING-PLAN-01-sIcpKm/ExecutionReport.md)记录文档范围与安全清单。
+
+## E-FINAL（2026-09-10）：历史最终提交摘要
 
 Reviewer 已接受 E-LC **S11-05 en/US 限定自动化 PASS**：单方法1 definition / 1 execution、1/0/0、exit0、expected failures0、parsers0/0。17条直接记录覆盖 initial4、initial.legacy1、capacity256四条、reset四条、returned四条；唯一匹配、完整label相等、未截断，所有原有检查点及最终无Settings error完成。E-LC未改源码、重建或重签，完整App/Runner身份沿用E-OBS；仅UI target四字段明确en/US及两进程启动参数，不修改持久偏好。任意Locale、多语言和人工VoiceOver质量不在此接受范围。
 

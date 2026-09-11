@@ -2,11 +2,19 @@
 
 ## Status
 
-**Stage 11 PARTIAL — Awaiting Final Reviewer Gate**
+**Stage11 总 Gate PASS — Reviewer 裁决（2026-09-11）。Stage12 入场规划已授权，运行 NOT RUN，总 Gate 尚未通过；Stages13–14 NO-GO。**
 
-## E-FINAL — 当前有限接受与最终 Gate 提交（2026-09-10）
+## Stage12 入场裁决（2026-09-11）
 
-**Stages12–14 NO-GO。** 本节是当前摘要；以下 E-CC 及更早章节保留原时点，不覆盖原 Failed、未到达、取消或流程缺口。本轮零运行验证，所有 Build/Unit/UI/Release/manual/Provider：**NOT RUN — DOCUMENTATION-ONLY ROUND**。
+依据 Prompt 12-ENTRY-AND-HARDENING-PLAN-01，Reviewer 已接受上一轮 E-FINAL 报告与清单并裁决 Stage11 PASS。本轮仅三份当前摘要和新增 [Stage12 hardening 计划](STAGE12_HARDENING_PLAN.md)；所有 Build/Unit/UI/Release/manual/Provider 操作 NOT RUN。技术证据仍按 E-FINAL 所列来源继承，不重新核验产品，不把旧20项 UI 与后续1/1拼成新Full UI21/21。
+
+A-016 八类人工 QA 现明确安排为 **Stage12 必需验收**：VoiceOver质量、keyboard-only、security-scoped panels、backup/restore confirmation、offline behavior、chart interaction、appearance/contrast、signed sandbox behavior。下方历史表中等待归属的表述保留其原时点；当前归属已裁决，人工实际结果仍未取得。OSLog系统交付/留存/人工脱敏仍NOT VERIFIED，计划仅提出隔离的最小方案与新增授权，不读取日志。性能候选口径及缺失入口由计划列明。
+
+历史Failed、取消、丢失证据、UNKNOWN与阅读/文档顺序偏差永久保留；Stage11 PASS不是历史运行结果的改写。未来功能/数据安全缺陷须如实登记并明确授权修复。[本轮长期报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-ENTRY-AND-HARDENING-PLAN-01-sIcpKm/ExecutionReport.md)记录当前122项起点、123项终点及119项冻结。
+
+## E-FINAL — 历史有限接受与最终 Gate 提交（2026-09-10）
+
+**Stages12–14 NO-GO。** 本节保留2026-09-10的历史摘要；以下 E-CC 及更早章节保留原时点，不覆盖原 Failed、未到达、取消或流程缺口。本轮零运行验证，所有 Build/Unit/UI/Release/manual/Provider：**NOT RUN — DOCUMENTATION-ONLY ROUND**。
 
 | 已接受来源 | 继承事实 | 覆盖与限制 |
 |---|---|---|
