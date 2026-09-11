@@ -1,5 +1,39 @@
 # Stage12 Hardening Plan
 
+## W1实际进度：2026-09-11有限人工基线
+
+本次执行 Prompt 12-NATIVE-MANUAL-BASELINE-01，证据为 [W1 ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-NATIVE-MANUAL-BASELINE-01-Iaul8w/ExecutionReport.md)。Stage11 PASS保持；Stage12 **PARTIAL — Awaiting Reviewer Gate**，Stages13–14 NO-GO。下文入场规划中的“本轮NOT RUN”保留为入场文档轮当时记录；本节单列W1实际进度，不改写历史。
+
+运行前123项匹配E-ENTRY，规范化SHA256 `ee6126c5170a9fe724dff1bdf6a63d7cacdf7c2487812b0fd61fa85224c1f5f6`。E-LC源App及本轮完整副本各179项manifest匹配，strict codesign分别exit0、arm64、local ad-hoc。两次预定LaunchServices启动均open exit0，实际PID46727、47515；确切副本路径及temporary/UI-testing、demo、audit和en/US参数均核验。用户分别正常Quit，两PID已不存在；App自身数字退出码NOT VERIFIED。无第三次启动、构建、Runner、Unit/XCUI、Release或性能运行。
+
+| 检查范围 | 本轮实际证据 | 未闭合部分 |
+|---|---|---|
+| 初始Settings字段、VoiceOver、Tab/Shift-Tab | 用户对首张卡反馈“没问题”，USER REPORTED；后续完整清单反馈“均无问题”“均已完成核验” | 没有逐字段朗读转录、完整keyboard-only动作轨迹或独立人工质量复核；不能扩大为八类人工QA完成 |
+| Wealth偏好/草稿、Cache Apply/取消/Reset与永久数据可见隔离 | 第一会话用户整体报告无问题 | 具体净值、Goals名称、非默认偏好值未分别留档；不等同Store哈希或全部清理路径验证 |
+| CSV与内外Backup/Restore、取消与确认 | 用户报告均完成；后明确自报手动删除CSV/备份 | 指定CSV缺失、Backups目录为空已核验；未取得导出哈希或恢复前哈希，原件保留及前后字节不变性NOT VERIFIED。不能认定App导出失败，也不能把缺失文件当已验证产物 |
+| Markets图表、Accessible Data、当前显示可读性 | 用户对完整操作清单整体反馈无问题 | 主题/窗口/显示条件及逐交互结果未单列；不是帧率、首帧、其他主题或真实offline证据 |
+| 第二temporary graph | 后续用户明确授权Agent有限UI检查；仅观察到Synthetic Demo与初始Dashboard数据 | 偏好默认、缓存重新seed、CSV/probe无残留及backup inventory未完成检查。原会话非默认偏好未具体记录；新图完整隔离结论NOT VERIFIED |
+
+流程与工具偏差：用户改为要求完整清单后，逐卡记录改为整体反馈；外部备份导出后的暂停点未取得实际前置哈希，用户清理文件导致原始产物缺失。第二图新增有限UI授权不替代人工QA；连接工具自动输出完整Dashboard AX文本，超出“不采集完整AX树”的约定，Executor立即停止，没有进一步导航、截图或数据操作。该偏差保留，不能追溯消除；没有另存完整AX树至工程目录。
+
+W1仍未完整闭合。用户反馈与工具观察分列，未发现可据现有证据确认的产品缺陷，但证据不足不能写成全部PASS。security-scope释放计数、受控offline/timeout/missing/stale、六项性能、OSLog系统交付/留存/人工脱敏、其他显示条件、完整第二图检查与必要人工细项继续开放。旧Unit597、Release31/28ms、BFT、原20项UI及D-03有限证据均为inherited / NOT RUN in W1；不合并历史FullUI Failed与独立1/1。本轮仅更新本计划，其他122项冻结，不进入W2–W5。
+
+## W1限定补证：2026-09-11导出字节身份与新图对照
+
+本次 Prompt 12-W1-ARTIFACT-AND-GRAPH-CLOSURE-01 的新证据见 [ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-W1-ARTIFACT-AND-GRAPH-CLOSURE-01-dxzPBT/ExecutionReport.md)。Stage11 PASS保持；W1及Stage12仍 **PARTIAL — Awaiting Reviewer Gate**，Stages13–14 NO-GO。Reviewer有限接受上轮第一会话USER REPORTED反馈；旧CSV/备份缺失、用户自报删除、旧第二图未完成和旧完整AX输出偏差全部保留。本次产物不恢复旧证据，也不追溯填补旧哈希。
+
+本轮123项起点全部匹配E-W1，规范化SHA256 `f0fdcf1244c67c781d6bb4753b1559646264df753f1c0559b5a5595146db996b`。同一已接受local ad-hoc App源/副本完整179项manifest及strict签名通过；两次启动准确副本，temporary/UI-testing＋demo＋audit及en/US参数核验。open均exit0，App PID49377与51041分别经用户正常Quit和准确PID不存在确认结束；App数字退出码NOT VERIFIED。运行期间123项不变，结束后仅追加本节。
+
+| 本轮限定检查 | 新证据与结果 | 边界 |
+|---|---|---|
+| CSV原件保留 | 新图导入指定synthetic输入后导出5971 bytes，SHA256 `39b910f019fe3dfde50a505f70d47ea366b1073f97ba47b7703f37440df8bcd4`；恢复前后及最终一致 | 仅准确自有输出的普通文件、size与Hash；不代表旧轮文件曾存在 |
+| 外部备份字节身份 | 唯一generation含aureus.sqlite 417792 bytes与manifest.json 213 bytes；两个硬暂停点保存前后SHA256，最终复核均一致 | 无数据库解码、运行Store读取或独立security-scope计数 |
+| 有限外部恢复 | 用户提供图中有恢复Completed，随后原两个Goals仍在、Export Probe不在列表、有效备份2；原始文件Hash不变 | Cancel后Probe保持未明确归属，仍NOT VERIFIED，未重做恢复 |
+| 第一图明确对照 | 用户提供图显示USD、grouping Off、Graph Probe存在、CSV Expense存在、有效备份2 | 有限人工提交证据，无Agent截图/AX采集 |
+| 第二图G1–G7 | 用户明确反馈“G1–G7均符合”：CNY/On、两个Probe不存在、CSV Expense不存在、backup0、cache2条/768bytes/默认512MiB、原两个Goals仍在 | USER REPORTED，对照本轮第一图；不冒称旧第二图完成或Production Store验证 |
+
+全部新synthetic原件和App保留至Reviewer验收。无CUA、AX采集、截图采集、构建、Unit/XCUI、Release、性能、Provider或OSLog运行；未重复VoiceOver、图表或内部恢复。继承Unit597、Release31/28ms、BFT、D-03有限static/Unit与原20项UI均NOT RUN in this round，旧FullUI Failed与独立en/US1/1不合并。取消保持细项、security-scope释放计数、受控offline/timeout/missing/stale、六项性能、OSLog交付/留存/人工脱敏、其他显示条件与尚缺的人工质量细项继续开放；不进入W2–W5。
+
 ## 当前授权与入口
 
 2026-09-11，Reviewer 通过 Prompt 12-ENTRY-AND-HARDENING-PLAN-01 裁决 **Stage11 总 Gate PASS**，授权 Stage12 入场文档与规划。Stage12 总 Gate 尚未通过；**Stages13–14 NO-GO**。本文件是待后续授权的验收方案，不是运行指令或已批准的实现工作包。本轮所有构建、测试、App、人工 QA、性能与日志观察均 NOT RUN，运行/修复/重试预算为0。
