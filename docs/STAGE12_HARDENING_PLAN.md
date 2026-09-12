@@ -200,3 +200,17 @@ W1 的新 CSV、外部备份两文件恢复前后/最终字节身份，以及有
 | `history-missing` | 正常 Search、选择返回项、显式刷新 History | Search先成功；刷新才显示 `Requested session data is missing.`；同上无新增历史内容 |
 
 每张卡记录具体场景/动作/实际文案及未到达项，不能用某张成功补写其他场景，也不能把 synthetic timeout 当真实联网超时或完整 offline 验收。stale 入口仍 HARNESS MISSING；六场景人工 UI、Cancel细项、其他必需人工质量、性能协议冻结/测量、OSLog系统交付/留存/人工脱敏及 Stage12 最终跨功能验收均继续开放。本轮没有 signed BFT、Release、UI或人工运行，未进入下一工作包。
+
+## 2026-09-12 — Stage13 用户例外入场与交接
+
+最新授权 `13-ENTRY-RC-AUDIT-01` 记录的用户原话：
+
+> 确认接受上述未验证风险，按‘用户例外放行、技术证据仍 PARTIAL’进入 Stage13
+
+该决定已生效，不再要求重复确认。Stage11 PASS 保持；Stage12 用户例外放行、技术证据 PARTIAL；Stage13 入场及本轮发布候选证据审计已授权，总 Gate 未通过；Stage14／发布 NO-GO。该例外仅解除 Stage13 入场阻塞，不删除本计划原出口要求，不将 NOT RUN、NOT VERIFIED、USER REPORTED 或历史失败改成技术 PASS，也不自动授权打包、发布、Git/GitHub、真实数据或 Provider 操作。
+
+本次入场接受范围保留为未验证风险：六场景原生人工观察、stale、Cancel 后 Probe 保持及其余人工质量细项；新源码对应的 signed 运行与最终跨功能验收；A-016 六项性能口径及测量；OSLog 系统交付、留存和人工脱敏。security-scope 释放计数、完整 keyboard-only 条件、具体主题/显示条件等缺口仍按原记录分类，不从整体“无问题”推定。W1 新产物字节身份和 G1–G7 USER REPORTED 对照的有限接受不变；旧产物丢失、旧第二图缺证、完整 AX 输出与阅读顺序偏差永久保留。
+
+尚未执行的 `12-OFFLINE-NATIVE-MANUAL-AND-CANCEL-01` 已被本轮替代，其 BFT、App 启动及人工检查不执行。上节六场景操作卡仍是历史待授权方案，不是当前运行指令。当前审计不把同一已接受风险再次用于拒绝入场，也不默认把全部风险重新排为下一轮强制补测；是否影响 Stage13 最终 Gate 或 Stage14，由 Reviewer 另行裁决。长期数据安全、CNY/USD 溯源、Permanent/Cache 隔离、Twelve Data session-only／persistent writes Disabled／retention rights BLOCKED、原生 Settings→应用 Keychain 边界均继续有效。
+
+交接结果见 [Stage13 发布候选审计](STAGE13_RELEASE_CANDIDATE_AUDIT.md)和 [本轮 ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage13-ENTRY-RC-AUDIT-01-0pTYtQ/ExecutionReport.md)。最新 W2 的 unsigned BFT、Full Unit 497/632、632/0/0 仅继承已接受结果；本轮只读审阅及文档更新，没有重新运行测试、启动 App 或执行人工 QA。旧 signed／Release 证据不升级为 W2 新源码的运行证明。本计划此前各轮的 NOT RUN／PARTIAL／NO-GO 保留其日期语境。

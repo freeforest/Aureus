@@ -19,6 +19,12 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+### Stage13 用户例外入场审计（2026-09-12）
+
+Stage11 PASS 保持；Stage12 已由用户例外放行，技术证据仍 PARTIAL；Stage13 已授权入场并完成本轮候选证据审计，总 Gate 待 Reviewer 裁决；Stage14／发布 NO-GO。用户接受未验证风险仅用于 Stage13 入场，不把未运行、未验证或 USER REPORTED 结果改成技术 PASS，也不授权打包、发布或真实数据操作。
+
+当前候选以 123 项安全源码清单标识。最新已接受证据为修正后 unsigned BFT 和 Full Unit 497 definitions / 632 executions、632/0/0；旧 signed／Release 产品不代表这版新增六场景入口的源码。详见 [Stage13 发布候选证据审计](docs/STAGE13_RELEASE_CANDIDATE_AUDIT.md)及 [Stage12 例外交接记录](docs/STAGE12_HARDENING_PLAN.md)。本轮仅文档审计，Build／Unit／UI／App／Release／性能／Provider 均 NOT RUN；以下各日期历史状态原样保留。
+
 ### Stage12 入场规划（2026-09-11）：Reviewer 阶段裁决
 
 **Stage11 总 Gate PASS（Reviewer 裁决）；当前进入 Stage12 文档与规划，运行验证 NOT RUN，Stage12 总 Gate 尚未通过；Stages13–14 NO-GO。** 本次仅更新阶段摘要并建立 [Stage12 hardening 计划](docs/STAGE12_HARDENING_PLAN.md)，不执行构建、测试、App 或人工 QA。
