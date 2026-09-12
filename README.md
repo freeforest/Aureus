@@ -19,6 +19,14 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+### Stage14 MIT／arm64 本地分发候选（2026-09-12）
+
+Reviewer 已裁决 Stage13 候选审计及交付路线决策 PASS，授权进入本轮 Stage14 发布准备。Stage11 PASS 保持；Stage12 用户例外放行、技术证据仍 PARTIAL；Stage14 总 Gate、Release Gate 与实际公开发布仍未通过。本轮制作可审阅的干净源码 ZIP、同输入 arm64 Release App 与本地 ad-hoc 签名、未公证 DMG；候选沿用 0.1/build1，不宣称正式 V1 已发布。最终产物与检查状态以本轮工程报告为准。
+
+用户已选择 Aureus 自有源码采用 [MIT](LICENSE)，官方仅维护 Apple Silicon／M 系列 Mac，最低部署目标 macOS14（不代表全部芯片和系统版本均实测）。首次分发路线不使用 Developer ID 或公证，系统允许的首次放行由用户本人处理。见独立 [公开使用、源码构建及打包指南](PUBLIC_README.md)、[第三方通知](THIRD_PARTY_NOTICES.md)与 [Stage13→14 交接](docs/STAGE13_RELEASE_CANDIDATE_AUDIT.md)。Personal Local Mode 是维护的产品与 Provider 使用范围，不构成 MIT 的额外限制；Provider retention rights 仍 BLOCKED。
+
+当前代码对应已接受的 632 次 Unit 仅在输入 Hash 匹配后继承，本轮 NOT RUN；App／UI／人工安装、性能与 OSLog 验证均不在本轮运行。Stage13 R-01–R-06 及历史失败、缺证、USER REPORTED 保留；下述历史状态不会因本次许可或候选组装而追溯更改。
+
 ### Stage13 用户例外入场审计（2026-09-12）
 
 Stage11 PASS 保持；Stage12 已由用户例外放行，技术证据仍 PARTIAL；Stage13 已授权入场并完成本轮候选证据审计，总 Gate 待 Reviewer 裁决；Stage14／发布 NO-GO。用户接受未验证风险仅用于 Stage13 入场，不把未运行、未验证或 USER REPORTED 结果改成技术 PASS，也不授权打包、发布或真实数据操作。
@@ -228,7 +236,7 @@ xcodebuild test -project Aureus.xcodeproj -scheme Aureus -configuration Debug -d
 
 The canonical product design source for later stages is [Aureus_Wealth_Terminal_项目设计汇总.md](Aureus_Wealth_Terminal_项目设计汇总.md).
 
-The specific open-source license has not yet been frozen. All Git and GitHub operations are managed manually by the user.
+As of 2026-09-12, the user has selected the [MIT License](LICENSE) for Aureus-owned source and documentation; third-party licenses remain separate. The previous project-license-pending status is superseded by this explicit decision. All Git and GitHub operations are managed manually by the user.
 
 ## External Backup Restore Foundation round
 

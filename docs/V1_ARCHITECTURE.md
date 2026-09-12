@@ -18,7 +18,7 @@ The user authorized the final missing product decision on 2026-08-10: **A-008 se
 
 | ID | Chosen option / status | Main reason | Main tradeoff | Implementation ownership | Evidence |
 |---|---|---|---|---|---|
-| A-001 | macOS 14.0+, Xcode 26.6 baseline, Swift 6 mode, arm64 V1 | Native Observation/SwiftUI baseline without requiring the latest end-user OS | No macOS 13 or Intel V1 build | Stage 2 and release hardening | [Platform evidence](V1_RESEARCH_EVIDENCE.md#3-deployment-target-evidence) |
+| A-001 | macOS 14.0 deployment target, Xcode 26.6 baseline, Swift 6; official Apple Silicon arm64 maintenance; 2026-09-12 local ad-hoc / unnotarized candidate route | Native Observation/SwiftUI baseline without requiring the latest end-user OS | No official Intel/Universal support; installed/first-download behavior requires separate evidence | Stage 2 and release hardening | [Platform evidence](V1_RESEARCH_EVIDENCE.md#3-deployment-target-evidence) |
 | A-002 | Feature-first SwiftUI with `@Observable`, explicit dependencies, actor ownership | Small native surface with testable boundaries | Requires deliberate state ownership and no implicit service locator | Stage 2 onward | [Apple framework evidence](V1_RESEARCH_EVIDENCE.md#3-deployment-target-evidence) |
 | A-003 | One app target, one unit/integration target, one UI-test target; no internal package/framework | KISS and fast iteration | Weaker compile-time module isolation until scale proves a need | Stage 2 | [Decision trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-004 | GRDB 7.11.x over system SQLite; separate permanent/cache databases and migrators | Explicit SQL/schema/transaction control with a maintained Swift API | One external Stage 2 dependency and application-owned migrations | Stage 2 foundation; Stage 11 reliability | [Persistence matrix](V1_RESEARCH_EVIDENCE.md#4-persistence-comparison-matrix) |
@@ -34,7 +34,7 @@ The user authorized the final missing product decision on 2026-08-10: **A-008 se
 | A-014 | App Sandbox; Keychain secrets; container-scoped data; security-scoped user files; no app-layer DB encryption in V1 | Local-first privacy with system controls and minimal dependency surface | Database files/backups are not independently encrypted by the app | Stage 2, 11, 12 | [Apple security sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
 | A-015 | Consistent DB backup, manifest/hash verification, five internal generations; unified privacy-redacted logging | Recoverable permanent data without backing up cache or secrets | V1 backups rely on user/system encrypted storage | Stage 11; Stage 12 regression hardening | [Backup trace](V1_RESEARCH_EVIDENCE.md#12-decision-traceability) |
 | A-016 | Swift Testing for unit/integration; XCTest/XCUI for UI; synthetic fixtures and explicit manual provider QA | Modern unit tests plus supported UI automation | Real-provider and macOS interaction acceptance remain separate | Stage 2 onward | [Testing sources](V1_RESEARCH_EVIDENCE.md#10-official-source-register) |
-| A-017 | Stage 2 dependency: GRDB only; later chart dependency: Lightweight Charts; project license authorization pending | Every dependency has a present need and permissive terms | License notices/attribution and user project-license decision remain required | Stage 2, 7, 14 | [Dependency table](V1_RESEARCH_EVIDENCE.md#9-dependency-and-license-table) |
+| A-017 | GRDB 7.11.1; Lightweight Charts 5.2.0; Aureus-owned source MIT selected by user 2026-09-12 | Every dependency has a present need; source license now explicitly selected | Third-party complete licenses/notices and attribution remain separate obligations | Stage 2, 7, 14 | [Dependency table](V1_RESEARCH_EVIDENCE.md#9-dependency-and-license-table) |
 
 ## 3. Platform — A-001
 
@@ -43,10 +43,10 @@ The user authorized the final missing product decision on 2026-08-10: **A-008 se
 - Minimum deployment target: **macOS 14.0 (Sonoma)**.
 - Development baseline for Stage 2: **Xcode 26.6**, **macOS 26.5 SDK**, and the installed **Apple Swift 6.3.3** toolchain.
 - Swift language mode: **Swift 6** from the first target, with strict concurrency diagnostics treated as correctness findings.
-- V1 architecture: **Apple Silicon arm64 only**. A Universal Binary is excluded until an Intel build and QA matrix is explicitly authorized; this does not prevent a later compatible change.
+- Official maintenance: **Apple Silicon arm64 / M-series Macs only**, confirmed by the user on 2026-09-12. Intel, Universal, Windows and Linux are community exploration without official support commitment. This support policy does not restrict the MIT source license. Minimum deployment target is not an all-hardware/all-OS test claim.
 - UI/framework baseline: SwiftUI, Observation, Foundation, Charts, WebKit, Security/Keychain, OSLog, and Uniform Type Identifiers.
 - Enable App Sandbox. Request only outgoing network access and user-selected read/write file access needed by the approved feature.
-- Code-signing identity, Development Team, notarization, distribution channel, and project license are **USER AUTHORIZATION_PENDING**. Agents do not create or manage those user-owned assets.
+- The foundation's signing/distribution/license authorization-pending status is superseded by the 2026-09-12 user decision for this first candidate: **local ad-hoc identity `-`, no Developer ID, no notarization, arm64 DMG plus clean source ZIP, Aureus source MIT**. No Development Team, paid credential or certificate is required by this selected route. First-open approval, when the OS permits it, belongs to the user; security controls are not disabled. Local candidate preparation does not authorize upload/public release or pass the Stage14/Release Gate.
 
 **Rationale**
 
@@ -61,11 +61,11 @@ macOS 14 is the first system baseline for Observation-based state used here, whi
 
 **Consequences**
 
-The app can use macOS 14 APIs without compatibility shims. Release claims remain arm64-only until separately verified. Sandbox file access and signing must be designed from Stage 2, even though final credentials remain user-owned.
+The app can use macOS 14 APIs without compatibility shims. Official binary claims remain arm64-only and bounded by actual verification. Sandbox file access and signing remain required; the current candidate uses the frozen entitlements without extra privileges. Installed launch, navigation/resources and first-download approval behavior still require separately authorized evidence.
 
 **Implementation impact**
 
-Stage 2 creates a macOS 14 SwiftUI app target in Swift 6 mode and enables App Sandbox. It must not install or switch Xcode, create signing credentials, or assert a distribution channel.
+Stage 2 created the macOS 14 SwiftUI target in Swift 6 mode with App Sandbox, without distribution authority at that historical stage. Stage14's explicitly authorized local candidate route is described above and in the [public guide](../PUBLIC_README.md); it does not authorize toolchain installation/switching, credential acquisition or public release.
 
 **Evidence:** [Local toolchain and deployment evidence](V1_RESEARCH_EVIDENCE.md#2-local-toolchain-evidence).
 
@@ -801,7 +801,9 @@ Stage 2 creates both test targets and foundational suites. Later stages add cove
 - Use system SQLite, Foundation, SwiftUI, Observation, Charts, WebKit, Security, OSLog, and XCTest/Swift Testing; these are platform/toolchain components rather than copied third-party packages.
 - Frankfurter is accessed as an HTTP API without an SDK dependency. Its server's MIT license does not replace the data/provider/ECB terms and attribution review.
 - Do not add a Twelve Data SDK; the selected adapter uses system networking directly in Stage 6.
-- Recommended project source license: **Apache License 2.0**, because its permissive terms and patent grant align with the planned open-source desktop app and the later Apache-2.0 chart dependency. This is a recommendation only: **USER AUTHORIZATION_PENDING**. No LICENSE file is created and no user choice is claimed.
+- **Historical recommendation, superseded 2026-09-12:** Apache License 2.0 was recommended for Aureus source and was authorization-pending; no user choice was claimed at that time. The user has now explicitly selected **MIT** for Aureus-owned source, integration scripts and accompanying own documentation. The root [LICENSE](../LICENSE) uses the standard MIT text and `Copyright (c) 2026 Aureus contributors`; no non-commercial or hardware restrictions are added to it.
+- GRDB 7.11.1 retains its complete MIT copyright/permission/warranty notice; Lightweight Charts 5.2.0 retains its own Apache-2.0 LICENSE, NOTICE and TradingView attribution. Neither is relabeled as Aureus-owned MIT. Complete notices accompany both the clean source and App candidate, as recorded in [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md).
+- Personal Local Mode describes the maintained product/Provider scope, not an additional source-license condition. MIT does not grant third-party market-data rights: Twelve Data V1 session-only, persistent writes Disabled and retention rights BLOCKED remain unchanged.
 
 **Rationale**
 

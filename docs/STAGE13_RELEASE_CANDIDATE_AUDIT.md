@@ -141,3 +141,13 @@ Provider持久权利不是可由入场例外自行选择的配置：retention ri
 Build、BFT、Unit、Focused、UI/XCTest、App/Runner、人工QA、Release、性能campaign、真实Provider、Keychain、OSLog、签名/打包/发布全部 NOT RUN。未浏览网页、读取系统日志、截图/AX、真实Store/cache/backup/preferences/Secret或依赖.git。未做全系统访问次数遥测，不能声称全系统私人访问次数为0。
 
 本轮 [ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage13-ENTRY-RC-AUDIT-01-0pTYtQ/ExecutionReport.md)、[ReadRecord](/Users/freeforest/Aureus_Engineering_Evidence/Stage13-ENTRY-RC-AUDIT-01-0pTYtQ/ReadRecord.md)、[FinalInventory](/Users/freeforest/Aureus_Engineering_Evidence/Stage13-ENTRY-RC-AUDIT-01-0pTYtQ/FinalInventory.json)保存实际阅读、文档范围/链接检查及最终身份。原有源码、产品和历史证据均不改写或清理。Stage11 PASS；Stage12用户例外放行、技术证据PARTIAL；Stage13本轮提交Reviewer；Stage14／发布NO-GO。
+
+## 11. 2026-09-12 用户选择、Reviewer 裁决与 Stage14 交接
+
+当前 `14-MIT-ARM64-DISTRIBUTION-CANDIDATE-01` 明确裁决：Stage13 候选审计及交付路线决策 **PASS**，授权本轮 Stage14 发布准备。Stage11 PASS 保持；Stage12 用户例外放行、技术证据 PARTIAL；Stage14 总 Gate、Release Gate 与公开发布尚未通过。前文是 Stage13 审计时点的原始记录，不追溯重写。
+
+用户已选择：Aureus 开源、自有源码 [MIT](../LICENSE)；官方仅维护 Apple Silicon／M 系列；首版采用免 Developer ID 的本地 ad-hoc、未公证安装候选，接受系统允许时首次打开需本人放行。历史 RD-01 的许可证和 RD-02 的本轮分发路线已由此解决；没有选择新版本号、Tag、上传渠道或授权公开发布。沿用 Project 0.1/build1，只以 candidate 标记；源码 ZIP 仅导出批准的安全白名单，并以 [PUBLIC_README](../PUBLIC_README.md) 替代内部 README。
+
+授权实际产物为同输入 Release arm64 App、完整许可、DMG、干净源码 ZIP 与 SHA256SUMS。本轮工程证据保存在 [Stage14 ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage14-MIT-ARM64-DISTRIBUTION-CANDIDATE-01-kLtihW/ExecutionReport.md)；该私人工程路径及报告不进入公开产物。新签名/归档身份检查不等于同源 App 已启动、全部人工质量或正式 Release 通过。
+
+R-01–R-06、Cancel 后 Probe 保持、stale、六项性能口径/测量、OSLog 交付/留存/人工脱敏及其他有限人工范围继续保留原分类。632 Unit 仅在当前相关输入匹配后 inherited / NOT RUN；旧 signed/Release/UI 不代表本轮二进制。MIT不授予 Provider 数据权利，不解除 Permanent/Cache 隔离、session-only、persistent writes Disabled 或 retention rights BLOCKED。本轮不执行 App/UI/人工；后续同一冻结候选的有限安装/启动及首次下载放行条件需新的明确授权，不自动安排。
