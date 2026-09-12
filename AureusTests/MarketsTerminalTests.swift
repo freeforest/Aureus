@@ -388,6 +388,137 @@ struct MarketsTerminalTests {
         #expect((await dependencies.session.statistics()).entryCount == 0)
     }
 
+    @Test("CLI isolated graph exposes six request-specific failures through public Markets operations",
+          arguments: SyntheticMarketFailureScenario.allCases)
+    @MainActor
+    func launchScenarioFailure(scenario: SyntheticMarketFailureScenario) async throws {
+        let expected: EmptySessionFailure
+        let historyFailure: Bool
+        switch scenario {
+        case .searchOffline: (expected, historyFailure) = (.offline, false)
+        case .searchTimeout: (expected, historyFailure) = (.timeout, false)
+        case .searchMissing: (expected, historyFailure) = (.missing, false)
+        case .historyOffline: (expected, historyFailure) = (.offline, true)
+        case .historyTimeout: (expected, historyFailure) = (.timeout, true)
+        case .historyMissing: (expected, historyFailure) = (.missing, true)
+        }
+        let configuration = LaunchConfiguration.current(arguments: [
+            "--aureus-ui-testing", "--aureus-demo", "--aureus-market-failure-scenario", scenario.rawValue
+        ])
+        let root = try #require(configuration.temporaryRoot)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let graph = try await AppDependencies.make(configuration: configuration)
+        let provider = try #require(graph.marketDataProvider as? SyntheticMarketDataProvider)
+        #expect(provider.failureScenario == scenario && provider.scenario == .success)
+        #expect(graph.credentialStore is InMemoryCredentialStore)
+        #expect(!configuration.settingsCacheAuditEnabled)
+        #expect(try await graph.marketCacheStore.statistics().entryCount == 0)
+        try await graph.wealthStore.insertIsolationSentinel(id: "market-failure", name: "Synthetic Market Failure Sentinel")
+        let wealthBefore = try await graph.wealthStore.fetchWealthContainers()
+        let goalsBefore = try await graph.wealthStore.fetchGoals()
+        let ledgerBefore = try await graph.wealthStore.fetchLedgerEntries()
+        #expect(!wealthBefore.isEmpty && !goalsBefore.isEmpty && !ledgerBefore.isEmpty)
+
+        let model = launchScenarioModel(graph)
+        await model.start()
+        #expect(model.state == .noSessionData)
+        let emptySession = await graph.marketSessionStore.statistics()
+        #expect(emptySession.entryCount == 0 && emptySession.accountedBytes == 0)
+        #expect(model.searchResults.isEmpty && model.historyPage == nil && model.chartPayload == nil)
+        model.query = "SYN"
+        model.submitSearch()
+        try await waitForSessionFailure(model, pendingState: .searching)
+        var beforeFailure = emptySession
+        if historyFailure {
+            try #require(model.state == .ready)
+            #expect(model.errorDisclosure == nil && model.searchResults.count == 2)
+            let instrument = try #require(model.searchResults.first { $0.symbol == "SYN-CNY" && $0.mic == "XSYN" })
+            #expect(model.historyPage == nil && model.chartPayload == nil && model.indicatorSnapshot == nil)
+            beforeFailure = await graph.marketSessionStore.statistics()
+            #expect(beforeFailure.entryCount == 1 && beforeFailure.accountedBytes > 0)
+            model.select(instrument)
+            #expect(model.state == .ready && model.historyPage == nil)
+            #expect(await graph.marketSessionStore.statistics() == beforeFailure)
+            model.refreshSelectedHistory()
+            try await waitForSessionFailure(model, pendingState: .loadingHistory)
+            #expect(model.selectedInstrument == instrument && model.searchResults.count == 2)
+            let window = try MarketRangeRequestPolicy.window(for: model.selectedRange, now: graph.clock.now())
+            let key = ["history", instrument.symbol, instrument.mic, MarketInterval.oneDay.rawValue,
+                       MarketAdjustment.all.rawValue, window.startDate?.description ?? "",
+                       window.endDate.description].joined(separator: "|")
+            #expect(try await graph.marketSessionStore.lookup(providerIdentifier: provider.descriptor.identifier,
+                logicalKey: key, dataType: .historical, now: graph.clock.now()) == .missing)
+        } else {
+            #expect(model.searchResults.isEmpty && model.ephemeralInstruments.isEmpty)
+            #expect(model.selectedInstrument == nil)
+        }
+        #expect(model.state == expected.state && model.errorDisclosure == expected.disclosure)
+        #expect(model.historyPage == nil && model.chartPayload == nil && model.indicatorSnapshot == nil)
+        #expect(model.visibleBars.isEmpty && model.visibleSummary == nil)
+        #expect(await graph.marketSessionStore.statistics() == beforeFailure)
+
+        // These provider-only controls must not populate the Model or session, nor affect other requests.
+        let baseline = SyntheticMarketDataProvider(scenario: .success, clock: graph.clock)
+        let baselineInstruments = try await baseline.search(query: "SYN")
+        let instrument = try #require(baselineInstruments.first)
+        let capabilities = await baseline.capabilities()
+        let usage = try await baseline.validateCredential()
+        let quote = try await baseline.latestQuote(for: instrument)
+        let actions = try await baseline.corporateActions(for: instrument, from: nil, through: nil)
+        #expect(await provider.capabilities() == capabilities)
+        #expect(try await provider.validateCredential() == usage)
+        #expect(try await provider.latestQuote(for: instrument) == quote)
+        #expect(try await provider.corporateActions(for: instrument, from: nil, through: nil) == actions)
+        if historyFailure {
+            #expect(try await provider.search(query: "SYN") == baselineInstruments)
+        } else {
+            let request = try MarketHistoryRequest(instrument: instrument, interval: .oneDay, adjustment: .all)
+            let history = try await baseline.historicalBars(request)
+            #expect(!history.bars.isEmpty)
+            #expect(try await provider.historicalBars(request) == history)
+        }
+        #expect(await graph.marketSessionStore.statistics() == beforeFailure)
+        #expect(try await graph.marketCacheStore.statistics().entryCount == 0)
+        #expect(try await graph.wealthStore.isolationSentinels() == ["Synthetic Market Failure Sentinel"])
+        #expect(try await graph.wealthStore.fetchWealthContainers() == wealthBefore)
+        #expect(try await graph.wealthStore.fetchGoals() == goalsBefore)
+        #expect(try await graph.wealthStore.fetchLedgerEntries() == ledgerBefore)
+    }
+
+    @Test("CLI graph without injection completes Search and explicit History")
+    @MainActor
+    func launchScenarioSuccessControl() async throws {
+        let configuration = LaunchConfiguration.current(arguments: ["--aureus-ui-testing", "--aureus-demo"])
+        let root = try #require(configuration.temporaryRoot)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let graph = try await AppDependencies.make(configuration: configuration)
+        #expect(configuration.marketFailureScenario == nil)
+        let model = launchScenarioModel(graph)
+        await model.start()
+        #expect(model.state == .noSessionData)
+        model.query = "SYN"
+        model.submitSearch()
+        try await waitForSessionFailure(model, pendingState: .searching)
+        try #require(model.state == .ready && model.errorDisclosure == nil)
+        let instrument = try #require(model.searchResults.first { $0.symbol == "SYN-CNY" && $0.mic == "XSYN" })
+        model.select(instrument)
+        model.refreshSelectedHistory()
+        try await waitForSessionFailure(model, pendingState: .loadingHistory)
+        #expect(model.state == .ready && model.errorDisclosure == nil)
+        let history = try #require(model.historyPage)
+        #expect(history.instrument == instrument && history.bars.count == 120)
+        #expect(model.chartPayload != nil && model.indicatorSnapshot != nil && !model.visibleBars.isEmpty)
+        #expect(await graph.marketSessionStore.statistics().entryCount == 2)
+        #expect(try await graph.marketCacheStore.statistics().entryCount == 0)
+    }
+
+    @MainActor
+    private func launchScenarioModel(_ graph: AppDependencies) -> MarketsFeatureModel {
+        MarketsFeatureModel(marketDataService: graph.marketDataService,
+            marketProvider: graph.marketDataProvider, sessionStore: graph.marketSessionStore,
+            preferences: graph.marketPreferencesStore, clock: graph.clock, mode: .syntheticDemo)
+    }
+
     enum EmptySessionFailure: CaseIterable, Sendable {
         case offline, timeout, missing
 

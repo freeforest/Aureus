@@ -171,3 +171,32 @@ Reviewer决定Stage12 Gate。出口要求：八类必需人工项有用户来源
 每包记录来源、修改授权、产品/配置、动作、结果、失败和预算；继承、NOT RUN、NOT VERIFIED、USER REPORTED分开。不重复Stage11文档收尾循环，不生成新的Executor Prompt。本轮计划报告与最终清单位于 [Stage12入场证据](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-ENTRY-AND-HARDENING-PLAN-01-sIcpKm/ExecutionReport.md)。
 
 保持macOS/Apple Silicon、单用户local-only personal/internal non-commercial、visualization-first无AI/LLM；CNY统一计价与USD原值/FX/CNY并存；Permanent/MarketCache隔离及容量/TTL/清理不伤永久记录；synthetic/sanitized only；Twelve Data session-only、persistent writes Disabled、retention rights BLOCKED；真实Credential仅由用户经原生Settings写入应用Keychain。本轮不访问真实domain、Provider、Secret或系统日志，全系统未测量访问数为NOT VERIFIED。
+
+## 2026-09-12 — W2 受控 Search / History 失败入口技术证据
+
+当前授权为 Reviewer 的 `12-OFFLINE-UI-HARNESS-01`：仅实现请求级 synthetic 入口及 Unit 验证，不运行原生 UI 或人工 QA。Stage11 PASS 保持；Stage12 PARTIAL — Awaiting Reviewer Gate；Stages13–14 NO-GO。以上历史“未授权/NOT RUN/HARNESS MISSING”记录保留原时点；本节更新六场景当前技术状态，不追溯改写旧结果。
+
+W1 的新 CSV、外部备份两文件恢复前后/最终字节身份，以及有明确第一图状态的第二图 G1–G7 USER REPORTED 对照，已由 Reviewer 有限接受，来源为 [W1限定补证报告](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-W1-ARTIFACT-AND-GRAPH-CLOSURE-01-dxzPBT/ExecutionReport.md)。Cancel 后 Probe 保持仍 NOT VERIFIED，移交后续统一人工验收；security-scope 释放计数、旧文件丢失、旧第二图缺证和完整 AX 输出偏差全部保留。本轮未重复这些人工动作。
+
+新增 `--aureus-market-failure-scenario <value>`，只接受下表六值；必须同时有 `--aureus-ui-testing` 与 `--aureus-demo`，场景参数恰好一次且紧随有效值。缺值、未知值、重复或缺必要参数均禁用，不改变既有模式选择。依赖图另以 syntheticDemo、usesTemporaryStores、非空 temporaryRoot 三项实际边界限制；无效生产组合仅纯判断验证，不创建 Production 图。默认 nil，既有 cache-audit 合同、生产 Keychain/Provider/FX 分支及其他请求保持。没有 stale seed、真实网络切换或持久故障偏好。
+
+本轮证据：[ExecutionReport](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-OFFLINE-UI-HARNESS-01-WmpCMn/ExecutionReport.md)、[canonical及同包子集](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-OFFLINE-UI-HARNESS-01-WmpCMn/UnitResults.json)、[宿主隔离差异](/Users/freeforest/Aureus_Engineering_Evidence/Stage12-OFFLINE-UI-HARNESS-01-WmpCMn/DebugIsolation.json)。首次 unsigned BFT 因新增测试对非 Optional CivilDate 使用可选链而 Failed/exit65；消费唯一编译修正后，新路径 BFT succeeded/exit0、parser0。失败包和首次输入保留；没有业务修复或测试重跑。
+
+单次 Full Unit：497 definitions / 632 executions，632 Passed，failed/skipped/expected failures 均0，underlying exit0，summary/tests parser0/0。36个参数化容器、171个 Arguments 执行节点，加461个非参数执行，未重复计算容器。新增6 definitions /35 executions全部通过；原 emptySessionSearchFailure / emptySessionHistoryFailure 为2/6通过。GeneralSettingsTests 同包17/57，MarketsTerminalTests 同包30/39；独立 Focused NOT RUN。旧 Unit597、Release31/28ms、UI等是历史继承，未作为新源码的运行证明；本轮 Full 包含的既有 performance Unit 不等于 A-016 六项性能测量。
+
+新精确入口：`AureusTests/GeneralSettingsTests/marketFailureArguments`、`invalidMarketFailureArguments`、`marketFailureIsolationGuard`、`ordinaryMarketGraph`（均同 suite）；`AureusTests/MarketsTerminalTests/launchScenarioFailure`（六个参数执行）、`launchScenarioSuccessControl`。状态为 EXISTING DEFINITION / 本轮 Unit VERIFIED；原生 UI NOT RUN。前者从实际 current→make→公开 Model Search/History验证准确状态和原披露；History正常 Search 的1个 session payload允许保留，失败后数量/bytes不变、对应historical key缺失、无图表/指标；非目标请求与默认 synthetic结果一致，永久哨兵/Wealth/Goals/Ledger保持。
+
+### 后续待授权的六场景操作卡（本轮不执行）
+
+共同前提：另行取得明确运行授权、新 signed 同源产品及完整身份核验，重新取得当次桌面/用户参与确认；旧 signed App不能验证新源码。每场景独立 temporary graph，传入 `--aureus-ui-testing --aureus-demo` 和该场景参数；不改真实网络，不接触 Production Credential，不以 cache-audit legacy充当fallback。用户亲自操作，结果标 USER REPORTED，不默认采集截图/AX；认证仅用户本人处理。异常隔离/数据安全/未知权限目标立即停止，不重复失败动作求绿。
+
+| 场景 value | 该图内操作 | 必须观察的结果 |
+|---|---|---|
+| `search-offline` | 输入 synthetic query `SYN`，显式 Search | `Market Data Unavailable Offline.`；无成功搜索结果、History、伪造图表或指标 |
+| `search-timeout` | 输入 `SYN`，显式 Search | `Provider request timed out.`；同上空结果/无图表要求 |
+| `search-missing` | 输入 `SYN`，显式 Search | `Requested session data is missing.`；同上空结果/无图表要求 |
+| `history-offline` | 正常 Search `SYN`，选择实际返回的 `SYN-CNY.XSYN`，显式刷新 History | Search先成功；刷新才显示 `Market Data Unavailable Offline.`；无新增History/图表/指标 |
+| `history-timeout` | 正常 Search、选择返回项、显式刷新 History | Search先成功；刷新才显示 `Provider request timed out.`；同上无新增历史内容 |
+| `history-missing` | 正常 Search、选择返回项、显式刷新 History | Search先成功；刷新才显示 `Requested session data is missing.`；同上无新增历史内容 |
+
+每张卡记录具体场景/动作/实际文案及未到达项，不能用某张成功补写其他场景，也不能把 synthetic timeout 当真实联网超时或完整 offline 验收。stale 入口仍 HARNESS MISSING；六场景人工 UI、Cancel细项、其他必需人工质量、性能协议冻结/测量、OSLog系统交付/留存/人工脱敏及 Stage12 最终跨功能验收均继续开放。本轮没有 signed BFT、Release、UI或人工运行，未进入下一工作包。

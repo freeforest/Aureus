@@ -67,6 +67,7 @@ struct LaunchConfiguration: Equatable, Sendable {
     let usesTemporaryStores: Bool
     let temporaryRoot: URL?
     var settingsCacheAuditEnabled = false
+    var marketFailureScenario: SyntheticMarketFailureScenario? = nil
 
     static func current(arguments: [String] = ProcessInfo.processInfo.arguments) -> LaunchConfiguration {
         let isDemo = arguments.contains("--aureus-demo")
@@ -81,13 +82,25 @@ struct LaunchConfiguration: Equatable, Sendable {
         } else {
             temporaryRoot = nil
         }
+        let scenarioIndices = arguments.indices.filter {
+            arguments[$0] == "--aureus-market-failure-scenario"
+        }
+        let marketFailureScenario: SyntheticMarketFailureScenario?
+        if isDemo, arguments.contains("--aureus-ui-testing"),
+           scenarioIndices.count == 1,
+           let index = scenarioIndices.first, index + 1 < arguments.count {
+            marketFailureScenario = SyntheticMarketFailureScenario(rawValue: arguments[index + 1])
+        } else {
+            marketFailureScenario = nil
+        }
         return LaunchConfiguration(
             dataMode: isDemo ? .syntheticDemo : .local,
             usesTemporaryStores: isTemporary,
             temporaryRoot: temporaryRoot,
             settingsCacheAuditEnabled: isDemo
                 && arguments.contains("--aureus-ui-testing")
-                && arguments.contains("--aureus-settings-cache-audit")
+                && arguments.contains("--aureus-settings-cache-audit"),
+            marketFailureScenario: marketFailureScenario
         )
     }
 }

@@ -8,9 +8,44 @@ enum SyntheticProviderScenario: Equatable, Sendable {
     case offline
 }
 
+enum SyntheticMarketFailureScenario: String, CaseIterable, Equatable, Sendable {
+    case searchOffline = "search-offline"
+    case searchTimeout = "search-timeout"
+    case searchMissing = "search-missing"
+    case historyOffline = "history-offline"
+    case historyTimeout = "history-timeout"
+    case historyMissing = "history-missing"
+
+    var searchFailure: ProviderBoundaryError? {
+        switch self {
+        case .searchOffline: .offline
+        case .searchTimeout: .timeout
+        case .searchMissing: .missing
+        case .historyOffline, .historyTimeout, .historyMissing: nil
+        }
+    }
+
+    var historyFailure: ProviderBoundaryError? {
+        switch self {
+        case .historyOffline: .offline
+        case .historyTimeout: .timeout
+        case .historyMissing: .missing
+        case .searchOffline, .searchTimeout, .searchMissing: nil
+        }
+    }
+}
+
 struct SyntheticMarketDataProvider: MarketDataProvider {
     let scenario: SyntheticProviderScenario
     let clock: any Clock
+    let failureScenario: SyntheticMarketFailureScenario?
+
+    init(scenario: SyntheticProviderScenario, clock: any Clock,
+         failureScenario: SyntheticMarketFailureScenario? = nil) {
+        self.scenario = scenario
+        self.clock = clock
+        self.failureScenario = failureScenario
+    }
 
     let descriptor = ProviderDescriptor(
         identifier: "synthetic.stage6.market",
@@ -92,6 +127,7 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
 
     func search(query: String) async throws -> [MarketInstrument] {
         try validateScenario()
+        if let error = failureScenario?.searchFailure { throw error }
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ProviderBoundaryError.invalidRequest
         }
@@ -116,6 +152,7 @@ struct SyntheticMarketDataProvider: MarketDataProvider {
 
     func historicalBars(_ request: MarketHistoryRequest) async throws -> MarketHistoryPage {
         try validateScenario()
+        if let error = failureScenario?.historyFailure { throw error }
         let currency = request.instrument.currency
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

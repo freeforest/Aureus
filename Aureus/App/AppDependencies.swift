@@ -27,6 +27,15 @@ struct AppDependencies: Sendable {
     let dataLifecycleGenerationID: @Sendable () -> UUID
     let diagnostics: DataLifecycleDiagnostics
 
+    static func isolatedMarketFailureScenario(
+        for configuration: LaunchConfiguration
+    ) -> SyntheticMarketFailureScenario? {
+        guard configuration.dataMode == .syntheticDemo,
+              configuration.usesTemporaryStores,
+              configuration.temporaryRoot != nil else { return nil }
+        return configuration.marketFailureScenario
+    }
+
     static func make(
         configuration: LaunchConfiguration,
         migrationSafetyInputs: PermanentMigrationSafetyInputs? = nil
@@ -98,7 +107,10 @@ struct AppDependencies: Sendable {
         let fxRateProvider: any FXRateProvider
         if configuration.usesTemporaryStores {
             credentialStore = InMemoryCredentialStore()
-            marketDataProvider = SyntheticMarketDataProvider(scenario: .success, clock: clock)
+            marketDataProvider = SyntheticMarketDataProvider(
+                scenario: .success, clock: clock,
+                failureScenario: isolatedMarketFailureScenario(for: configuration)
+            )
             fxRateProvider = SyntheticFXRateProvider(clock: clock)
         } else {
             let keychain = KeychainCredentialStore()

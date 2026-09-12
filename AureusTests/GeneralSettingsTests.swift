@@ -8,6 +8,85 @@ import Testing
 struct GeneralSettingsTests {
     private let now = UTCInstant(millisecondsSince1970: 1_768_435_200_000)
 
+    @Test("Six explicit failure values parse only in UI-testing Demo", arguments: SyntheticMarketFailureScenario.allCases)
+    func marketFailureArguments(scenario: SyntheticMarketFailureScenario) {
+        #expect(Set(SyntheticMarketFailureScenario.allCases.map(\.rawValue)) == [
+            "search-offline", "search-timeout", "search-missing",
+            "history-offline", "history-timeout", "history-missing"
+        ])
+        let configuration = LaunchConfiguration.current(arguments: [
+            "--aureus-ui-testing", "--aureus-demo", "--aureus-market-failure-scenario", scenario.rawValue
+        ])
+        #expect(configuration.marketFailureScenario == scenario)
+        #expect(AppDependencies.isolatedMarketFailureScenario(for: configuration) == scenario)
+        #expect(configuration.dataMode == .syntheticDemo)
+        #expect(configuration.usesTemporaryStores && configuration.temporaryRoot != nil)
+        #expect(!configuration.settingsCacheAuditEnabled)
+        let withAudit = LaunchConfiguration.current(arguments: [
+            "--aureus-ui-testing", "--aureus-demo", "--aureus-settings-cache-audit",
+            "--aureus-market-failure-scenario", scenario.rawValue
+        ])
+        #expect(withAudit.settingsCacheAuditEnabled && withAudit.marketFailureScenario == scenario)
+    }
+
+    @Test("Missing malformed and duplicate failure arguments do not inject", arguments: [
+        [String](),
+        ["--aureus-ui-testing", "--aureus-demo"],
+        ["--aureus-demo", "--aureus-market-failure-scenario", "search-offline"],
+        ["--aureus-ui-testing", "--aureus-market-failure-scenario", "history-timeout"],
+        ["--aureus-market-failure-scenario", "search-missing"],
+        ["--aureus-ui-testing", "--aureus-demo", "--aureus-market-failure-scenario"],
+        ["--aureus-ui-testing", "--aureus-demo", "--aureus-market-failure-scenario", "unknown"],
+        ["--aureus-ui-testing", "--aureus-demo", "--aureus-market-failure-scenario", "--aureus-settings-cache-audit"],
+        ["--aureus-ui-testing", "--aureus-demo", "--aureus-market-failure-scenario", "search-offline", "--aureus-market-failure-scenario", "search-offline"],
+        ["--aureus-ui-testing", "--aureus-demo", "--aureus-market-failure-scenario", "history-missing", "--aureus-market-failure-scenario"],
+        ["--aureus-temporary-store", "--aureus-market-failure-scenario", "search-offline"],
+        ["--aureus-ui-testing", "--aureus-demo", "--aureus-market-failure-scenario", " search-offline"]
+    ])
+    func invalidMarketFailureArguments(arguments: [String]) {
+        let configuration = LaunchConfiguration.current(arguments: arguments)
+        #expect(configuration.marketFailureScenario == nil)
+        #expect(AppDependencies.isolatedMarketFailureScenario(for: configuration) == nil)
+        let demo = arguments.contains("--aureus-demo")
+        let temporary = demo || arguments.contains("--aureus-ui-testing")
+            || arguments.contains("--aureus-temporary-store")
+        #expect(configuration.dataMode == (demo ? .syntheticDemo : .local))
+        #expect(configuration.usesTemporaryStores == temporary)
+        #expect((configuration.temporaryRoot != nil) == temporary)
+        #expect(configuration.settingsCacheAuditEnabled == (demo
+            && arguments.contains("--aureus-ui-testing")
+            && arguments.contains("--aureus-settings-cache-audit")))
+    }
+
+    @Test("Injection guard uses actual configuration without constructing Production", arguments: Array(0...7))
+    func marketFailureIsolationGuard(mask: Int) {
+        let configuration = LaunchConfiguration(
+            dataMode: mask & 1 != 0 ? .syntheticDemo : .local,
+            usesTemporaryStores: mask & 2 != 0,
+            temporaryRoot: mask & 4 != 0 ? FileManager.default.temporaryDirectory
+                .appendingPathComponent("Aureus-Guard-\(UUID().uuidString)") : nil,
+            marketFailureScenario: .historyOffline
+        )
+        #expect(AppDependencies.isolatedMarketFailureScenario(for: configuration)
+            == (mask == 7 ? .historyOffline : nil))
+        // Deliberately do not call make for invalid configurations or touch Production credentials.
+    }
+
+    @Test("Ordinary Demo and temporary graphs keep success defaults", arguments: [false, true])
+    func ordinaryMarketGraph(demo: Bool) async throws {
+        let configuration = LaunchConfiguration.current(arguments: [demo ? "--aureus-demo" : "--aureus-temporary-store"])
+        let root = try #require(configuration.temporaryRoot)
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(configuration.marketFailureScenario == nil && !configuration.settingsCacheAuditEnabled)
+        let graph = try await AppDependencies.make(configuration: configuration)
+        let provider = try #require(graph.marketDataProvider as? SyntheticMarketDataProvider)
+        #expect(provider.scenario == .success && provider.failureScenario == nil)
+        #expect(graph.credentialStore is InMemoryCredentialStore)
+        #expect(graph.generalPreferencesStore.load() == .defaults)
+        #expect(try await graph.marketCacheStore.statistics().entryCount == 0)
+        #expect(try await provider.search(query: "SYN").count == 2)
+    }
+
     @Test("Oldest entry uses fixed UTC and preserves nil and epoch zero")
     func oldestEntryDisplay() {
         #expect(SettingsFeatureModel.oldestEntryLabel(for: nil) == "Oldest cache entry: None")
