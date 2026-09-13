@@ -388,6 +388,116 @@ struct MarketsTerminalTests {
         #expect((await dependencies.session.statistics()).entryCount == 0)
     }
 
+    @Test("CLI stale audit falls back through public History and cannot reseed after Clear")
+    @MainActor
+    func staleAuditLifecycle() async throws {
+        let configuration = LaunchConfiguration.current(arguments: [
+            "--aureus-ui-testing", "--aureus-demo", "--aureus-market-stale-audit"
+        ])
+        let root = try #require(configuration.temporaryRoot)
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(configuration.marketStaleAuditEnabled && !configuration.settingsCacheAuditEnabled)
+        #expect(configuration.marketFailureScenario == nil && configuration.usesTemporaryStores)
+        let graph = try await AppDependencies.make(configuration: configuration)
+        let provider = try #require(graph.marketDataProvider as? SyntheticMarketDataProvider)
+        #expect(provider.scenario == .success && provider.failureScenario == .historyOffline)
+        #expect(graph.credentialStore is InMemoryCredentialStore)
+        #expect(graph.generalPreferencesStore.load() == .defaults)
+        let diskBefore = try await graph.marketCacheStore.statistics()
+        #expect(diskBefore.entryCount == 0)
+        #expect(try await graph.marketCacheStore.cachedRowCount() == 0)
+        try await graph.wealthStore.insertIsolationSentinel(id: "stale-audit", name: "Synthetic Stale Audit Sentinel")
+        let wealth = try await graph.wealthStore.fetchWealthContainers()
+        let ledger = try await graph.wealthStore.fetchLedgerEntries()
+        let goals = try await graph.wealthStore.fetchGoals()
+        #expect(!wealth.isEmpty && !ledger.isEmpty && !goals.isEmpty)
+
+        let instrument = try #require(try await provider.search(query: "SYN").first {
+            $0.symbol == "SYN-CNY" && $0.mic == "XSYN"
+        })
+        let window = try MarketRangeRequestPolicy.window(for: .oneYear, now: graph.clock.now())
+        let request = try MarketHistoryRequest(instrument: instrument, interval: .oneDay,
+            adjustment: .all, startDate: window.startDate, endDate: window.endDate,
+            outputSize: window.outputSizeUpperBound)
+        let key = ["history", instrument.symbol, instrument.mic, MarketInterval.oneDay.rawValue,
+            MarketAdjustment.all.rawValue, window.startDate?.description ?? "",
+            window.endDate.description].joined(separator: "|")
+        let lookup = try await graph.marketSessionStore.lookup(providerIdentifier: provider.descriptor.identifier,
+            logicalKey: key, dataType: .historical, now: graph.clock.now())
+        guard case let .stale(value) = lookup, case let .historical(seed) = value.payload else {
+            Issue.record("Expected the sole typed history seed to be expired"); return
+        }
+        #expect(await graph.marketSessionStore.statistics().entryCount == 1)
+        #expect(value.fetchedAt.millisecondsSince1970 == graph.clock.now().millisecondsSince1970
+            - TransientMarketSessionDataType.historical.timeToLiveMilliseconds - 1)
+        #expect(value.expiresAt.millisecondsSince1970 == graph.clock.now().millisecondsSince1970 - 1)
+        #expect(!seed.bars.isEmpty && seed.bars.count <= window.outputSizeUpperBound)
+        #expect(seed.bars.allSatisfy { $0.fetchedAt == value.fetchedAt && $0.freshness == .endOfDay })
+        #expect(window.filter(seed.bars) == seed.bars)
+        await #expect(throws: ProviderBoundaryError.offline) {
+            _ = try await provider.historicalBars(request)
+        }
+
+        let model = launchScenarioModel(graph)
+        await model.start()
+        #expect(model.selectedRange == .oneYear && model.selectedInstrument == nil)
+        #expect(model.historyPage == nil && model.chartPayload == nil && model.indicatorSnapshot == nil)
+        #expect(model.visibleBars.isEmpty && model.visibleSummary == nil)
+        model.query = "SYN"
+        model.submitSearch()
+        try await waitForSessionFailure(model, pendingState: .searching)
+        try #require(model.state == .ready && model.searchResults.count == 2)
+        let selected = try #require(model.searchResults.first { $0.symbol == "SYN-CNY" && $0.mic == "XSYN" })
+        #expect(selected == instrument)
+        model.select(selected)
+        model.refreshSelectedHistory()
+        try await waitForSessionFailure(model, pendingState: .loadingHistory)
+        #expect(model.state == .ready && model.errorDisclosure == nil)
+        let expectedBars = try seed.bars.map { bar in
+            try MarketOHLCVBar(sessionDate: bar.sessionDate, openedAt: bar.openedAt,
+                open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume,
+                adjustment: bar.adjustment, providerIdentifier: bar.providerIdentifier,
+                fetchedAt: bar.fetchedAt, freshness: .stale)
+        }
+        #expect(model.historyPage == MarketHistoryPage(instrument: seed.instrument, bars: expectedBars,
+            nextEndDate: seed.nextEndDate, sourceRevision: seed.sourceRevision,
+            providerIdentifier: seed.providerIdentifier))
+        let chart = try #require(model.chartPayload)
+        #expect(chart.candles.count == seed.bars.count && !chart.lines.isEmpty)
+        #expect(chart.configuration.freshness == MarketFreshness.stale.rawValue)
+        let indicators = try #require(model.indicatorSnapshot)
+        #expect(!indicators.sma20.isEmpty && !indicators.ema12.isEmpty)
+        #expect(!model.visibleBars.isEmpty && model.visibleSummary != nil)
+        #expect(try await graph.marketSessionStore.lookup(providerIdentifier: provider.descriptor.identifier,
+            logicalKey: key, dataType: .historical, now: graph.clock.now()) == lookup)
+
+        await model.clearSession()
+        #expect(model.state == .sessionCleared && model.selectedInstrument == nil)
+        #expect(model.historyPage == nil && model.chartPayload == nil && model.indicatorSnapshot == nil)
+        #expect(model.visibleRange == nil && model.renderSummary == nil && model.visibleSummary == nil)
+        #expect(model.visibleBars.isEmpty && model.searchResults.isEmpty && model.ephemeralInstruments.isEmpty)
+        #expect(await graph.marketSessionStore.statistics().entryCount == 0)
+        model.query = "SYN"
+        model.submitSearch()
+        try await waitForSessionFailure(model, pendingState: .searching)
+        try #require(model.state == .ready)
+        model.select(try #require(model.searchResults.first { $0.symbol == "SYN-CNY" && $0.mic == "XSYN" }))
+        model.refreshSelectedHistory()
+        try await waitForSessionFailure(model, pendingState: .loadingHistory)
+        #expect(model.state == .offline && model.errorDisclosure == "Market Data Unavailable Offline.")
+        #expect(model.historyPage == nil && model.chartPayload == nil && model.indicatorSnapshot == nil)
+        #expect(model.visibleBars.isEmpty && model.visibleSummary == nil)
+        #expect(await graph.marketSessionStore.statistics().entryCount == 1)
+        #expect(try await graph.marketSessionStore.lookup(providerIdentifier: provider.descriptor.identifier,
+            logicalKey: key, dataType: .historical, now: graph.clock.now()) == .missing)
+        #expect(try await graph.marketCacheStore.statistics() == diskBefore)
+        #expect(try await graph.marketCacheStore.cachedRowCount() == 0)
+        #expect(try await graph.wealthStore.isolationSentinels() == ["Synthetic Stale Audit Sentinel"])
+        #expect(try await graph.wealthStore.fetchWealthContainers() == wealth)
+        #expect(try await graph.wealthStore.fetchLedgerEntries() == ledger)
+        #expect(try await graph.wealthStore.fetchGoals() == goals)
+    }
+
     @Test("CLI isolated graph exposes six request-specific failures through public Markets operations",
           arguments: SyntheticMarketFailureScenario.allCases)
     @MainActor

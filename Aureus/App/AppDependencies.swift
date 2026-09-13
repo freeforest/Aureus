@@ -36,6 +36,15 @@ struct AppDependencies: Sendable {
         return configuration.marketFailureScenario
     }
 
+    static func isolatedMarketStaleAudit(for configuration: LaunchConfiguration) -> Bool {
+        configuration.dataMode == .syntheticDemo
+            && configuration.usesTemporaryStores
+            && configuration.temporaryRoot != nil
+            && configuration.marketStaleAuditEnabled
+            && configuration.marketFailureScenario == nil
+            && !configuration.settingsCacheAuditEnabled
+    }
+
     static func make(
         configuration: LaunchConfiguration,
         migrationSafetyInputs: PermanentMigrationSafetyInputs? = nil
@@ -109,7 +118,8 @@ struct AppDependencies: Sendable {
             credentialStore = InMemoryCredentialStore()
             marketDataProvider = SyntheticMarketDataProvider(
                 scenario: .success, clock: clock,
-                failureScenario: isolatedMarketFailureScenario(for: configuration)
+                failureScenario: isolatedMarketStaleAudit(for: configuration)
+                    ? .historyOffline : isolatedMarketFailureScenario(for: configuration)
             )
             fxRateProvider = SyntheticFXRateProvider(clock: clock)
         } else {
@@ -173,6 +183,27 @@ struct AppDependencies: Sendable {
            configuration.temporaryRoot != nil,
            configuration.dataMode == .syntheticDemo {
             try await marketCacheStore.seedSyntheticCache()
+        }
+
+        if isolatedMarketStaleAudit(for: configuration) {
+            // Seed once through the ordinary typed history service. The live graph remains offline
+            // for History, and Clear Session cannot call this initialization-only path again.
+            let seedClock = FixedClock(instant: UTCInstant(millisecondsSince1970:
+                clock.now().millisecondsSince1970
+                    - TransientMarketSessionDataType.historical.timeToLiveMilliseconds - 1))
+            let seedProvider = SyntheticMarketDataProvider(scenario: .success, clock: seedClock)
+            let instruments = try await seedProvider.search(query: "SYN")
+            guard let instrument = instruments.first(where: { $0.symbol == "SYN-CNY" && $0.mic == "XSYN" }) else {
+                throw ProviderBoundaryError.missing
+            }
+            let window = try MarketRangeRequestPolicy.window(for: .oneYear, now: clock.now())
+            let request = try MarketHistoryRequest(instrument: instrument, interval: .oneDay,
+                adjustment: .all, startDate: window.startDate, endDate: window.endDate,
+                outputSize: window.outputSizeUpperBound)
+            let seedService = MarketDataService(marketProvider: seedProvider,
+                fxProvider: SyntheticFXRateProvider(clock: seedClock), cache: marketCacheStore,
+                sessionStore: marketSessionStore, clock: seedClock)
+            _ = try await seedService.historicalBars(request)
         }
 
         return AppDependencies(

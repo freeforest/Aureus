@@ -68,6 +68,7 @@ struct LaunchConfiguration: Equatable, Sendable {
     let temporaryRoot: URL?
     var settingsCacheAuditEnabled = false
     var marketFailureScenario: SyntheticMarketFailureScenario? = nil
+    var marketStaleAuditEnabled = false
 
     static func current(arguments: [String] = ProcessInfo.processInfo.arguments) -> LaunchConfiguration {
         let isDemo = arguments.contains("--aureus-demo")
@@ -100,7 +101,12 @@ struct LaunchConfiguration: Equatable, Sendable {
             settingsCacheAuditEnabled: isDemo
                 && arguments.contains("--aureus-ui-testing")
                 && arguments.contains("--aureus-settings-cache-audit"),
-            marketFailureScenario: marketFailureScenario
+            marketFailureScenario: marketFailureScenario,
+            marketStaleAuditEnabled: isDemo
+                && arguments.contains("--aureus-ui-testing")
+                && arguments.filter { $0 == "--aureus-market-stale-audit" }.count == 1
+                && scenarioIndices.isEmpty
+                && !arguments.contains("--aureus-settings-cache-audit")
         )
     }
 }

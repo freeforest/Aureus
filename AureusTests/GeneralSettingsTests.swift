@@ -8,6 +8,86 @@ import Testing
 struct GeneralSettingsTests {
     private let now = UTCInstant(millisecondsSince1970: 1_768_435_200_000)
 
+    @Test("Stale audit parsing is explicit and preserves existing argument contracts")
+    func staleAuditArguments() {
+        let audit = "--aureus-market-stale-audit"
+        let base = ["--aureus-ui-testing", "--aureus-demo"]
+        let cases: [[String]] = [[], [audit], base, base + [audit], base + [audit, audit],
+            ["--aureus-demo", audit], ["--aureus-ui-testing", audit],
+            ["--aureus-temporary-store", audit],
+            base + [audit, "--aureus-settings-cache-audit"],
+            base + [audit, "--aureus-market-failure-scenario"],
+            base + [audit, "--aureus-market-failure-scenario", "unknown"]]
+            + SyntheticMarketFailureScenario.allCases.map {
+                base + [audit, "--aureus-market-failure-scenario", $0.rawValue]
+            }
+        for arguments in cases {
+            let configuration = LaunchConfiguration.current(arguments: arguments)
+            let old = LaunchConfiguration.current(arguments: arguments.filter { $0 != audit })
+            #expect(configuration.marketStaleAuditEnabled == (arguments == base + [audit]))
+            #expect(configuration.dataMode == old.dataMode)
+            #expect(configuration.usesTemporaryStores == old.usesTemporaryStores)
+            #expect((configuration.temporaryRoot != nil) == (old.temporaryRoot != nil))
+            #expect(configuration.marketFailureScenario == old.marketFailureScenario)
+            #expect(configuration.settingsCacheAuditEnabled == old.settingsCacheAuditEnabled)
+        }
+        #expect(!LaunchConfiguration(dataMode: .local, usesTemporaryStores: false,
+            temporaryRoot: nil).marketStaleAuditEnabled)
+    }
+
+    @Test("Stale audit guard rejects invalid actual configurations without Production construction")
+    func staleAuditIsolationGuard() {
+        for mask in 0..<64 {
+            let configuration = LaunchConfiguration(
+                dataMode: mask & 1 != 0 ? .syntheticDemo : .local,
+                usesTemporaryStores: mask & 2 != 0,
+                temporaryRoot: mask & 4 != 0 ? FileManager.default.temporaryDirectory
+                    .appendingPathComponent("Aureus-Stale-Guard-\(UUID().uuidString)") : nil,
+                settingsCacheAuditEnabled: mask & 32 != 0,
+                marketFailureScenario: mask & 16 != 0 ? .historyOffline : nil,
+                marketStaleAuditEnabled: mask & 8 != 0)
+            #expect(AppDependencies.isolatedMarketStaleAudit(for: configuration) == (mask == 15))
+        }
+    }
+
+    @Test("Ordinary isolated graphs have no stale seed", arguments: [
+        ["--aureus-demo"], ["--aureus-temporary-store"], ["--aureus-ui-testing", "--aureus-demo"]
+    ])
+    func noStaleAuditSeed(arguments: [String]) async throws {
+        let configuration = LaunchConfiguration.current(arguments: arguments)
+        let root = try #require(configuration.temporaryRoot)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let graph = try await AppDependencies.make(configuration: configuration)
+        #expect(!configuration.marketStaleAuditEnabled)
+        #expect(!AppDependencies.isolatedMarketStaleAudit(for: configuration))
+        #expect(await graph.marketSessionStore.statistics().entryCount == 0)
+        #expect((graph.marketDataProvider as? SyntheticMarketDataProvider)?.failureScenario == nil)
+    }
+
+    @Test("Stale audit graphs own independent session stores")
+    func staleAuditGraphIsolation() async throws {
+        let arguments = ["--aureus-ui-testing", "--aureus-demo", "--aureus-market-stale-audit"]
+        let first = LaunchConfiguration.current(arguments: arguments)
+        let second = LaunchConfiguration.current(arguments: arguments)
+        let firstRoot = try #require(first.temporaryRoot)
+        let secondRoot = try #require(second.temporaryRoot)
+        defer {
+            try? FileManager.default.removeItem(at: firstRoot)
+            try? FileManager.default.removeItem(at: secondRoot)
+        }
+        #expect(firstRoot != secondRoot)
+        let a = try await AppDependencies.make(configuration: first)
+        let b = try await AppDependencies.make(configuration: second)
+        let before = await b.marketSessionStore.statistics()
+        #expect(before.entryCount == 1)
+        #expect(await a.marketSessionStore.statistics() == before)
+        _ = try await a.marketDataService.clearSessionMarketData()
+        #expect(await a.marketSessionStore.statistics().entryCount == 0)
+        #expect(await b.marketSessionStore.statistics() == before)
+        #expect(try await a.marketCacheStore.cachedRowCount() == 0)
+        #expect(try await b.marketCacheStore.cachedRowCount() == 0)
+    }
+
     @Test("Six explicit failure values parse only in UI-testing Demo", arguments: SyntheticMarketFailureScenario.allCases)
     func marketFailureArguments(scenario: SyntheticMarketFailureScenario) {
         #expect(Set(SyntheticMarketFailureScenario.allCases.map(\.rawValue)) == [
