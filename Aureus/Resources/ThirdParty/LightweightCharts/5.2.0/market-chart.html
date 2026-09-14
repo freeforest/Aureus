@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <style>
+    html, body, #chart { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; color: CanvasText; }
+    #tooltip { position: absolute; display: none; pointer-events: none; z-index: 5; max-width: 280px; padding: 8px 10px; border-radius: 7px; background: color-mix(in srgb, Canvas 92%, transparent); border: 1px solid GrayText; font: 12px -apple-system, sans-serif; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <div id="chart" role="img" aria-label="Interactive candlestick chart. A native accessible table is available in Aureus."></div>
+  <div id="tooltip" aria-hidden="true"></div>
+  <script src="lightweight-charts.standalone.production.js"></script>
+  <script src="aureus-market-chart.js"></script>
+</body>
+</html>

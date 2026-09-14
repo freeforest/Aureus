@@ -1,0 +1,102 @@
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode user state and generated results
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+*.xcresult
+
+# Build products and SwiftPM local artifacts
+/.build/
+/build/
+/Build/
+/.swiftpm/
+
+# IDE and editor-local files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local environment and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.local.xcconfig
+Config/Local.xcconfig
+
+# Private keys, certificates, credentials, and secrets
+# User-authorized local-only Twelve Data secret directory: never commit; the Production App must not read it.
+.secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+*.secrets.json
+*.credentials.json
+Secrets.local.xcconfig
+
+# Personal wealth databases and SQLite sidecars
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-journal
+/PrivateData/
+/LocalData/
+
+# Backups and private imports or exports
+/Backup/
+/Backups/
+/PrivateImports/
+/PrivateExports/
+/Imports/Private/
+/Exports/Private/
+*.backup
+*.bak
+*.private.csv
+*.private.json
+
+# Local sensitive logs, caches, and temporary files
+*.log
+/.logs/
+/Logs/Private/
+/.cache/
+/Cache/
+/Caches/
+/.tmp/
+/tmp/
+*.tmp
+*.temp
+
+# Fixture privacy boundary
+# Ordinary JSON, CSV, Markdown, and source fixtures are not globally ignored, so no blanket re-allow is needed.
+# Tests/Fixtures must not bypass secret, credential, database, backup, or private-export rules.
+# A synthetic database fixture requires separate privacy review and an exception for that exact file only.
+# .gitignore does not replace synthetic-data review.
+
+# These rules intentionally do not ignore all Markdown, JSON, CSV, Tests, or source files.
+# An ignore rule is only a defensive layer; private financial data must stay outside this repository.

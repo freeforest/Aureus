@@ -1,0 +1,1007 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000046 /* DataLifecycleDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000046 /* DataLifecycleDiagnostics.swift */; };
+		A2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift */; };
+		A10000000000000000000001 /* AureusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* AureusApp.swift */; };
+		A10000000000000000000002 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* AppModel.swift */; };
+		A10000000000000000000003 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* AppDependencies.swift */; };
+		A10000000000000000000004 /* RuntimePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* RuntimePaths.swift */; };
+		A10000000000000000000005 /* AppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* AppShellView.swift */; };
+		A10000000000000000000006 /* FinancialValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* FinancialValues.swift */; };
+		A10000000000000000000007 /* TimeValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* TimeValues.swift */; };
+		A10000000000000000000008 /* CoreModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* CoreModels.swift */; };
+		A10000000000000000000009 /* ProviderContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* ProviderContracts.swift */; };
+		A1000000000000000000000A /* SyntheticProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* SyntheticProviders.swift */; };
+		A1000000000000000000000B /* DatabaseMigrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* DatabaseMigrations.swift */; };
+		A1000000000000000000000C /* DatabaseQueueFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* DatabaseQueueFactory.swift */; };
+		A1000000000000000000000D /* SyntheticFoundationSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* SyntheticFoundationSeeder.swift */; };
+		A1000000000000000000000E /* WealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* WealthStore.swift */; };
+		A1000000000000000000000F /* MarketCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* MarketCacheStore.swift */; };
+		A10000000000000000000010 /* CachePolicyConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* CachePolicyConfiguration.swift */; };
+		A10000000000000000000011 /* WealthDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* WealthDomain.swift */; };
+		A10000000000000000000012 /* WealthPersistenceRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* WealthPersistenceRows.swift */; };
+		A10000000000000000000013 /* SyntheticWealthSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* SyntheticWealthSeeder.swift */; };
+		A10000000000000000000014 /* WealthFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* WealthFeatureModel.swift */; };
+		A10000000000000000000015 /* WealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* WealthView.swift */; };
+		A10000000000000000000016 /* LedgerDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* LedgerDomain.swift */; };
+		A10000000000000000000017 /* LedgerCSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* LedgerCSV.swift */; };
+		A10000000000000000000018 /* LedgerPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019 /* LedgerPersistence.swift */; };
+		A10000000000000000000019 /* SyntheticLedgerSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001A /* SyntheticLedgerSeeder.swift */; };
+		A1000000000000000000001A /* LedgerFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001B /* LedgerFeatureModel.swift */; };
+		A1000000000000000000001B /* LedgerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001C /* LedgerView.swift */; };
+		A10000000000000000000021 /* DashboardDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001D /* DashboardDomain.swift */; };
+		A10000000000000000000022 /* DashboardPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001E /* DashboardPersistence.swift */; };
+		A10000000000000000000023 /* SyntheticDashboardSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001F /* SyntheticDashboardSeeder.swift */; };
+		A10000000000000000000024 /* DashboardFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* DashboardFeatureModel.swift */; };
+		A10000000000000000000025 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* DashboardView.swift */; };
+		A10000000000000000000026 /* KeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* KeychainCredentialStore.swift */; };
+		A10000000000000000000027 /* MarketNetworking.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* MarketNetworking.swift */; };
+		A10000000000000000000028 /* MarketDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000024 /* MarketDataService.swift */; };
+		A10000000000000000000029 /* SettingsFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* SettingsFeatureModel.swift */; };
+		A1000000000000000000002A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* SettingsView.swift */; };
+		A1000000000000000000002B /* MarketIndicators.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000027 /* MarketIndicators.swift */; };
+		A1000000000000000000002C /* MarketPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000028 /* MarketPreferences.swift */; };
+		A1000000000000000000002D /* MarketsFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000029 /* MarketsFeatureModel.swift */; };
+		A1000000000000000000002E /* MarketsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002A /* MarketsView.swift */; };
+		A1000000000000000000002F /* MarketChartBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002B /* MarketChartBridge.swift */; };
+		A10000000000000000000030 /* MarketChartWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* MarketChartWebView.swift */; };
+		A10000000000000000000031 /* ThirdParty in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002D /* ThirdParty */; };
+		A10000000000000000000032 /* PortfolioDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002E /* PortfolioDomain.swift */; };
+		A10000000000000000000033 /* PortfolioPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002F /* PortfolioPersistence.swift */; };
+		A10000000000000000000034 /* PortfolioFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* PortfolioFeatureModel.swift */; };
+		A10000000000000000000035 /* PortfolioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* PortfolioView.swift */; };
+		A10000000000000000000036 /* PortfolioAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000032 /* PortfolioAnalytics.swift */; };
+		A10000000000000000000037 /* AnalyticsFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000033 /* AnalyticsFeatureModel.swift */; };
+		A10000000000000000000038 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* AnalyticsView.swift */; };
+		A10000000000000000000039 /* GoalPlanning.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000035 /* GoalPlanning.swift */; };
+		A1000000000000000000003A /* GoalPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000036 /* GoalPersistence.swift */; };
+		A1000000000000000000003B /* GoalsFeatureModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037 /* GoalsFeatureModel.swift */; };
+		A1000000000000000000003C /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000038 /* GoalsView.swift */; };
+		A1000000000000000000003D /* SyntheticGoalsSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000039 /* SyntheticGoalsSeeder.swift */; };
+		A1000000000000000000003E /* PermanentBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003A /* PermanentBackup.swift */; };
+		A1000000000000000000003F /* PermanentRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003B /* PermanentRestore.swift */; };
+		A10000000000000000000040 /* PermanentMigrationSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003C /* PermanentMigrationSafety.swift */; };
+		A10000000000000000000041 /* SettingsDataLifecycleModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003D /* SettingsDataLifecycleModel.swift */; };
+		A10000000000000000000042 /* PermanentBackupExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003E /* PermanentBackupExport.swift */; };
+		A10000000000000000000043 /* PermanentExternalRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000003F /* PermanentExternalRestore.swift */; };
+		A10000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P10000000000000000000001 /* GRDB */; };
+		A20000000000000000000001 /* FinancialValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* FinancialValueTests.swift */; };
+		A20000000000000000000002 /* TimeFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* TimeFoundationTests.swift */; };
+		A20000000000000000000003 /* PersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* PersistenceTests.swift */; };
+		A20000000000000000000004 /* CacheIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* CacheIsolationTests.swift */; };
+		A20000000000000000000005 /* ProviderBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* ProviderBoundaryTests.swift */; };
+		A20000000000000000000006 /* WealthDomainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* WealthDomainTests.swift */; };
+		A20000000000000000000007 /* WealthPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000007 /* WealthPersistenceTests.swift */; };
+		A20000000000000000000008 /* LedgerDomainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000008 /* LedgerDomainTests.swift */; };
+		A20000000000000000000009 /* LedgerPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000009 /* LedgerPersistenceTests.swift */; };
+		A2000000000000000000000A /* LedgerCSVTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000A /* LedgerCSVTests.swift */; };
+		A2000000000000000000000B /* DashboardDomainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000B /* DashboardDomainTests.swift */; };
+		A2000000000000000000000C /* DashboardPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000C /* DashboardPersistenceTests.swift */; };
+		A2000000000000000000000D /* MarketDataInfrastructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000D /* MarketDataInfrastructureTests.swift */; };
+		A2000000000000000000000E /* MarketCacheInfrastructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000E /* MarketCacheInfrastructureTests.swift */; };
+		A2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */; };
+		A20000000000000000000010 /* MarketsTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* MarketsTerminalTests.swift */; };
+		A20000000000000000000011 /* PortfolioTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* PortfolioTerminalTests.swift */; };
+		A20000000000000000000012 /* PortfolioAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* PortfolioAnalyticsTests.swift */; };
+		A20000000000000000000013 /* GoalsFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* GoalsFoundationTests.swift */; };
+		A20000000000000000000014 /* GoalsTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000014 /* GoalsTerminalTests.swift */; };
+		A20000000000000000000015 /* PermanentBackupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000015 /* PermanentBackupTests.swift */; };
+		A20000000000000000000016 /* PermanentRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000016 /* PermanentRestoreTests.swift */; };
+		A20000000000000000000017 /* PermanentMigrationSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */; };
+		A20000000000000000000018 /* SettingsDataLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000018 /* SettingsDataLifecycleTests.swift */; };
+		A20000000000000000000019 /* PermanentBackupExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000019 /* PermanentBackupExportTests.swift */; };
+		A2000000000000000000001A /* PermanentExternalRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000001A /* PermanentExternalRestoreTests.swift */; };
+		A20000000000000000000020 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = P20000000000000000000001 /* GRDB */; };
+		A30000000000000000000001 /* AureusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* AureusUITests.swift */; };
+		A10000000000000000000044 /* GeneralPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000044 /* GeneralPreferences.swift */; };
+		A10000000000000000000045 /* CacheFreshnessSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000045 /* CacheFreshnessSnapshot.swift */; };
+		A2000000000000000000001B /* GeneralSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000001B /* GeneralSettingsTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F20100000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F10000000000000000000001;
+			remoteInfo = Aureus;
+		};
+		F30100000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F10000000000000000000001;
+			remoteInfo = Aureus;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		B10000000000000000000046 /* DataLifecycleDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataLifecycleDiagnostics.swift; sourceTree = "<group>"; };
+		B2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataLifecycleDiagnosticsTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000001 /* AureusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusApp.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* RuntimePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePaths.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* AppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellView.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* FinancialValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValues.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* TimeValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeValues.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* CoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* ProviderContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderContracts.swift; sourceTree = "<group>"; };
+		B1000000000000000000000A /* SyntheticProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticProviders.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* DatabaseMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrations.swift; sourceTree = "<group>"; };
+		B1000000000000000000000C /* DatabaseQueueFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseQueueFactory.swift; sourceTree = "<group>"; };
+		B1000000000000000000000D /* SyntheticFoundationSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticFoundationSeeder.swift; sourceTree = "<group>"; };
+		B1000000000000000000000E /* WealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthStore.swift; sourceTree = "<group>"; };
+		B1000000000000000000000F /* MarketCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketCacheStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* CachePolicyConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachePolicyConfiguration.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* Aureus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Aureus.entitlements; sourceTree = "<group>"; };
+		B10000000000000000000012 /* WealthDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthDomain.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* WealthPersistenceRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthPersistenceRows.swift; sourceTree = "<group>"; };
+		B10000000000000000000014 /* SyntheticWealthSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticWealthSeeder.swift; sourceTree = "<group>"; };
+		B10000000000000000000015 /* WealthFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000016 /* WealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthView.swift; sourceTree = "<group>"; };
+		B10000000000000000000017 /* LedgerDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerDomain.swift; sourceTree = "<group>"; };
+		B10000000000000000000018 /* LedgerCSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCSV.swift; sourceTree = "<group>"; };
+		B10000000000000000000019 /* LedgerPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerPersistence.swift; sourceTree = "<group>"; };
+		B1000000000000000000001A /* SyntheticLedgerSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticLedgerSeeder.swift; sourceTree = "<group>"; };
+		B1000000000000000000001B /* LedgerFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerFeatureModel.swift; sourceTree = "<group>"; };
+		B1000000000000000000001C /* LedgerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerView.swift; sourceTree = "<group>"; };
+		B1000000000000000000001D /* DashboardDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDomain.swift; sourceTree = "<group>"; };
+		B1000000000000000000001E /* DashboardPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPersistence.swift; sourceTree = "<group>"; };
+		B1000000000000000000001F /* SyntheticDashboardSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticDashboardSeeder.swift; sourceTree = "<group>"; };
+		B10000000000000000000020 /* DashboardFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000021 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		B10000000000000000000022 /* KeychainCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainCredentialStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000023 /* MarketNetworking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketNetworking.swift; sourceTree = "<group>"; };
+		B10000000000000000000024 /* MarketDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketDataService.swift; sourceTree = "<group>"; };
+		B10000000000000000000025 /* SettingsFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000026 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B10000000000000000000027 /* MarketIndicators.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketIndicators.swift; sourceTree = "<group>"; };
+		B10000000000000000000028 /* MarketPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketPreferences.swift; sourceTree = "<group>"; };
+		B10000000000000000000029 /* MarketsFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketsFeatureModel.swift; sourceTree = "<group>"; };
+		B1000000000000000000002A /* MarketsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketsView.swift; sourceTree = "<group>"; };
+		B1000000000000000000002B /* MarketChartBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketChartBridge.swift; sourceTree = "<group>"; };
+		B1000000000000000000002C /* MarketChartWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketChartWebView.swift; sourceTree = "<group>"; };
+		B1000000000000000000002D /* ThirdParty */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ThirdParty; sourceTree = "<group>"; };
+		B1000000000000000000002E /* PortfolioDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioDomain.swift; sourceTree = "<group>"; };
+		B1000000000000000000002F /* PortfolioPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioPersistence.swift; sourceTree = "<group>"; };
+		B10000000000000000000030 /* PortfolioFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000031 /* PortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioView.swift; sourceTree = "<group>"; };
+		B10000000000000000000032 /* PortfolioAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioAnalytics.swift; sourceTree = "<group>"; };
+		B10000000000000000000033 /* AnalyticsFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000034 /* AnalyticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsView.swift; sourceTree = "<group>"; };
+		B10000000000000000000035 /* GoalPlanning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalPlanning.swift; sourceTree = "<group>"; };
+		B10000000000000000000036 /* GoalPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalPersistence.swift; sourceTree = "<group>"; };
+		B10000000000000000000037 /* GoalsFeatureModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsFeatureModel.swift; sourceTree = "<group>"; };
+		B10000000000000000000038 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
+		B10000000000000000000039 /* SyntheticGoalsSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticGoalsSeeder.swift; sourceTree = "<group>"; };
+		B1000000000000000000003A /* PermanentBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackup.swift; sourceTree = "<group>"; };
+		B1000000000000000000003B /* PermanentRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentRestore.swift; sourceTree = "<group>"; };
+		B1000000000000000000003C /* PermanentMigrationSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentMigrationSafety.swift; sourceTree = "<group>"; };
+		B1000000000000000000003D /* SettingsDataLifecycleModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDataLifecycleModel.swift; sourceTree = "<group>"; };
+		B1000000000000000000003E /* PermanentBackupExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackupExport.swift; sourceTree = "<group>"; };
+		B1000000000000000000003F /* PermanentExternalRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentExternalRestore.swift; sourceTree = "<group>"; };
+		B20000000000000000000001 /* FinancialValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValueTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000002 /* TimeFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFoundationTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000003 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000004 /* CacheIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheIsolationTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000005 /* ProviderBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderBoundaryTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000006 /* WealthDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthDomainTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000007 /* WealthPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthPersistenceTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000008 /* LedgerDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerDomainTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000009 /* LedgerPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerPersistenceTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000A /* LedgerCSVTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCSVTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000B /* DashboardDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDomainTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000C /* DashboardPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPersistenceTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000D /* MarketDataInfrastructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketDataInfrastructureTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000E /* MarketCacheInfrastructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketCacheInfrastructureTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainAndFXInfrastructureTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000010 /* MarketsTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketsTerminalTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000011 /* PortfolioTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioTerminalTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000012 /* PortfolioAnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioAnalyticsTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000013 /* GoalsFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsFoundationTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000014 /* GoalsTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsTerminalTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000015 /* PermanentBackupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackupTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000016 /* PermanentRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentRestoreTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentMigrationSafetyTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000018 /* SettingsDataLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDataLifecycleTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000019 /* PermanentBackupExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackupExportTests.swift; sourceTree = "<group>"; };
+		B2000000000000000000001A /* PermanentExternalRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentExternalRestoreTests.swift; sourceTree = "<group>"; };
+		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
+		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000003 /* AureusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000044 /* GeneralPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralPreferences.swift; sourceTree = "<group>"; };
+		B10000000000000000000045 /* CacheFreshnessSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheFreshnessSnapshot.swift; sourceTree = "<group>"; };
+		B2000000000000000000001B /* GeneralSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E10000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000020 /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E20000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000020 /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E30000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D18000000000000000000001 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000046 /* DataLifecycleDiagnostics.swift */);
+			path = Diagnostics;
+			sourceTree = "<group>";
+		};
+		D00000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				D10000000000000000000001 /* Aureus */,
+				D20000000000000000000001 /* AureusTests */,
+				D30000000000000000000001 /* AureusUITests */,
+				D00000000000000000000002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D00000000000000000000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000001 /* Aureus.app */,
+				C00000000000000000000002 /* AureusTests.xctest */,
+				C00000000000000000000003 /* AureusUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000001 /* Aureus */ = {
+			isa = PBXGroup;
+			children = (
+				D11000000000000000000001 /* App */,
+				D12000000000000000000001 /* Domain */,
+				D13000000000000000000001 /* Persistence */,
+				D14000000000000000000001 /* Features */,
+				D15000000000000000000001 /* Security */,
+				D16000000000000000000001 /* Services */,
+				D17000000000000000000001 /* Resources */,
+				D18000000000000000000001 /* Diagnostics */,
+				B10000000000000000000011 /* Aureus.entitlements */,
+			);
+			path = Aureus;
+			sourceTree = "<group>";
+		};
+		D11000000000000000000001 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* AureusApp.swift */,
+				B10000000000000000000002 /* AppModel.swift */,
+				B10000000000000000000003 /* AppDependencies.swift */,
+				B10000000000000000000004 /* RuntimePaths.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D12000000000000000000001 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				D12100000000000000000001 /* Money */,
+				D12200000000000000000001 /* Time */,
+				D12300000000000000000001 /* Models */,
+				D12400000000000000000001 /* Providers */,
+				D12500000000000000000001 /* Wealth */,
+				D12600000000000000000001 /* Ledger */,
+				D12700000000000000000001 /* Dashboard */,
+				D12800000000000000000001 /* Markets */,
+				D12900000000000000000001 /* Portfolio */,
+				D12A00000000000000000001 /* Calculations */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		D12100000000000000000001 /* Money */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000006 /* FinancialValues.swift */);
+			path = Money;
+			sourceTree = "<group>";
+		};
+		D12200000000000000000001 /* Time */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000007 /* TimeValues.swift */);
+			path = Time;
+			sourceTree = "<group>";
+		};
+		D12300000000000000000001 /* Models */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000008 /* CoreModels.swift */);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D12400000000000000000001 /* Providers */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000009 /* ProviderContracts.swift */,
+				B1000000000000000000000A /* SyntheticProviders.swift */,
+			);
+			path = Providers;
+			sourceTree = "<group>";
+		};
+		D12500000000000000000001 /* Wealth */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000012 /* WealthDomain.swift */);
+			path = Wealth;
+			sourceTree = "<group>";
+		};
+		D12600000000000000000001 /* Ledger */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000017 /* LedgerDomain.swift */,
+				B10000000000000000000018 /* LedgerCSV.swift */,
+			);
+			path = Ledger;
+			sourceTree = "<group>";
+		};
+		D12700000000000000000001 /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (B1000000000000000000001D /* DashboardDomain.swift */);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		D12800000000000000000001 /* Markets */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000027 /* MarketIndicators.swift */,
+				B10000000000000000000045 /* CacheFreshnessSnapshot.swift */,
+				B10000000000000000000028 /* MarketPreferences.swift */,
+			);
+			path = Markets;
+			sourceTree = "<group>";
+		};
+		D12900000000000000000001 /* Portfolio */ = {
+			isa = PBXGroup;
+			children = (B1000000000000000000002E /* PortfolioDomain.swift */);
+			path = Portfolio;
+			sourceTree = "<group>";
+		};
+		D12A00000000000000000001 /* Calculations */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000032 /* PortfolioAnalytics.swift */,
+				B10000000000000000000035 /* GoalPlanning.swift */,
+			);
+			path = Calculations;
+			sourceTree = "<group>";
+		};
+		D13000000000000000000001 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				D13100000000000000000001 /* Migrations */,
+				D13200000000000000000001 /* Permanent */,
+				D13300000000000000000001 /* MarketCache */,
+				D13400000000000000000001 /* Backup */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		D13100000000000000000001 /* Migrations */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000B /* DatabaseMigrations.swift */,
+				B1000000000000000000000C /* DatabaseQueueFactory.swift */,
+				B1000000000000000000000D /* SyntheticFoundationSeeder.swift */,
+				B10000000000000000000014 /* SyntheticWealthSeeder.swift */,
+				B1000000000000000000001A /* SyntheticLedgerSeeder.swift */,
+				B1000000000000000000001F /* SyntheticDashboardSeeder.swift */,
+				B10000000000000000000039 /* SyntheticGoalsSeeder.swift */,
+			);
+			path = Migrations;
+			sourceTree = "<group>";
+		};
+		D13200000000000000000001 /* Permanent */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000E /* WealthStore.swift */,
+				B10000000000000000000013 /* WealthPersistenceRows.swift */,
+				B10000000000000000000019 /* LedgerPersistence.swift */,
+				B1000000000000000000001E /* DashboardPersistence.swift */,
+				B1000000000000000000002F /* PortfolioPersistence.swift */,
+				B10000000000000000000036 /* GoalPersistence.swift */,
+			);
+			path = Permanent;
+			sourceTree = "<group>";
+		};
+		D13300000000000000000001 /* MarketCache */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000F /* MarketCacheStore.swift */,
+				B10000000000000000000010 /* CachePolicyConfiguration.swift */,
+			);
+			path = MarketCache;
+			sourceTree = "<group>";
+		};
+		D13400000000000000000001 /* Backup */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000003A /* PermanentBackup.swift */,
+				B1000000000000000000003B /* PermanentRestore.swift */,
+				B1000000000000000000003C /* PermanentMigrationSafety.swift */,
+				B1000000000000000000003E /* PermanentBackupExport.swift */,
+				B1000000000000000000003F /* PermanentExternalRestore.swift */,
+			);
+			path = Backup;
+			sourceTree = "<group>";
+		};
+		D14000000000000000000001 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000005 /* AppShellView.swift */,
+				D14100000000000000000001 /* Wealth */,
+				D14200000000000000000001 /* Ledger */,
+				D14300000000000000000001 /* Dashboard */,
+				D14400000000000000000001 /* Settings */,
+				D14500000000000000000001 /* Markets */,
+				D14600000000000000000001 /* Portfolio */,
+				D14700000000000000000001 /* Analytics */,
+				D14800000000000000000001 /* Goals */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		D14100000000000000000001 /* Wealth */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000015 /* WealthFeatureModel.swift */,
+				B10000000000000000000016 /* WealthView.swift */,
+			);
+			path = Wealth;
+			sourceTree = "<group>";
+		};
+		D14200000000000000000001 /* Ledger */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000001B /* LedgerFeatureModel.swift */,
+				B1000000000000000000001C /* LedgerView.swift */,
+			);
+			path = Ledger;
+			sourceTree = "<group>";
+		};
+		D14300000000000000000001 /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000020 /* DashboardFeatureModel.swift */,
+				B10000000000000000000021 /* DashboardView.swift */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		D14400000000000000000001 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000025 /* SettingsFeatureModel.swift */,
+				B10000000000000000000044 /* GeneralPreferences.swift */,
+				B1000000000000000000003D /* SettingsDataLifecycleModel.swift */,
+				B10000000000000000000026 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		D14500000000000000000001 /* Markets */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000029 /* MarketsFeatureModel.swift */,
+				B1000000000000000000002A /* MarketsView.swift */,
+				B1000000000000000000002B /* MarketChartBridge.swift */,
+				B1000000000000000000002C /* MarketChartWebView.swift */,
+			);
+			path = Markets;
+			sourceTree = "<group>";
+		};
+		D14600000000000000000001 /* Portfolio */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000030 /* PortfolioFeatureModel.swift */,
+				B10000000000000000000031 /* PortfolioView.swift */,
+			);
+			path = Portfolio;
+			sourceTree = "<group>";
+		};
+		D14700000000000000000001 /* Analytics */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000033 /* AnalyticsFeatureModel.swift */,
+				B10000000000000000000034 /* AnalyticsView.swift */,
+			);
+			path = Analytics;
+			sourceTree = "<group>";
+		};
+		D14800000000000000000001 /* Goals */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000037 /* GoalsFeatureModel.swift */,
+				B10000000000000000000038 /* GoalsView.swift */,
+			);
+			path = Goals;
+			sourceTree = "<group>";
+		};
+		D15000000000000000000001 /* Security */ = {
+			isa = PBXGroup;
+			children = (B10000000000000000000022 /* KeychainCredentialStore.swift */);
+			path = Security;
+			sourceTree = "<group>";
+		};
+		D16000000000000000000001 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000023 /* MarketNetworking.swift */,
+				B10000000000000000000024 /* MarketDataService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		D17000000000000000000001 /* Resources */ = {
+			isa = PBXGroup;
+			children = (B1000000000000000000002D /* ThirdParty */);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		D20000000000000000000001 /* AureusTests */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000001 /* FinancialValueTests.swift */,
+				B20000000000000000000002 /* TimeFoundationTests.swift */,
+				B20000000000000000000003 /* PersistenceTests.swift */,
+				B20000000000000000000004 /* CacheIsolationTests.swift */,
+				B20000000000000000000005 /* ProviderBoundaryTests.swift */,
+				B20000000000000000000006 /* WealthDomainTests.swift */,
+				B20000000000000000000007 /* WealthPersistenceTests.swift */,
+				B20000000000000000000008 /* LedgerDomainTests.swift */,
+				B20000000000000000000009 /* LedgerPersistenceTests.swift */,
+				B2000000000000000000000A /* LedgerCSVTests.swift */,
+				B2000000000000000000000B /* DashboardDomainTests.swift */,
+				B2000000000000000000000C /* DashboardPersistenceTests.swift */,
+				B2000000000000000000000D /* MarketDataInfrastructureTests.swift */,
+				B2000000000000000000000E /* MarketCacheInfrastructureTests.swift */,
+				B2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift */,
+				B20000000000000000000010 /* MarketsTerminalTests.swift */,
+				B20000000000000000000011 /* PortfolioTerminalTests.swift */,
+				B20000000000000000000012 /* PortfolioAnalyticsTests.swift */,
+				B20000000000000000000013 /* GoalsFoundationTests.swift */,
+				B20000000000000000000014 /* GoalsTerminalTests.swift */,
+				B20000000000000000000015 /* PermanentBackupTests.swift */,
+				B20000000000000000000016 /* PermanentRestoreTests.swift */,
+				B20000000000000000000017 /* PermanentMigrationSafetyTests.swift */,
+				B20000000000000000000018 /* SettingsDataLifecycleTests.swift */,
+				B20000000000000000000019 /* PermanentBackupExportTests.swift */,
+				B2000000000000000000001A /* PermanentExternalRestoreTests.swift */,
+				B2000000000000000000001B /* GeneralSettingsTests.swift */,
+				B2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift */,
+			);
+			path = AureusTests;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000001 /* AureusUITests */ = {
+			isa = PBXGroup;
+			children = (B30000000000000000000001 /* AureusUITests.swift */);
+			path = AureusUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F10000000000000000000001 /* Aureus */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H10000000000000000000001 /* Build configuration list for PBXNativeTarget "Aureus" */;
+			buildPhases = (
+				E10000000000000000000001 /* Sources */,
+				E10000000000000000000002 /* Frameworks */,
+				E10000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = Aureus;
+			packageProductDependencies = (P10000000000000000000001 /* GRDB */);
+			productName = Aureus;
+			productReference = C00000000000000000000001 /* Aureus.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F20000000000000000000001 /* AureusTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H20000000000000000000001 /* Build configuration list for PBXNativeTarget "AureusTests" */;
+			buildPhases = (
+				E20000000000000000000001 /* Sources */,
+				E20000000000000000000002 /* Frameworks */,
+				E20000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (F20200000000000000000001 /* PBXTargetDependency */);
+			name = AureusTests;
+			packageProductDependencies = (P20000000000000000000001 /* GRDB */);
+			productName = AureusTests;
+			productReference = C00000000000000000000002 /* AureusTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		F30000000000000000000001 /* AureusUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H30000000000000000000001 /* Build configuration list for PBXNativeTarget "AureusUITests" */;
+			buildPhases = (
+				E30000000000000000000001 /* Sources */,
+				E30000000000000000000002 /* Frameworks */,
+				E30000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (F30200000000000000000001 /* PBXTargetDependency */);
+			name = AureusUITests;
+			packageProductDependencies = ();
+			productName = AureusUITests;
+			productReference = C00000000000000000000003 /* AureusUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					F10000000000000000000001 = {CreatedOnToolsVersion = 26.6; };
+					F20000000000000000000001 = {CreatedOnToolsVersion = 26.6; TestTargetID = F10000000000000000000001; };
+					F30000000000000000000001 = {CreatedOnToolsVersion = 26.6; TestTargetID = F10000000000000000000001; };
+				};
+			};
+			buildConfigurationList = H00000000000000000000001 /* Build configuration list for PBXProject "Aureus" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = D00000000000000000000001;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (P00000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D00000000000000000000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F10000000000000000000001 /* Aureus */,
+				F20000000000000000000001 /* AureusTests */,
+				F30000000000000000000001 /* AureusUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E10000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000031 /* ThirdParty in Resources */); runOnlyForDeploymentPostprocessing = 0; };
+		E20000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		E30000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E10000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* AureusApp.swift in Sources */,
+				A10000000000000000000002 /* AppModel.swift in Sources */,
+				A10000000000000000000003 /* AppDependencies.swift in Sources */,
+				A10000000000000000000004 /* RuntimePaths.swift in Sources */,
+				A10000000000000000000005 /* AppShellView.swift in Sources */,
+				A10000000000000000000006 /* FinancialValues.swift in Sources */,
+				A10000000000000000000007 /* TimeValues.swift in Sources */,
+				A10000000000000000000008 /* CoreModels.swift in Sources */,
+				A10000000000000000000009 /* ProviderContracts.swift in Sources */,
+				A1000000000000000000000A /* SyntheticProviders.swift in Sources */,
+				A1000000000000000000000B /* DatabaseMigrations.swift in Sources */,
+				A1000000000000000000000C /* DatabaseQueueFactory.swift in Sources */,
+				A1000000000000000000000D /* SyntheticFoundationSeeder.swift in Sources */,
+				A1000000000000000000000E /* WealthStore.swift in Sources */,
+				A1000000000000000000000F /* MarketCacheStore.swift in Sources */,
+				A10000000000000000000010 /* CachePolicyConfiguration.swift in Sources */,
+				A10000000000000000000011 /* WealthDomain.swift in Sources */,
+				A10000000000000000000012 /* WealthPersistenceRows.swift in Sources */,
+				A10000000000000000000013 /* SyntheticWealthSeeder.swift in Sources */,
+				A10000000000000000000014 /* WealthFeatureModel.swift in Sources */,
+				A10000000000000000000015 /* WealthView.swift in Sources */,
+				A10000000000000000000016 /* LedgerDomain.swift in Sources */,
+				A10000000000000000000017 /* LedgerCSV.swift in Sources */,
+				A10000000000000000000018 /* LedgerPersistence.swift in Sources */,
+				A10000000000000000000019 /* SyntheticLedgerSeeder.swift in Sources */,
+				A1000000000000000000001A /* LedgerFeatureModel.swift in Sources */,
+				A1000000000000000000001B /* LedgerView.swift in Sources */,
+				A10000000000000000000021 /* DashboardDomain.swift in Sources */,
+				A10000000000000000000022 /* DashboardPersistence.swift in Sources */,
+				A10000000000000000000023 /* SyntheticDashboardSeeder.swift in Sources */,
+				A10000000000000000000024 /* DashboardFeatureModel.swift in Sources */,
+				A10000000000000000000025 /* DashboardView.swift in Sources */,
+				A10000000000000000000026 /* KeychainCredentialStore.swift in Sources */,
+				A10000000000000000000027 /* MarketNetworking.swift in Sources */,
+				A10000000000000000000028 /* MarketDataService.swift in Sources */,
+				A10000000000000000000029 /* SettingsFeatureModel.swift in Sources */,
+				A10000000000000000000044 /* GeneralPreferences.swift in Sources */,
+				A1000000000000000000002A /* SettingsView.swift in Sources */,
+				A1000000000000000000002B /* MarketIndicators.swift in Sources */,
+				A10000000000000000000045 /* CacheFreshnessSnapshot.swift in Sources */,
+				A1000000000000000000002C /* MarketPreferences.swift in Sources */,
+				A1000000000000000000002D /* MarketsFeatureModel.swift in Sources */,
+				A1000000000000000000002E /* MarketsView.swift in Sources */,
+				A1000000000000000000002F /* MarketChartBridge.swift in Sources */,
+				A10000000000000000000030 /* MarketChartWebView.swift in Sources */,
+				A10000000000000000000032 /* PortfolioDomain.swift in Sources */,
+				A10000000000000000000033 /* PortfolioPersistence.swift in Sources */,
+				A10000000000000000000034 /* PortfolioFeatureModel.swift in Sources */,
+				A10000000000000000000035 /* PortfolioView.swift in Sources */,
+				A10000000000000000000036 /* PortfolioAnalytics.swift in Sources */,
+				A10000000000000000000037 /* AnalyticsFeatureModel.swift in Sources */,
+				A10000000000000000000038 /* AnalyticsView.swift in Sources */,
+				A10000000000000000000039 /* GoalPlanning.swift in Sources */,
+				A1000000000000000000003A /* GoalPersistence.swift in Sources */,
+				A1000000000000000000003B /* GoalsFeatureModel.swift in Sources */,
+				A1000000000000000000003C /* GoalsView.swift in Sources */,
+				A1000000000000000000003D /* SyntheticGoalsSeeder.swift in Sources */,
+				A1000000000000000000003E /* PermanentBackup.swift in Sources */,
+				A1000000000000000000003F /* PermanentRestore.swift in Sources */,
+				A10000000000000000000040 /* PermanentMigrationSafety.swift in Sources */,
+				A10000000000000000000041 /* SettingsDataLifecycleModel.swift in Sources */,
+				A10000000000000000000042 /* PermanentBackupExport.swift in Sources */,
+				A10000000000000000000043 /* PermanentExternalRestore.swift in Sources */,
+				A10000000000000000000046 /* DataLifecycleDiagnostics.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E20000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000001 /* FinancialValueTests.swift in Sources */,
+				A20000000000000000000002 /* TimeFoundationTests.swift in Sources */,
+				A20000000000000000000003 /* PersistenceTests.swift in Sources */,
+				A20000000000000000000004 /* CacheIsolationTests.swift in Sources */,
+				A20000000000000000000005 /* ProviderBoundaryTests.swift in Sources */,
+				A20000000000000000000006 /* WealthDomainTests.swift in Sources */,
+				A20000000000000000000007 /* WealthPersistenceTests.swift in Sources */,
+				A20000000000000000000008 /* LedgerDomainTests.swift in Sources */,
+				A20000000000000000000009 /* LedgerPersistenceTests.swift in Sources */,
+				A2000000000000000000000A /* LedgerCSVTests.swift in Sources */,
+				A2000000000000000000000B /* DashboardDomainTests.swift in Sources */,
+				A2000000000000000000000C /* DashboardPersistenceTests.swift in Sources */,
+				A2000000000000000000000D /* MarketDataInfrastructureTests.swift in Sources */,
+				A2000000000000000000000E /* MarketCacheInfrastructureTests.swift in Sources */,
+				A2000000000000000000000F /* KeychainAndFXInfrastructureTests.swift in Sources */,
+				A20000000000000000000010 /* MarketsTerminalTests.swift in Sources */,
+				A20000000000000000000011 /* PortfolioTerminalTests.swift in Sources */,
+				A20000000000000000000012 /* PortfolioAnalyticsTests.swift in Sources */,
+				A20000000000000000000013 /* GoalsFoundationTests.swift in Sources */,
+				A20000000000000000000014 /* GoalsTerminalTests.swift in Sources */,
+				A20000000000000000000015 /* PermanentBackupTests.swift in Sources */,
+				A20000000000000000000016 /* PermanentRestoreTests.swift in Sources */,
+				A20000000000000000000017 /* PermanentMigrationSafetyTests.swift in Sources */,
+				A20000000000000000000018 /* SettingsDataLifecycleTests.swift in Sources */,
+				A20000000000000000000019 /* PermanentBackupExportTests.swift in Sources */,
+				A2000000000000000000001A /* PermanentExternalRestoreTests.swift in Sources */,
+				A2000000000000000000001B /* GeneralSettingsTests.swift in Sources */,
+				A2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E30000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A30000000000000000000001 /* AureusUITests.swift in Sources */);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F20200000000000000000001 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = F10000000000000000000001 /* Aureus */; targetProxy = F20100000000000000000001 /* PBXContainerItemProxy */; };
+		F30200000000000000000001 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = F10000000000000000000001 /* Aureus */; targetProxy = F30100000000000000000001 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		G00000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		G00000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		G10000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = Aureus/Aureus.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Aureus;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		G10000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = Aureus/Aureus.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Aureus;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		G20000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Aureus.app/Contents/MacOS/Aureus";
+			};
+			name = Debug;
+		};
+		G20000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Aureus.app/Contents/MacOS/Aureus";
+			};
+			name = Release;
+		};
+		G30000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = AureusUITests/AureusUITests.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Aureus;
+			};
+			name = Debug;
+		};
+		G30000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = AureusUITests/AureusUITests.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Aureus;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		H00000000000000000000001 /* Build configuration list for PBXProject "Aureus" */ = {isa = XCConfigurationList; buildConfigurations = (G00000000000000000000001 /* Debug */, G00000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H10000000000000000000001 /* Build configuration list for PBXNativeTarget "Aureus" */ = {isa = XCConfigurationList; buildConfigurations = (G10000000000000000000001 /* Debug */, G10000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H20000000000000000000001 /* Build configuration list for PBXNativeTarget "AureusTests" */ = {isa = XCConfigurationList; buildConfigurations = (G20000000000000000000001 /* Debug */, G20000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		H30000000000000000000001 /* Build configuration list for PBXNativeTarget "AureusUITests" */ = {isa = XCConfigurationList; buildConfigurations = (G30000000000000000000001 /* Debug */, G30000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		P00000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {kind = exactVersion; version = 7.11.1; };
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		P10000000000000000000001 /* GRDB */ = {isa = XCSwiftPackageProductDependency; package = P00000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */; productName = GRDB; };
+		P20000000000000000000001 /* GRDB */ = {isa = XCSwiftPackageProductDependency; package = P00000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */; productName = GRDB; };
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F00000000000000000000001 /* Project object */;
+}
