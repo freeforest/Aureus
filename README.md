@@ -19,6 +19,10 @@ Privacy is a hard boundary: real accounts, balances, holdings, transactions, dat
 
 ## Current Status
 
+### 正式 1.0.0 用户例外发布准备（2026-09-13）
+
+用户例外发布路线已被接受，发行定位为正式 **1.0.0 / build 1**。剩余人工、性能、日志隐私及最终运行验证风险由用户接受；整体技术证据仍 **PARTIAL**，不改写历史失败或未验证项。本轮仅完成发布安全与产物检查，实际结果见 [发布决策记录](docs/V1_RELEASE_DECISION.md)。App／Unit／UI／人工／性能／系统日志及实际上传均 **NOT RUN**；安装和上传由用户自行操作。普通使用与安全限制见 [公开指南](PUBLIC_README.md)。下列段落保留各历史时点。
+
 ### Stage14 MIT／arm64 本地分发候选（2026-09-12）
 
 Reviewer 已裁决 Stage13 候选审计及交付路线决策 PASS，授权进入本轮 Stage14 发布准备。Stage11 PASS 保持；Stage12 用户例外放行、技术证据仍 PARTIAL；Stage14 总 Gate、Release Gate 与实际公开发布仍未通过。本轮制作可审阅的干净源码 ZIP、同输入 arm64 Release App 与本地 ad-hoc 签名、未公证 DMG；候选沿用 0.1/build1，不宣称正式 V1 已发布。最终产物与检查状态以本轮工程报告为准。

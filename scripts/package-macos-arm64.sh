@@ -172,7 +172,7 @@ inspect_app = lambda do |label, root|
   forbidden = manifest.select { |r| r['path'].match?(/(?:\.xctest|\.dSYM|XCTest|XCTAutomation|Testing\.framework|libTesting|\.swiftmodule|\.profraw|\.sqlite(?:-|\z)|\.xcresult|\.DS_Store)/i) }
   raise "development/private artifact in #{label}" unless forbidden.empty?
   info = plist.call(label+'Info', root+'/Contents/Info.plist')
-  expected = {'CFBundleIdentifier'=>'com.aureus.wealthterminal','CFBundleShortVersionString'=>'0.1','CFBundleVersion'=>'1','LSMinimumSystemVersion'=>'14.0','CFBundleExecutable'=>'Aureus'}
+  expected = {'CFBundleIdentifier'=>'com.aureus.wealthterminal','CFBundleShortVersionString'=>'1.0.0','CFBundleVersion'=>'1','LSMinimumSystemVersion'=>'14.0','CFBundleExecutable'=>'Aureus'}
   raise "unexpected App identity: #{label}" unless expected.all? { |k,v| info[k] == v }
   macho = manifest.select do |r|
     next false unless r['type'] == 'file'
@@ -249,16 +249,16 @@ begin
   save_json(audit+'/SignedIdentity.json',{signature:display[1],entitlements:actual_ent,manifest:frozen_app,macho:staged[:macho]})
 
   guide = File.read(source+'/README.md')
-  install = guide.split("## Install the candidate\n",2)[1]&.split("## Build from source\n",2)&.first
+  install = guide.split("## Install Aureus 1.0.0\n",2)[1]&.split("## Build from source\n",2)&.first
   raise 'public install section missing' unless install
-  save_new(output+'/Staging/INSTALL.md',"# Aureus 0.1 candidate — installation\n"+install+"\nLicenses are supplied in Licenses/ and in Aureus.app/Contents/Resources/Licenses.\n")
+  save_new(output+'/Staging/INSTALL.md',"# Aureus 1.0.0 — installation\n"+install+"\nLicenses are supplied in Licenses/ and in Aureus.app/Contents/Resources/Licenses.\n")
   File.chmod(0644,output+'/Staging/INSTALL.md')
   run.call('CopyImageLicenses',['/usr/bin/ditto',licenses,output+'/Staging/Licenses'])
   File.symlink('/Applications',output+'/Staging/Applications')
   artifacts = output+'/Artifacts'
-  dmg = artifacts+'/Aureus-0.1-candidate-macos-arm64.dmg'
-  zip = artifacts+'/Aureus-0.1-candidate-source.zip'
-  run.call('CreateDMG',['/usr/bin/hdiutil','create','-volname','Aureus 0.1 Candidate','-srcfolder',output+'/Staging','-fs','HFS+','-format','UDZO','-nospotlight',dmg])
+  dmg = artifacts+'/Aureus-1.0.0-macos-arm64.dmg'
+  zip = artifacts+'/Aureus-1.0.0-source.zip'
+  run.call('CreateDMG',['/usr/bin/hdiutil','create','-volname','Aureus 1.0.0','-srcfolder',output+'/Staging','-fs','HFS+','-format','UDZO','-nospotlight',dmg])
   run.call('VerifyDMG',['/usr/bin/hdiutil','verify',dmg])
   attached = run.call('AttachDMG',['/usr/bin/hdiutil','attach','-readonly','-nobrowse','-noautoopen','-mountpoint',mountpoint,'-plist',dmg])
   mounted = true
@@ -298,7 +298,7 @@ begin
   archives = [dmg,zip].map { |p| {file:File.basename(p),size:File.size(p),sha256:Digest::SHA256.file(p).hexdigest} }
   save_new(artifacts+'/SHA256SUMS',archives.map { |r| r[:sha256]+'  '+r[:file]+"\n" }.join)
   File.chmod(0644,artifacts+'/SHA256SUMS')
-  save_json(audit+'/PackageResult.json',{outcome:'CANDIDATES VERIFIED — Awaiting Reviewer Gate',utc:Time.now.utc.iso8601(6),archives:archives,commands:sequence,mounted:false,app_launched:false,release_build_performed_by_script:false})
+  save_json(audit+'/PackageResult.json',{outcome:'1.0.0 ARTIFACT CHECKS COMPLETE — Awaiting Reviewer review; technical evidence PARTIAL; not uploaded',utc:Time.now.utc.iso8601(6),archives:archives,commands:sequence,mounted:false,app_launched:false,release_build_performed_by_script:false})
   puts JSON.pretty_generate(archives)
 rescue => error
   save_json(audit+'/PackageFailure.json',{utc:Time.now.utc.iso8601(6),error:error.message,mounted:mounted,mountpoint:mountpoint,commands:sequence,retry_performed:false})
