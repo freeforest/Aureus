@@ -19,6 +19,10 @@
 
 > The current 1.0.0 binary is ad-hoc signed, without Developer ID or Apple notarization. Read the [distribution notes and installation limits](docs/distribution.md) before installing.
 
+![Aureus Dashboard showing synthetic wealth totals and goal progress](assets/github/hero.png)
+
+*Aureus 1.0.0, Synthetic Demo. Fictional records, not real accounts or live Provider data.*
+
 ## Why Aureus
 
 Aureus is a single-user personal wealth terminal built around financial context: what you own, how it is valued, how money moves, and how your portfolio changes over time.
@@ -46,9 +50,21 @@ These descriptions reflect the implementation scope. They do not claim comprehen
 
 ## Screenshots
 
-A verified public screenshot set is not yet included. The planned gallery covers Wealth Overview, Portfolio / Analytics, Markets, and Ledger or Goals using clearly identified synthetic or sanitized data.
+These are real windows from the formal 1.0.0 App running an isolated Synthetic Demo. Historical Stage / Candidate labels remain visible in the App; they do not identify a different distribution. Click an image to inspect it at full size.
 
-The icon is brand artwork, not an App screenshot. No simulated interface is presented as visual proof.
+### Wealth history and allocation
+
+[![Synthetic Dashboard: one-year wealth observations and current asset allocation](assets/github/dashboard.png)](assets/github/dashboard.png)
+
+Recorded assets, liabilities, and net worth alongside a breakdown of synthetic assets. Missing historical dates remain missing.
+
+### Calculated portfolio analytics
+
+[![Synthetic Analytics: calculated returns, risk, wealth index, and drawdown](assets/github/portfolio.png)](assets/github/portfolio.png)
+
+The Analytics view shows the Synthetic Local Portfolio after calculation, including unavailable-history exclusions and the actual synthetic returns. These figures are not investment results or forecasts.
+
+Markets and Ledger / Goals screenshots are not yet included. The current gallery demonstrates only the views shown above, not comprehensive UI validation.
 
 ## Privacy & data
 
