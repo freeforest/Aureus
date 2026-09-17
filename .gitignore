@@ -13,6 +13,7 @@ xcuserdata/
 *.xccheckout
 DerivedData/
 *.xcresult
+/default.profraw
 
 # Build products and SwiftPM local artifacts
 /.build/

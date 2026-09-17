@@ -64,7 +64,7 @@ E-GSC-UI 续跑：已取得当次桌面确认，但唯一 invocation 在 Runner 
 
 - **S**：[V1_SCOPE](V1_SCOPE.md)，§3 Settings line 43；§4 Ledger lines 63–71；§4 Operational lines 117–132；§7 Stage ownership line 193。
 - **A**：[V1_ARCHITECTURE](V1_ARCHITECTURE.md)，A-004 lines 183–198；A-005 lines 229–240；A-006 lines 266–275；A-009 lines 397–421；A-010 lines 469–527；A-014 lines 656–698；A-015 lines 700–730；A-016 lines 738–773。
-- **G**：[AGENTS](../AGENTS.md)，Product Hard Constraints、Data Privacy、User-owned Git、Reviewer/Executor；[设计汇总](../Aureus_Wealth_Terminal_项目设计汇总.md) §§15、18、19、20；[研究证据](V1_RESEARCH_EVIDENCE.md) §13 是出处连续性，不是运行时证明。
+- **G**：[AGENTS](../AGENTS.md)，Product Hard Constraints、Data Privacy、User-owned Git、Reviewer/Executor；[设计汇总](design/Aureus_Wealth_Terminal_项目设计汇总.md) §§15、18、19、20；[研究证据](V1_RESEARCH_EVIDENCE.md) §13 是出处连续性，不是运行时证明。
 - **S6**：[Stage 6 acceptance](STAGE6_MARKET_DATA_ACCEPTANCE.md) §§1.1、3.2、4、5、6；[retention decision](STAGE6_TWELVE_DATA_RETENTION_DECISION.md) §§1.1、2、7。历史 live 观察只对当时的 endpoint/MIC/credential 有效，不推导当前 entitlement。
 
 主 Executor 按序全文审阅用户指定十份正文，长文件截断处补读；源码/测试按完整相关语义阅读并接受只读子代理映射，不冒称全仓 READ TO EOF。实际记录与安全清单见本轮 [ExecutionReport](/private/tmp/Aureus-Stage11-SCOPE-EVIDENCE-AUDIT-01-h3ILCY/ExecutionReport.md)。

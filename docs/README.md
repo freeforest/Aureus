@@ -9,7 +9,7 @@
 
 ## Building and understanding the code
 
-- [Public build and packaging guide](../PUBLIC_README.md#build-from-source): use the clean release source archive.
+- [Release build & packaging guide](../PUBLIC_README.md#build-from-source): use the clean release source archive; this is not a second product homepage.
 - [Architecture](V1_ARCHITECTURE.md): platform, state ownership, persistence, money, and service boundaries.
 - [V1 scope](V1_SCOPE.md): requirements and explicit exclusions; required scope is not proof of complete runtime verification.
 - [Third-party notices](../THIRD_PARTY_NOTICES.md) and [MIT license](../LICENSE).
@@ -17,6 +17,8 @@
 The published source ZIP has its own frozen root README, derived from the public guide. The new repository homepage does not change that archive or the packaging contract.
 
 ## Historical engineering references
+
+- [Project design summary](design/Aureus_Wealth_Terminal_项目设计汇总.md): original product context and authority reference, including dated proposals. Its relocation does not revise its contents or turn proposals into implemented features.
 
 [Verification navigation](evidence/README.md) separates release-delivery facts from technical evidence. The existing [hardening plan](STAGE12_HARDENING_PLAN.md) and architecture/scope documents retain their historical wording and decisions. Their earlier stage statuses are dated context, not a replacement for the current release summary.
 

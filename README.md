@@ -6,10 +6,10 @@
 
 <p align="center">Local-first personal wealth, portfolio analytics, and market terminal for macOS.</p>
 
-<p align="center">Keep wealth, portfolios, transactions, and goals together on your Mac.</p>
+<p align="center">A native Mac app for understanding assets, liabilities, cash flow, and investment performance together.</p>
 
 <p align="center">
-  <a href="https://github.com/freeforest/Aureus/releases/tag/v1.0.0">Download</a> ·
+  <a href="#installation">Download</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="docs/README.md">Documentation</a> ·
   <a href="#build-from-source">Build from Source</a>
@@ -17,11 +17,7 @@
 
 <p align="center">macOS 14+ · Apple Silicon · SwiftUI · Local-first · MIT</p>
 
-> The current 1.0.0 binary is ad-hoc signed, without Developer ID or Apple notarization. Read the [distribution notes and installation limits](docs/distribution.md) before installing.
-
-![Aureus Dashboard showing synthetic wealth totals and goal progress](assets/github/hero.png)
-
-*Aureus 1.0.0, Synthetic Demo. Fictional records, not real accounts or live Provider data.*
+<!-- Product screenshot: insert a verified, single-build Wealth Overview after the UI update is complete. No current development artifact has been verified for this showcase. -->
 
 ## Why Aureus
 
@@ -32,41 +28,59 @@ Aureus is a single-user personal wealth terminal built around financial context:
 - **Understand performance.** Explore portfolio returns, risk, and drawdown with calculations in Swift and visual summaries.
 - **Separate records from market data.** Permanent wealth records have a different lifecycle from recoverable cache and transient Provider data.
 
-## Core experience
+## Core capabilities
 
 ### What do I own, and what changed?
 
-Maintain wealth records and review the transactions behind them. The Ledger supports income, expenses, transfers, and investment events such as buys, sells, dividends, interest, and fees. Categories and tags help organize those records without an AI classifier.
+Maintain local wealth records, review wealth history and allocation, and organize cash flow. The Ledger supports income, expenses, transfers, and investment events such as buys, sells, dividends, interest, and fees. Categories and tags organize those records; recording a Ledger event does not silently rewrite Wealth valuations.
 
 ### How is my portfolio doing?
 
-Portfolio and Analytics connect holdings and recorded activity with performance analysis. Explicit calculation uses local portfolio observations; opening Analytics does not automatically request Provider data. Results depend on the available valuations and cash-flow history.
+Portfolio connects holdings, cost basis, activity, and recorded NAV. Analytics calculates time-weighted return (TWR), XIRR, CAGR, annualized volatility, Sharpe ratio, and maximum drawdown from local portfolio observations. Supporting data and calculation context accompany the charts. Missing valuation boundaries or insufficient observations produce explicit unavailable states rather than invented history. Calculation does not request Provider data.
+
+### What is the market context?
+
+Markets combines symbol search, daily price charts, volume, moving averages, RSI, and MACD with freshness and unavailable states. The 1D range means the latest daily bar, not intraday trading. A search result does not establish price-data entitlement or free real-time coverage of every market.
 
 ### What am I working toward?
 
 Create and update financial goals, review progress, and explore contribution and return assumptions. Planning scenarios are not forecasts, investment recommendations, or guarantees.
 
-These descriptions reflect the implementation scope. They do not claim comprehensive validation of every workflow or of the final binary on every supported Mac.
-
 ## Screenshots
 
-These are real windows from the formal 1.0.0 App running an isolated Synthetic Demo. Historical Stage / Candidate labels remain visible in the App; they do not identify a different distribution. Click an image to inspect it at full size.
+The updated showcase is awaiting completion of the UI work and a verified screenshot set. This page is a local presentation draft; no current development preview is claimed.
 
-### Wealth history and allocation
+<!-- Gallery insertion: Wealth Overview; wealth history + allocation; Markets; Portfolio; Analytics; Ledger OR Goals. Portfolio and Analytics must be distinct real pages from the same verified build. Caption on insertion: All screenshots use illustrative, synthetic data. Retain required attribution. -->
 
-[![Synthetic Dashboard: one-year wealth observations and current asset allocation](assets/github/dashboard.png)](assets/github/dashboard.png)
+## Architecture
 
-Recorded assets, liabilities, and net worth alongside a breakdown of synthetic assets. Missing historical dates remain missing.
+Aureus uses feature-first SwiftUI and Observation, explicit dependency construction, Swift financial calculations, and GRDB over SQLite. Five implementation choices make the financial model and its lifecycle visible:
 
-### Calculated portfolio analytics
+- **Local-first permanent wealth records.** An actor-owned WealthStore manages the permanent database, transactions, and versioned migrations.
+- **Explicit currency / FX provenance.** Original amounts, applied rates, converted CNY values, reference dates, and stale/manual context travel together.
+- **Defined return and risk calculations.** TWR, XIRR, CAGR, volatility, Sharpe, and drawdown use explicit cash-flow, date, and missing-observation rules in Swift.
+- **Separate data lifecycles.** Permanent records, recoverable cache, and bounded Provider-session memory have distinct ownership and clearing paths.
+- **Native macOS stack.** SwiftUI + Observation + GRDB + Swift Charts; Markets additionally hosts locally bundled Lightweight Charts in WebKit, without a runtime CDN.
 
-[![Synthetic Analytics: calculated returns, risk, wealth index, and drawdown](assets/github/portfolio.png)](assets/github/portfolio.png)
+This simplified diagram shows application calls and data access, not direct database dependencies for every domain type:
 
-The Analytics view shows the Synthetic Local Portfolio after calculation, including unavailable-history exclusions and the actual synthetic returns. These figures are not investment results or forecasts.
+```mermaid
+flowchart TB
+    UI["SwiftUI UI"] -->|calls| Core["Features / Domain / Analytics"]
+    Core -->|store APIs: read / write| Permanent["GRDB + SQLite<br/>Permanent Store"]
+    Provider["Twelve Data"] -->|authorized responses| Session["Bounded in-memory Session"]
+    Session -->|service reads| Markets["Markets"]
+    Recoverable["Authorized recoverable data / FX"] -->|policy-checked writes| Cache["Separate Recoverable Cache"]
+    Cache -->|service reads| Core
+```
 
-Markets and Ledger / Goals screenshots are not yet included. The current gallery demonstrates only the views shown above, not comprehensive UI validation.
+Permanent wealth data ≠ recoverable market cache ≠ transient provider data.
 
-## Privacy & data
+In words: features use store APIs for permanent records; Markets reads Twelve Data responses through a transient session; corresponding services use a separate cache for authorized recoverable data, including FX. Cache cleanup has no permanent-store deletion capability. FX context committed to a wealth valuation becomes part of the permanent record, not a dependency on a disposable cache entry.
+
+Money pipeline: **checked fixed-point → Decimal calculation → explicit FX context**. Results cross declared rounding and storage boundaries; chart approximations are not authoritative financial values. See the [architecture reference](docs/V1_ARCHITECTURE.md) for the detailed decisions.
+
+## Privacy & Data
 
 Wealth records are stored locally. Aureus has no cloud account system, automatic brokerage synchronization, or AI/LLM capability.
 
@@ -74,47 +88,33 @@ Permanent records and Market Cache are isolated. Cache capacity, expiry, and cle
 
 Production credentials are entered through native Settings and stored in the application-scoped Keychain. Backups are not independently encrypted by Aureus: keep important records in independent, private backups.
 
-Read [Privacy & Data](docs/privacy-and-data.md) for the boundaries, including safe issue reporting. Local-first is not a promise of zero network access or a guarantee that all historical repository content has been audited.
-
-## Portfolio analytics
-
-Implemented metrics include time-weighted return (TWR), XIRR, CAGR, annualized volatility, Sharpe ratio, and maximum drawdown. Performance and drawdown charts are paired with supporting data and calculation context.
-
-Insufficient observations or invalid calculation inputs can produce explicit unavailable results. A displayed metric is a calculation from its inputs, not a promise of future returns.
-
-## Markets
-
-The market terminal includes symbol search, daily price charts, volume, moving averages, RSI, and MACD. Market details expose freshness and unavailable states. The 1D range means the latest daily bar, not intraday trading.
-
-Provider access is entitlement-dependent; a search result does not establish permission to fetch prices. Aureus does not promise free real-time coverage of every market. See the [data policy](docs/privacy-and-data.md#market-data-and-credentials).
+Local-first does not mean never connecting to a network. Public examples must use synthetic or sanitized data; issue reports must not expose real records, keys, full logs, or private backups. Read [Privacy & Data](docs/privacy-and-data.md) for the data and Provider-rights boundaries.
 
 ## Installation
 
-Download the official [Aureus 1.0.0 release](https://github.com/freeforest/Aureus/releases/tag/v1.0.0), verify the published checksums, then follow the [installation instructions](docs/distribution.md).
+Latest release: [1.0.0 / build 1](https://github.com/freeforest/Aureus/releases/tag/v1.0.0). Official binaries target **Apple Silicon Macs with macOS 14 or later**; the deployment target is not an all-device test claim.
 
-Official binaries target Apple Silicon Macs with macOS 14 or later. This deployment target is not an all-device test claim. Ordinary use needs no QA launch arguments. Stop if macOS reports malware, damage, or suspected tampering; do not disable system security controls to install.
+The binary is **ad-hoc signed, without Developer ID or Apple notarization**. Read the [distribution notes](docs/distribution.md) before installing. A matching checksum establishes file integrity relative to the supplied checksum, not trusted publisher identity.
 
-## Build from source
-
-Use the clean source ZIP attached to the release and the [public build guide](PUBLIC_README.md#build-from-source). It documents the Xcode / Swift baseline, pinned dependencies, and packaging workflow.
-
-The release source archive uses that public guide as its root README. This repository presentation page is separate; it does not replace the packaging input or alter the already-published archive.
-
-## Architecture
-
-Aureus uses feature-first SwiftUI and Observation, explicit dependencies, Swift financial calculations, and GRDB over SQLite. Authoritative money uses checked fixed-point values and Decimal intermediates. Native charts and locally bundled Lightweight Charts provide the visual layer.
-
-The [architecture reference](docs/V1_ARCHITECTURE.md) explains the decisions and tradeoffs. Some historical stage wording remains in the App and engineering documents.
-
-## Known limitations & verification
-
-Version 1.0.0 is a formal **user-exception release**. Overall technical evidence remains **PARTIAL**. Remaining manual, performance, log-privacy, and final-App runtime verification was accepted as unfinished; repository-history safety remains **NOT VERIFIED**.
-
-Publication and anonymous download checks succeeded, but they are not runtime acceptance. Read the [1.0.0 verification summary](docs/evidence/release-1.0.0.md) for the distinction and the [verification index](docs/evidence/README.md) for historical context.
+1. Download the [DMG](https://github.com/freeforest/Aureus/releases/download/v1.0.0/Aureus-1.0.0-macos-arm64.dmg), [source ZIP](https://github.com/freeforest/Aureus/releases/download/v1.0.0/Aureus-1.0.0-source.zip), and [checksum file](https://github.com/freeforest/Aureus/releases/download/v1.0.0/SHA256SUMS) into the same folder; follow the [verification and installation steps](docs/distribution.md).
+2. Keep independent private backups, copy the App to your chosen application folder without losing an existing recovery path, and eject the image.
+3. Open normally, without QA arguments. Use only macOS's permitted per-app first-opening process if you trust the source. Stop on malware, damage, or tampering warnings; do not disable system protection or remove quarantine to bypass them.
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md) for user guidance, building, architecture, and separately labeled historical engineering references.
+Start with the [documentation index](docs/README.md) for user guidance and separately labeled engineering references. [Privacy & Data](docs/privacy-and-data.md) covers storage and credentials; the [verification summary](docs/evidence/release-1.0.0.md) records release boundaries.
+
+### Build from Source
+
+Use the clean [release source ZIP](https://github.com/freeforest/Aureus/releases/download/v1.0.0/Aureus-1.0.0-source.zip) and the [Release build & packaging guide](PUBLIC_README.md#build-from-source). It documents the Xcode / Swift baseline, pinned dependencies, and packaging workflow.
+
+The release source archive uses that public guide as its root README. This repository presentation page is separate; it does not replace the packaging input or alter the already-published archive.
+
+## Verification & Known Limitations
+
+Version 1.0.0 is a formal **user-exception release**. Overall technical evidence remains **PARTIAL**. Remaining manual, performance, log-privacy, and final-App runtime verification was accepted as unfinished; repository-history safety remains **NOT VERIFIED**.
+
+Publication and anonymous download checks succeeded, but they are not runtime acceptance. The capabilities described here reflect implementation, not comprehensive validation. Some released screens retain historical Stage / Candidate wording. Read the [1.0.0 verification summary](docs/evidence/release-1.0.0.md) and [verification index](docs/evidence/README.md) for the accepted evidence and remaining limits.
 
 ## License
 

@@ -42,7 +42,7 @@ Product and requirement priority, from highest to lowest:
 
 1. The user's latest explicit instruction.
 2. Frozen long-term product decisions.
-3. `Aureus_Wealth_Terminal_项目设计汇总.md`.
+3. `docs/design/Aureus_Wealth_Terminal_项目设计汇总.md`.
 4. The approved V1 scope.
 5. The current stage prompt.
 6. Historical plans or discussions.

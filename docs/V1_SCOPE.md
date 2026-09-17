@@ -10,7 +10,7 @@ Authority remains, from highest to lowest:
 
 1. The user's latest explicit instruction.
 2. Frozen long-term product decisions.
-3. [`Aureus_Wealth_Terminal_项目设计汇总.md`](../Aureus_Wealth_Terminal_%E9%A1%B9%E7%9B%AE%E8%AE%BE%E8%AE%A1%E6%B1%87%E6%80%BB.md).
+3. [`Aureus_Wealth_Terminal_项目设计汇总.md`](design/Aureus_Wealth_Terminal_%E9%A1%B9%E7%9B%AE%E8%AE%BE%E8%AE%A1%E6%B1%87%E6%80%BB.md).
 4. This approved V1 scope.
 5. The current stage prompt.
 6. Historical plans or discussions.
