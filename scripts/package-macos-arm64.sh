@@ -20,7 +20,20 @@ CHART = 'Aureus/Resources/ThirdParty/LightweightCharts/5.2.0'.freeze
 ROOT_FILES = %w[.gitignore LICENSE README.md THIRD_PARTY_NOTICES.md scripts/package-macos-arm64.sh
   Aureus.xcodeproj/project.pbxproj Aureus.xcodeproj/xcshareddata/xcschemes/Aureus.xcscheme
   Aureus.xcodeproj/project.xcworkspace/contents.xcworkspacedata
-  Aureus.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved].freeze
+  Aureus.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+  Aureus/Resources/Assets.xcassets/Contents.json
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_16x16.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_16x16@2x.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_32x32.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_32x32@2x.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_256x256.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_256x256@2x.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_512x512.png
+  Aureus/Resources/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png
+].freeze
 
 def check_path(path, kind)
   raise 'absolute normalized path required' unless path.start_with?('/') && Pathname.new(path).cleanpath.to_s == path
