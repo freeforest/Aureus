@@ -160,8 +160,21 @@ extension WealthStore {
             guard try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ledger_transactions WHERE id = ?", arguments: [entry.id.uuidString]) == 1 else {
                 throw LedgerPersistenceError.transactionNotFound
             }
-            try db.execute(sql: "DELETE FROM ledger_transactions WHERE id = ?", arguments: [entry.id.uuidString])
-            try Self.insertLedgerEntry(entry, in: db)
+            let now = entry.recordedAt.millisecondsSince1970
+            // Keep the parent identity and creation time: external references belong to this row.
+            try db.execute(sql: """
+                UPDATE ledger_transactions
+                SET kind = ?, civil_date = ?, recorded_at_ms = ?, description = ?,
+                    payee = ?, category_id = ?, note = ?, import_fingerprint = ?, updated_at_ms = ?
+                WHERE id = ?
+                """, arguments: [
+                    entry.kind.rawValue, entry.civilDate.description, now, entry.description,
+                    entry.payee, entry.category?.id.uuidString, entry.note, entry.importFingerprint,
+                    now, entry.id.uuidString
+                ])
+            try db.execute(sql: "DELETE FROM ledger_postings WHERE transaction_id = ?", arguments: [entry.id.uuidString])
+            try db.execute(sql: "DELETE FROM ledger_transaction_tags WHERE transaction_id = ?", arguments: [entry.id.uuidString])
+            try Self.insertLedgerChildren(entry, in: db)
         }
     }
 
@@ -376,6 +389,10 @@ extension WealthStore {
             categoryID: entry.category?.id.uuidString, note: entry.note,
             importFingerprint: entry.importFingerprint, createdAtMS: now, updatedAtMS: now
         ).insert(db)
+        try insertLedgerChildren(entry, in: db)
+    }
+
+    private static func insertLedgerChildren(_ entry: LedgerEntry, in db: Database) throws {
         for posting in entry.postings { try LedgerPostingRow(transactionID: entry.id, posting: posting).insert(db) }
         for tag in entry.tags {
             try db.execute(sql: "INSERT INTO ledger_transaction_tags (transaction_id, tag_id) VALUES (?, ?)", arguments: [entry.id.uuidString, tag.id.uuidString])

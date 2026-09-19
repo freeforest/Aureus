@@ -5,6 +5,217 @@ import Testing
 
 @Suite("Stage 4 ledger persistence")
 struct LedgerPersistenceTests {
+    @Test("Editing preserves a real Portfolio activity's Ledger reference")
+    func editingPreservesPortfolioLedgerReference() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        let context = try LedgerTestContext.make()
+        try await store.createWealthContainer(context.source)
+        let original = try context.entry(kind: .income)
+        try await store.createLedgerEntry(original)
+        let activity = try await linkedActivity(in: store, entry: original)
+        let before = try #require(try await store.fetchPortfolioActivities(portfolioID: activity.portfolioID).first)
+        try #require(before == activity)
+        try #require(before.ledgerEntryID == original.id)
+
+        let edited = try context.entry(kind: .expense, id: original.id, description: "Synthetic Identity Edit")
+        try await store.updateLedgerEntry(edited)
+        let after = try #require(try await store.fetchPortfolioActivities(portfolioID: activity.portfolioID).first)
+        #expect(after.ledgerEntryID == original.id)
+        #expect(after == activity)
+        let reopened = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
+        #expect(try await reopened.fetchPortfolioActivities(portfolioID: activity.portfolioID) == [activity])
+        #expect(try await reopened.fetchLedgerEntries() == [edited])
+    }
+
+    @Test("Editing replaces owned children and headers, preserves creation time, and survives reopen")
+    func editingChildrenAndTimesSurviveReopen() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let context = try LedgerTestContext.make()
+        try await store.createWealthContainer(context.source)
+        try await store.createWealthContainer(context.target)
+        let oldTag = try await store.createTag(name: "Synthetic Old Tag")
+        let newTag = try await store.createTag(name: "Synthetic New Tag")
+        let category = try await store.createCategory(name: "Synthetic Edited Category")
+        let transfer = try context.transfer()
+        let original = try LedgerEntry(id: transfer.id, kind: .transfer, civilDate: context.date,
+            recordedAt: context.instant, description: "Synthetic Original Transfer", payee: "Synthetic Old Payee",
+            tags: [oldTag], postings: transfer.postings, note: "Synthetic Old Note", importFingerprint: "synthetic.original.identity")
+        try await store.createLedgerEntry(original)
+        let unrelated = try context.entry(kind: .income, description: "Synthetic Unrelated Entry")
+        try await store.createLedgerEntry(unrelated)
+        let activity = try await linkedActivity(in: store, entry: original)
+        try #require(try await store.fetchPortfolioActivities(portfolioID: activity.portfolioID) == [activity])
+        let portfolios = try await store.fetchPortfolios()
+        let links = try await store.fetchPortfolioSecurityLinks(portfolioID: activity.portfolioID)
+        let wealth = try await store.fetchWealthContainers()
+        let t1 = UTCInstant(millisecondsSince1970: context.instant.millisecondsSince1970 + 86_400_000)
+        let valuation = try FXValuation(original: Money(minorUnits: 25_123, currency: .usd),
+            rate: FXRate(decimal: FixedPointMath.parseCanonical("7.125"), sourceCurrency: .usd, targetCurrency: .cny),
+            referenceDate: CivilDate(canonical: "2026-08-12"), fetchedAt: t1,
+            providerIdentifier: "manual.synthetic.identity.edited", isManualOverride: true, isStale: true)
+        let edited = try LedgerEntry(id: original.id, kind: .expense,
+            civilDate: CivilDate(canonical: "2026-08-12"), recordedAt: t1,
+            description: "Synthetic Edited USD Expense", payee: "Synthetic New Payee", category: category,
+            tags: [newTag], postings: [LedgerPosting(role: .primary, containerID: context.target.id, valuation: valuation)],
+            note: "Synthetic New Note")
+        try await store.updateLedgerEntry(edited)
+
+        for reader in [store, try WealthStore(databaseURL: url)] {
+            let entries = try await reader.fetchLedgerEntries()
+            #expect(entries.count == 2)
+            #expect(entries.first { $0.id == original.id } == edited)
+            #expect(entries.first { $0.id == unrelated.id } == unrelated)
+            #expect(try await reader.fetchPortfolioActivities(portfolioID: activity.portfolioID) == [activity])
+            #expect(try await reader.fetchPortfolios() == portfolios)
+            #expect(try await reader.fetchPortfolioSecurityLinks(portfolioID: activity.portfolioID) == links)
+            #expect(try await reader.fetchWealthContainers() == wealth)
+        }
+        let queue = try identityReadQueue(url)
+        let timestamps = try await queue.read { db in
+            let row = try #require(Row.fetchOne(db, sql: "SELECT created_at_ms, recorded_at_ms, updated_at_ms FROM ledger_transactions WHERE id = ?", arguments: [original.id.uuidString]))
+            return [row["created_at_ms"] as Int64, row["recorded_at_ms"] as Int64, row["updated_at_ms"] as Int64]
+        }
+        #expect(timestamps == [context.instant.millisecondsSince1970, t1.millisecondsSince1970, t1.millisecondsSince1970])
+        let childIDs = try await queue.read { db in
+            try String.fetchAll(db, sql: "SELECT id FROM ledger_postings WHERE transaction_id = ?", arguments: [original.id.uuidString])
+        }
+        #expect(childIDs == edited.postings.map { $0.id.uuidString })
+        #expect(Set(childIDs).isDisjoint(with: original.postings.map { $0.id.uuidString }))
+    }
+
+    @Test("Child FK failures roll back the header, times, fingerprint, all children, and external links")
+    func editingChildFailureIsAtomic() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let context = try LedgerTestContext.make()
+        try await store.createWealthContainer(context.source)
+        try await store.createWealthContainer(context.target)
+        let tag = try await store.createTag(name: "Synthetic Original Tag")
+        let newTag = try await store.createTag(name: "A Synthetic Valid Replacement")
+        let base = try context.transfer()
+        let original = try LedgerEntry(id: base.id, kind: .transfer, civilDate: base.civilDate,
+            recordedAt: base.recordedAt, description: base.description, payee: "Synthetic Original Payee",
+            tags: [tag], postings: base.postings, note: "Synthetic Original Note", importFingerprint: "synthetic.rollback.fingerprint")
+        try await store.createLedgerEntry(original)
+        let activity = try await linkedActivity(in: store, entry: original)
+        try #require(try await store.fetchPortfolioActivities(portfolioID: activity.portfolioID) == [activity])
+        let before = try identitySnapshot(url)
+
+        // First fail on the second posting; then fail on a tag after both postings and a valid tag were inserted.
+        for failOnTag in [false, true] {
+            let edited = try LedgerEntry(id: original.id, kind: .transfer,
+                civilDate: CivilDate(canonical: "2026-08-12"),
+                recordedAt: UTCInstant(millisecondsSince1970: context.instant.millisecondsSince1970 + 86_400_000),
+                description: "Synthetic Rejected Edit", payee: "Synthetic Changed Payee",
+                tags: failOnTag ? [newTag, Aureus.Tag(id: UUID(), name: "Z Synthetic Missing Tag")] : [newTag],
+                postings: [
+                    context.posting(22_000, role: .transferSource),
+                    context.posting(22_000, role: .transferTarget, containerID: failOnTag ? context.target.id : UUID())
+                ], note: "Synthetic Changed Note")
+            // Construction above succeeded; the failure must come from the actual Store database write.
+            do {
+                try await store.updateLedgerEntry(edited)
+                Issue.record("Expected a database child foreign-key failure")
+            } catch let error as DatabaseError {
+                #expect(error.extendedResultCode == .SQLITE_CONSTRAINT_FOREIGNKEY)
+            }
+            #expect(try identitySnapshot(url) == before)
+            #expect(try await store.fetchLedgerEntries() == [original])
+            #expect(try await store.fetchPortfolioActivities(portfolioID: activity.portfolioID) == [activity])
+        }
+        let reopened = try WealthStore(databaseURL: url)
+        #expect(try await reopened.fetchLedgerEntries() == [original])
+        #expect(try await reopened.fetchPortfolioActivities(portfolioID: activity.portfolioID) == [activity])
+    }
+
+    @Test("Editing an absent identity remains not-found and cannot upsert or mutate existing rows")
+    func editingMissingIdentityDoesNotInsert() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let context = try LedgerTestContext.make()
+        try await store.createWealthContainer(context.source)
+        let original = try context.entry(kind: .income)
+        try await store.createLedgerEntry(original)
+        _ = try await linkedActivity(in: store, entry: original)
+        let before = try identitySnapshot(url)
+        let missing = try context.entry(kind: .expense)
+        await #expect(throws: LedgerPersistenceError.transactionNotFound) {
+            try await store.updateLedgerEntry(missing)
+        }
+        #expect(try identitySnapshot(url) == before)
+        #expect(try await store.fetchLedgerEntries() == [original])
+    }
+
+    @Test("Actual Ledger deletion still nulls the reference while retaining Portfolio and Wealth")
+    func deletingLedgerStillNullsPortfolioReference() async throws {
+        let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("aureus.sqlite")
+        let store = try WealthStore(databaseURL: url)
+        let context = try LedgerTestContext.make()
+        try await store.createWealthContainer(context.source)
+        let original = try context.entry(kind: .income)
+        try await store.createLedgerEntry(original)
+        let activity = try await linkedActivity(in: store, entry: original)
+        try #require(try await store.fetchPortfolioActivities(portfolioID: activity.portfolioID) == [activity])
+        let portfolios = try await store.fetchPortfolios()
+        let links = try await store.fetchPortfolioSecurityLinks(portfolioID: activity.portfolioID)
+        let wealth = try await store.fetchWealthContainers()
+        try await store.deleteLedgerEntry(id: original.id)
+        let reader = try WealthStore(databaseURL: url)
+        #expect(try await reader.fetchLedgerEntries().isEmpty)
+        let remaining = try #require(try await reader.fetchPortfolioActivities(portfolioID: activity.portfolioID).first)
+        let expected = try PortfolioActivity(id: activity.id, portfolioID: activity.portfolioID,
+            securityLinkID: activity.securityLinkID, civilDate: activity.civilDate, recordedAt: activity.recordedAt,
+            exchangeTimeZoneIdentifier: activity.exchangeTimeZoneIdentifier, ledgerEntryID: nil, payload: activity.payload)
+        #expect(remaining == expected)
+        #expect(try await reader.fetchPortfolios() == portfolios)
+        #expect(try await reader.fetchPortfolioSecurityLinks(portfolioID: activity.portfolioID) == links)
+        #expect(try await reader.fetchWealthContainers() == wealth)
+    }
+
+    private func identityReadQueue(_ url: URL) throws -> DatabaseQueue {
+        var configuration = Configuration()
+        configuration.readonly = true
+        return try DatabaseQueue(path: url.path, configuration: configuration)
+    }
+
+    private func identitySnapshot(_ url: URL) throws -> [String: [String]] {
+        try identityReadQueue(url).read { db in
+            var result: [String: [String]] = [:]
+            for table in ["ledger_transactions", "ledger_postings", "ledger_transaction_tags", "categories", "tags",
+                          "portfolio_definitions", "portfolio_security_links", "portfolio_activities", "asset_containers", "wealth_records"] {
+                result[table] = try Row.fetchAll(db, sql: "SELECT * FROM \(table) ORDER BY rowid").map(\.description)
+            }
+            return result
+        }
+    }
+
+    private func linkedActivity(in store: WealthStore, entry: LedgerEntry) async throws -> PortfolioActivity {
+        let security = try SyntheticWealthSeeder.records()[2]
+        try await store.createWealthContainer(security)
+        let portfolio = try PortfolioRecord(name: "Synthetic Ledger Identity", createdAt: entry.recordedAt, updatedAt: entry.recordedAt, sortOrder: 0)
+        try await store.createPortfolio(portfolio)
+        let link = try PortfolioSecurityLink(portfolioID: portfolio.id, wealthContainerID: security.id,
+            symbol: "SYNX", rawMIC: "XSYN", currency: .usd, assetKind: .stock, sortOrder: 0)
+        try await store.linkPortfolioSecurity(link)
+        let cost = Money(minorUnits: 10_000, currency: .usd)
+        let fx = try PortfolioFXProvenance(original: cost,
+            rate: FXRate(decimal: FixedPointMath.parseCanonical("7.00"), sourceCurrency: .usd, targetCurrency: .cny),
+            source: "manual.synthetic.identity", referenceDate: entry.civilDate, recordedAt: entry.recordedAt,
+            isManual: true, isStale: false)
+        let activity = try PortfolioActivity(portfolioID: portfolio.id, securityLinkID: link.id,
+            civilDate: entry.civilDate, recordedAt: entry.recordedAt, exchangeTimeZoneIdentifier: "UTC",
+            ledgerEntryID: entry.id,
+            payload: .openingLot(quantity: AssetQuantity(coefficient: 100_000_000), totalCost: cost, fx: fx, note: "Synthetic identity fixture"))
+        try await store.createPortfolioActivity(activity)
+        return activity
+    }
+
     @Test("Fresh v3, reopen, CRUD, atomic transfer, and INTEGER storage")
     func crudAndReopen() async throws {
         let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
