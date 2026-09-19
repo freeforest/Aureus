@@ -75,7 +75,7 @@ struct LedgerPersistenceTests {
         }
         let queue = try identityReadQueue(url)
         let timestamps = try await queue.read { db in
-            let row = try #require(Row.fetchOne(db, sql: "SELECT created_at_ms, recorded_at_ms, updated_at_ms FROM ledger_transactions WHERE id = ?", arguments: [original.id.uuidString]))
+            let row = try #require(try Row.fetchOne(db, sql: "SELECT created_at_ms, recorded_at_ms, updated_at_ms FROM ledger_transactions WHERE id = ?", arguments: [original.id.uuidString]))
             return [row["created_at_ms"] as Int64, row["recorded_at_ms"] as Int64, row["updated_at_ms"] as Int64]
         }
         #expect(timestamps == [context.instant.millisecondsSince1970, t1.millisecondsSince1970, t1.millisecondsSince1970])
