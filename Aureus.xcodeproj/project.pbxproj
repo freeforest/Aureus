@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10000000000000000000048 /* ManagedEvidenceFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000048 /* ManagedEvidenceFiles.swift */; };
+		A2000000000000000000001D /* ManagedEvidenceFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000001D /* ManagedEvidenceFilesTests.swift */; };
 		A10000000000000000000046 /* DataLifecycleDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000046 /* DataLifecycleDiagnostics.swift */; };
 		A2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift */; };
 		A10000000000000000000001 /* AureusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* AureusApp.swift */; };
@@ -124,6 +126,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B10000000000000000000048 /* ManagedEvidenceFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedEvidenceFiles.swift; sourceTree = "<group>"; };
+		B2000000000000000000001D /* ManagedEvidenceFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedEvidenceFilesTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000046 /* DataLifecycleDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataLifecycleDiagnostics.swift; sourceTree = "<group>"; };
 		B2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataLifecycleDiagnosticsTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000001 /* AureusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusApp.swift; sourceTree = "<group>"; };
@@ -557,6 +561,7 @@
 			children = (
 				B10000000000000000000023 /* MarketNetworking.swift */,
 				B10000000000000000000024 /* MarketDataService.swift */,
+				B10000000000000000000048 /* ManagedEvidenceFiles.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -598,6 +603,7 @@
 				B2000000000000000000001A /* PermanentExternalRestoreTests.swift */,
 				B2000000000000000000001B /* GeneralSettingsTests.swift */,
 				B2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift */,
+				B2000000000000000000001D /* ManagedEvidenceFilesTests.swift */,
 			);
 			path = AureusTests;
 			sourceTree = "<group>";
@@ -769,6 +775,7 @@
 				A10000000000000000000042 /* PermanentBackupExport.swift in Sources */,
 				A10000000000000000000043 /* PermanentExternalRestore.swift in Sources */,
 				A10000000000000000000046 /* DataLifecycleDiagnostics.swift in Sources */,
+				A10000000000000000000048 /* ManagedEvidenceFiles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -804,6 +811,7 @@
 				A2000000000000000000001A /* PermanentExternalRestoreTests.swift in Sources */,
 				A2000000000000000000001B /* GeneralSettingsTests.swift in Sources */,
 				A2000000000000000000001C /* DataLifecycleDiagnosticsTests.swift in Sources */,
+				A2000000000000000000001D /* ManagedEvidenceFilesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
