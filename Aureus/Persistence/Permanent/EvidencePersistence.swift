@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import GRDB
 
 enum EvidenceSQL {
@@ -154,7 +155,9 @@ extension WealthStore {
             guard let root = datasetAccess.evidence?.root else { throw EvidenceError.disabled }
             let name = op.documentID.uuidString.lowercased()
             let occupied = [name + ".original", "." + name + ".pending"].contains {
-                (try? root.appendingPathComponent($0).resourceValues(forKeys: [.isRegularFileKey])) != nil
+                var info = stat()
+                // Never follow a dangling link and misclassify its occupied name as absent.
+                return lstat(root.appendingPathComponent($0).path, &info) == 0 || errno != ENOENT
             }
             return .init(operation: op, availability: occupied ? .pendingReview : .needsSourceSelection)
         }
@@ -187,6 +190,8 @@ extension WealthStore {
             catch { return .init(operation: op, availability: .publishedPendingRecovery) }
             guard let committed = try evidenceOperation(operationID) else { throw EvidenceError.inconsistentRegistration }
             op = committed
+            do { try datasetAccess.evidence?.afterCommit() }
+            catch { return .init(operation: op, availability: .materialUnavailable) }
         }
         let available: EvidenceImportResult.Availability = try queue.read { db in
             guard let row = try Row.fetchOne(db, sql: "SELECT * FROM evidence_documents WHERE id = ?", arguments: [op.documentID.uuidString]),

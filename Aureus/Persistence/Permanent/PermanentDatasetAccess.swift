@@ -5,6 +5,8 @@ struct EvidenceConfiguration: Sendable {
     let root: URL
     let protectedPaths: [URL]
     var files: ManagedEvidenceFileConfiguration = .init()
+    // Synthetic tests can observe the actual final database commit boundary.
+    var afterCommit: @Sendable () throws -> Void = {}
 }
 
 /// Process-local registration only. No database I/O while the registry mutex is held.
@@ -47,9 +49,11 @@ final class PermanentDatasetAccess: @unchecked Sendable {
         try Self.registry.lock.withLock {
             for binding in Self.registry.entries.values {
                 // Re-read the live path, not just the inode captured before a supported Restore.
-                let alias = existing != nil && existing == (try Self.objectIdentity(binding.url))
+                let liveIdentity = try Self.objectIdentity(binding.url)
+                let liveParentNamespace = try Self.parentNamespace(binding.url)
+                let alias = existing != nil && existing == liveIdentity
                 let same = namespace == binding.namespace || parentNamespace == binding.parentNamespace
-                    || parentNamespace == (try Self.parentNamespace(binding.url)) || alias
+                    || parentNamespace == liveParentNamespace || alias
                 if same && (evidence != nil || binding.exclusive) { throw EvidenceError.ownerConflict }
                 if let rootIdentity, rootIdentity == binding.rootIdentity { throw EvidenceError.ownerConflict }
             }

@@ -464,8 +464,8 @@ struct SettingsDataLifecycleTests {
             $0.directoryURL.lastPathComponent != internalIdentity
         })
         #expect(try lifecycleAccountNames(in: safety).contains("Synthetic Settings External Current"))
-        #expect(model.externalRestoreResult?.sourceSchemaVersion == 6)
-        #expect(model.externalRestoreResult?.finalSchemaVersion == 6)
+        #expect(model.externalRestoreResult?.sourceSchemaVersion == 7)
+        #expect(model.externalRestoreResult?.finalSchemaVersion == 7)
         #expect(model.externalRestoreResult?.migrationRan == false)
         #expect(model.externalRestoreResult?.operationCategory == .externalGenerationRestore)
 

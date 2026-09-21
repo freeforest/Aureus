@@ -287,16 +287,13 @@ struct PermanentRestoreTests {
             name: "Synthetic Invariant New",
             generation: 29
         )
-        try mutateGeneration(candidate) { db in
-            try db.execute(sql: "DROP TABLE goals")
-        }
-        try resignGeneration(candidate, schemaVersion: 7)
         _ = try PermanentBackupService.validateGeneration(
             candidate.directoryURL,
             in: context.paths.internalBackupDirectoryURL
         )
 
-        let error = await restoreError(context, candidate: candidate, operation: 29)
+        let error = await restoreError(context, candidate: candidate, operation: 29,
+            fileOperations: MissingTableAfterReplacementOperations())
 
         #expect(error == .restoreFailedRollbackSucceeded(.requiredTables))
         #expect(try await accountIDs(context.store) == ["restore-invariant-old"])
@@ -843,6 +840,7 @@ private func restoreMigrationIdentifier(_ version: Int) -> String {
     case 3: DatabaseMigrations.permanentV3
     case 4: DatabaseMigrations.permanentV4
     case 5: DatabaseMigrations.permanentV5
+    case 6: DatabaseMigrations.permanentV6
     default: preconditionFailure("Synthetic Restore fixture version out of range")
     }
 }
@@ -1020,6 +1018,23 @@ private func restoreMilliseconds(_ duration: Duration) -> Int64 {
     let components = duration.components
     return components.seconds * 1_000
         + Int64(components.attoseconds / 1_000_000_000_000_000)
+}
+
+private final class MissingTableAfterReplacementOperations: PermanentRestoreFileOperations, @unchecked Sendable {
+    private let live = LocalPermanentRestoreFileOperations()
+    private let lock = NSLock()
+    private var replaced = false
+    func copyValidatedDatabase(from sourceURL: URL, to stagingURL: URL) throws {
+        try live.copyValidatedDatabase(from: sourceURL, to: stagingURL)
+    }
+    func atomicallyReplaceDatabase(at databaseURL: URL, with stagingURL: URL) throws {
+        try live.atomicallyReplaceDatabase(at: databaseURL, with: stagingURL)
+        let first = lock.withLock { () -> Bool in defer { replaced = true }; return !replaced }
+        if first {
+            let queue = try DatabaseQueueFactory.open(at: databaseURL); defer { try? queue.close() }
+            try queue.write { try $0.execute(sql: "DROP TABLE goals") }
+        }
+    }
 }
 
 private final class CorruptingCandidateCopyOperations: PermanentRestoreFileOperations, @unchecked Sendable {

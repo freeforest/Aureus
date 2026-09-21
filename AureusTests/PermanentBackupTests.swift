@@ -439,7 +439,7 @@ struct PermanentBackupTests {
         #expect(hashAfter == hashBefore)
         #expect(try await context.store.isolationSentinels() == recordsBefore)
         #expect(try await context.store.schemaVersion() == schemaBefore)
-        #expect(schemaBefore == 6)
+        #expect(schemaBefore == 7)
     }
 
     @Test("Market Cache and key-like sentinels remain adjacent and excluded")

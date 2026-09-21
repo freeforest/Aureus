@@ -407,6 +407,10 @@ extension WealthStore {
             try requireFormatOneEligible()
             _ = try PermanentBackupService.validateGeneration(candidate.directoryURL, in: candidate.directoryURL.deletingLastPathComponent())
         } catch { throw PermanentRestoreError.evidenceRequiresCompleteRestore }
+        do {
+            _ = try PermanentDatabaseValidation.inspect(queue, expectedSchemaVersion: PermanentRestoreService.currentSchemaVersion,
+                requireCurrentApplicationSchema: true)
+        } catch { throw PermanentRestoreError.currentStoreValidationFailed }
         maintenanceState = .restoring
 
         var candidateStageURL: URL?
