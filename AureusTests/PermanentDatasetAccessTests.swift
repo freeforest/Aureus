@@ -5,6 +5,30 @@ import Testing
 
 @Suite("Process-local dataset ownership", .serialized)
 struct PermanentDatasetAccessTests {
+    @Test("Core physical and linked aliases support absent parents, sharing and reopen", arguments: [false, true])
+    func corePathCompatibility(_ useLink: Bool) async throws {
+        let f = try OwnerFixture(); defer { f.remove() }
+        let alias = f.root.appendingPathComponent("core-alias", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: f.root)
+        let physical = f.root.appendingPathComponent("New/Nested/aureus.sqlite")
+        let selected = useLink ? alias.appendingPathComponent("New/Nested/aureus.sqlite") : physical.resolvingSymlinksInPath()
+        var first: WealthStore? = try WealthStore(databaseURL: selected)
+        var second: WealthStore? = try WealthStore(databaseURL: physical)
+        try await first!.insertIsolationSentinel(id: "synthetic-core-path", name: "Synthetic Core Path")
+        #expect(try await second!.isolationSentinels() == ["Synthetic Core Path"])
+        #expect(throws: EvidenceError.ownerConflict) {
+            _ = try WealthStore(databaseURL: physical, evidenceConfiguration: f.configuration)
+        }
+        weak var released = first, releasedSecond = second
+        first = nil; second = nil
+        try #require(released == nil && releasedSecond == nil)
+        var owner: WealthStore? = try WealthStore(databaseURL: physical, evidenceConfiguration: f.configuration)
+        #expect(throws: EvidenceError.ownerConflict) { _ = try WealthStore(databaseURL: selected) }
+        weak var releasedOwner = owner; owner = nil; try #require(releasedOwner == nil)
+        let reopened = try WealthStore(databaseURL: selected)
+        #expect(try await reopened.isolationSentinels() == ["Synthetic Core Path"])
+    }
+
     @Test("Core sharing remains allowed; Evidence ownership conflicts in both directions")
     func bidirectionalConflict() throws {
         let f = try OwnerFixture(); defer { f.remove() }

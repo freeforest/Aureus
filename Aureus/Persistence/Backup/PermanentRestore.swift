@@ -23,6 +23,34 @@ enum PermanentRestoreOperationCategory: String, Equatable, Sendable {
     case externalGenerationRestore
 }
 
+enum PermanentRestoreCandidateContext {
+    case internalGeneration(root: URL)
+    case externalGeneration(protectedSources: [URL])
+
+    var operationCategory: PermanentRestoreOperationCategory {
+        switch self {
+        case .internalGeneration: .internalGenerationRestore
+        case .externalGeneration: .externalGenerationRestore
+        }
+    }
+
+    func revalidate(_ candidate: PermanentBackupGeneration) throws {
+        let current: PermanentBackupGeneration
+        do {
+            switch self {
+            case let .internalGeneration(root):
+                current = try PermanentBackupService.validateGeneration(candidate.directoryURL, in: root)
+            case let .externalGeneration(protectedSources):
+                current = try PermanentBackupService.validateStandaloneExternalGeneration(candidate.directoryURL, excluding: protectedSources)
+            }
+        } catch {
+            throw PermanentRestoreError.candidateValidationFailed
+        }
+        // Revalidation must corroborate the initially accepted object, not replace it.
+        guard current == candidate else { throw PermanentRestoreError.candidateValidationFailed }
+    }
+}
+
 struct PermanentRestoreResult: Equatable, Sendable {
     let previousSchemaVersion: Int
     let candidateSchemaVersion: Int
@@ -359,6 +387,14 @@ enum PermanentRestoreService {
 }
 
 extension WealthStore {
+    func requireFormatOneRestoreEligible() throws {
+        do { try requireFormatOneEligible() }
+        catch EvidenceError.legacyFormatUnsupported { throw PermanentRestoreError.evidenceRequiresCompleteRestore }
+        catch EvidenceError.unsafeRoot { throw PermanentRestoreError.unsafeCurrentStore }
+        catch EvidenceError.maintenanceUnavailable { throw PermanentRestoreError.maintenanceUnavailable }
+        catch { throw PermanentRestoreError.currentStoreValidationFailed }
+    }
+
     func restorePermanentBackup(
         _ generationURL: URL,
         in backupRoot: URL,
@@ -371,8 +407,7 @@ extension WealthStore {
         guard maintenanceState == .ready else {
             throw PermanentRestoreError.maintenanceUnavailable
         }
-        do { try requireFormatOneEligible() }
-        catch { throw PermanentRestoreError.evidenceRequiresCompleteRestore }
+        try requireFormatOneRestoreEligible()
         try PermanentRestoreService.validateLiveDatabaseURL(databaseURL)
         let candidate = try PermanentRestoreService.validateCandidate(
             generationURL,
@@ -385,7 +420,7 @@ extension WealthStore {
             createdAt: createdAt,
             operationID: operationID,
             safetyGenerationID: safetyGenerationID,
-            operationCategory: .internalGenerationRestore,
+            candidateContext: .internalGeneration(root: backupRoot),
             fileOperations: fileOperations
         )
     }
@@ -397,16 +432,15 @@ extension WealthStore {
         createdAt: UTCInstant,
         operationID: UUID,
         safetyGenerationID: UUID,
-        operationCategory: PermanentRestoreOperationCategory,
+        candidateContext: PermanentRestoreCandidateContext,
         fileOperations: any PermanentRestoreFileOperations
     ) throws -> PermanentRestoreResult {
         guard maintenanceState == .ready else {
             throw PermanentRestoreError.maintenanceUnavailable
         }
-        do {
-            try requireFormatOneEligible()
-            _ = try PermanentBackupService.validateGeneration(candidate.directoryURL, in: candidate.directoryURL.deletingLastPathComponent())
-        } catch { throw PermanentRestoreError.evidenceRequiresCompleteRestore }
+        try requireFormatOneRestoreEligible()
+        try candidateContext.revalidate(candidate)
+        let operationCategory = candidateContext.operationCategory
         do {
             _ = try PermanentDatabaseValidation.inspect(queue, expectedSchemaVersion: PermanentRestoreService.currentSchemaVersion,
                 requireCurrentApplicationSchema: true)

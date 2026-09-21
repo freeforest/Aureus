@@ -6,6 +6,35 @@ import Testing
 
 @Suite("Permanent Restore foundation")
 struct PermanentRestoreTests {
+    @Test("Invalid live schema is classified before staging rather than as material support")
+    func livePreflightClassification() async throws {
+        let context = try restoreContext()
+        let candidate = try await currentCandidate(context, id: "synthetic-candidate", name: "Synthetic", generation: 701)
+        let probe = try DatabaseQueueFactory.open(at: context.paths.permanentDatabaseURL)
+        try await probe.write { try $0.execute(sql: "UPDATE schema_metadata SET version = 8 WHERE store_kind = 'permanent'") }
+        try probe.close()
+        await #expect(throws: PermanentRestoreError.currentStoreValidationFailed) {
+            _ = try await performRestore(context, candidate: candidate, operation: 701)
+        }
+        #expect(await context.store.maintenanceState == .ready)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: context.paths.permanentDatabaseURL.deletingLastPathComponent().path).allSatisfy { !$0.hasPrefix(".restore-") })
+        #expect(try PermanentBackupService.inventory(in: context.paths.internalBackupDirectoryURL).validGenerations == [candidate])
+    }
+
+    @Test("Candidate revalidation preserves the initially accepted manifest identity")
+    func candidateContextIdentity() async throws {
+        let context = try restoreContext()
+        let candidate = try await currentCandidate(context, id: "synthetic-context", name: "Synthetic", generation: 702)
+        let changed = PermanentBackupGeneration(directoryURL: candidate.directoryURL, manifest: PermanentBackupManifest(
+            backupFormatVersion: candidate.manifest.backupFormatVersion, appVersion: "different-initial-identity",
+            schemaVersion: candidate.manifest.schemaVersion, createdAt: candidate.manifest.createdAt,
+            databaseByteCount: candidate.manifest.databaseByteCount, databaseSHA256: candidate.manifest.databaseSHA256))
+        #expect(throws: PermanentRestoreError.candidateValidationFailed) {
+            try PermanentRestoreCandidateContext.internalGeneration(root: context.paths.internalBackupDirectoryURL).revalidate(changed)
+        }
+        #expect(try PermanentBackupService.validateGeneration(candidate.directoryURL, in: context.paths.internalBackupDirectoryURL) == candidate)
+    }
+
     @Test("Current-schema internal generation restores into the same WealthStore")
     func currentSchemaRestore() async throws {
         let context = try restoreContext()

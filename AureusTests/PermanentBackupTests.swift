@@ -209,7 +209,7 @@ struct PermanentBackupTests {
         )
     }
 
-    @Test("Foreign-key violation fails staging validation before retention")
+    @Test("Foreign-key violation fails source preflight before staging or retention")
     func foreignKeyViolation() async throws {
         let context = try backupContext()
         let probe = try DatabaseQueue(path: context.paths.permanentDatabaseURL.path)
@@ -366,6 +366,10 @@ struct PermanentBackupTests {
         let before = try await context.store.permanentBackupInventory(
             in: context.paths.internalBackupDirectoryURL
         )
+        let unknown = context.paths.internalBackupDirectoryURL.appendingPathComponent("synthetic-owner-sentinel")
+        let sentinel = Data([7, 4, 1])
+        try sentinel.write(to: unknown, options: .withoutOverwriting)
+        let namesBefore = try FileManager.default.contentsOfDirectory(atPath: context.paths.internalBackupDirectoryURL.path).sorted()
         let probe = try DatabaseQueue(path: context.paths.permanentDatabaseURL.path)
         try await probe.writeWithoutTransaction { db in
             try db.execute(sql: "PRAGMA foreign_keys = OFF")
@@ -391,6 +395,8 @@ struct PermanentBackupTests {
         )
         #expect(after.validGenerations == before.validGenerations)
         #expect(after.validGenerations.count == 5)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: context.paths.internalBackupDirectoryURL.path).sorted() == namesBefore)
+        #expect(try Data(contentsOf: unknown) == sentinel)
     }
 
     @Test("Invalid and unknown siblings are neither deleted nor counted as valid")

@@ -73,8 +73,8 @@ extension WealthStore {
         guard maintenanceState == .ready else {
             throw PermanentExternalRestoreError.maintenanceUnavailable
         }
-        do { try requireFormatOneEligible() }
-        catch { throw PermanentExternalRestoreError.evidenceRequiresCompleteRestore }
+        do { try requireFormatOneRestoreEligible() }
+        catch let error as PermanentRestoreError { throw mapExternalRestoreError(error) }
         guard configuration.permanentDatabaseURL.standardizedFileURL
                 == databaseURL.standardizedFileURL else {
             throw PermanentExternalRestoreError.unsafeConfiguration
@@ -85,17 +85,18 @@ extension WealthStore {
             throw PermanentExternalRestoreError.unsafeConfiguration
         }
 
+        let protectedSources = [
+            configuration.internalBackupRootURL,
+            configuration.permanentDatabaseURL,
+            configuration.permanentDatabaseURL.deletingLastPathComponent(),
+            configuration.marketCacheDatabaseURL,
+            configuration.marketCacheDatabaseURL.deletingLastPathComponent()
+        ] + configuration.additionalProtectedSourceRoots
         let candidate: PermanentBackupGeneration
         do {
             candidate = try PermanentBackupService.validateStandaloneExternalGeneration(
                 externalGenerationURL,
-                excluding: [
-                    configuration.internalBackupRootURL,
-                    configuration.permanentDatabaseURL,
-                    configuration.permanentDatabaseURL.deletingLastPathComponent(),
-                    configuration.marketCacheDatabaseURL,
-                    configuration.marketCacheDatabaseURL.deletingLastPathComponent()
-                ] + configuration.additionalProtectedSourceRoots
+                excluding: protectedSources
             )
         } catch let error as PermanentBackupError {
             throw PermanentExternalRestoreError.invalidExternalCandidate(error)
@@ -111,7 +112,7 @@ extension WealthStore {
                 createdAt: createdAt,
                 operationID: operationID,
                 safetyGenerationID: safetyGenerationID,
-                operationCategory: .externalGenerationRestore,
+                candidateContext: .externalGeneration(protectedSources: protectedSources),
                 fileOperations: fileOperations
             )
             return PermanentExternalRestoreResult(

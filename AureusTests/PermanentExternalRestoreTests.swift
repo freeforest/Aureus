@@ -529,9 +529,9 @@ struct PermanentExternalRestoreTests {
             count: 1,
             identity: 110 + variant.rawValue
         )
-        let operations: any PermanentRestoreFileOperations = variant == .copy
+        let operations = ExternalTrackingRestoreOperations(delegate: variant == .copy
             ? ExternalFailingCopyOperations()
-            : ExternalCorruptingCopyOperations()
+            : ExternalCorruptingCopyOperations())
 
         #expect(await externalRestoreError(
             context,
@@ -539,6 +539,7 @@ struct PermanentExternalRestoreTests {
             operation: 110 + variant.rawValue,
             fileOperations: operations
         ) == .candidateStagingFailed)
+        #expect(operations.copyCount == 1 && operations.replacementCount == 0)
         #expect(try await externalAccountIDs(context.store) == ["external-stage-live-00000"])
         #expect(try externalInventory(context).validGenerations.isEmpty)
         #expect(try externalOwnedStageNames(context).isEmpty)
@@ -628,16 +629,18 @@ struct PermanentExternalRestoreTests {
         }
         let before = try externalFingerprint(candidate)
 
+        let tracking = ExternalTrackingRestoreOperations(delegate: operations)
         let error = await externalRestoreError(
             context,
             candidate: candidate,
             operation: 140 + variant.rawValue,
-            fileOperations: operations
+            fileOperations: tracking
         )
         guard case .restoreFailedRollbackSucceeded = error else {
             Issue.record("Activation failure did not return the rollback-succeeded state")
             return
         }
+        #expect(tracking.copyCount == 2 && tracking.replacementCount == 2)
         #expect(try await externalAccountIDs(context.store) == ["external-rollback-live-00000"])
         #expect(await context.store.maintenanceState == .ready)
         #expect(try externalFingerprint(candidate) == before)
@@ -1393,7 +1396,8 @@ private func externalMilliseconds(_ duration: Duration) -> Int64 {
 }
 
 private final class ExternalTrackingRestoreOperations: PermanentRestoreFileOperations, @unchecked Sendable {
-    private let live = LocalPermanentRestoreFileOperations()
+    private let live: any PermanentRestoreFileOperations
+    init(delegate: any PermanentRestoreFileOperations = LocalPermanentRestoreFileOperations()) { live = delegate }
     private let lock = NSLock()
     private var copies = 0
     private var replacements = 0

@@ -29,7 +29,7 @@ final class PermanentDatasetAccess: @unchecked Sendable {
 
     init(database: URL, evidence: EvidenceConfiguration?, backupRoot: URL?) throws {
         // Core callers retain their existing path behavior; Evidence requires a no-link path.
-        let database = evidence == nil ? database.resolvingSymlinksInPath() : database
+        let database = evidence == nil ? try Self.coreDatabasePath(database) : database
         let namespace = try Self.namespace(database, mustExist: false)
         let parentNamespace = try Self.parentNamespace(database)
         let existing = try Self.objectIdentity(database)
@@ -86,6 +86,34 @@ final class PermanentDatasetAccess: @unchecked Sendable {
 
     private static func overlap(_ a: String, _ b: String) -> Bool {
         a == b || a.hasPrefix(b + "/") || b.hasPrefix(a + "/")
+    }
+
+    // Foundation may present a physical /private path through a linked alias. Resolve
+    // existing Core components with realpath, anchoring absent suffixes to that object.
+    // Evidence paths still use the strict component checks below without resolution.
+    private static func coreDatabasePath(_ url: URL) throws -> URL {
+        guard url.isFileURL, url.host == nil || url.host == "" || url.host == "localhost",
+              url.path.hasPrefix("/"), !url.path.utf8.contains(0) else { throw EvidenceError.unsafeRoot }
+        var ancestor = url.path
+        var suffix: [String] = []
+        while true {
+            var value = stat()
+            if lstat(ancestor, &value) == 0 {
+                guard let physical = realpath(ancestor, nil) else { throw EvidenceError.unsafeRoot }
+                defer { free(physical) }
+                let path = String(cString: physical)
+                if !suffix.isEmpty {
+                    var parent = stat()
+                    guard lstat(path, &parent) == 0, parent.st_mode & S_IFMT == S_IFDIR else { throw EvidenceError.unsafeRoot }
+                }
+                return URL(fileURLWithPath: path + (suffix.isEmpty ? "" : "/" + suffix.joined(separator: "/")))
+            }
+            guard errno == ENOENT, ancestor != "/" else { throw EvidenceError.unsafeRoot }
+            let name = (ancestor as NSString).lastPathComponent
+            guard name != ".", name != "..", !name.isEmpty else { throw EvidenceError.unsafeRoot }
+            suffix.insert(name, at: 0)
+            ancestor = (ancestor as NSString).deletingLastPathComponent
+        }
     }
 
     private static func parentNamespace(_ database: URL) throws -> String {

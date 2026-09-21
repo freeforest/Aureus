@@ -466,30 +466,76 @@ struct EvidencePersistenceTests {
         let f = try IntegrationFixture(); defer { f.remove() }
         let store = try f.open(), graph = try await f.graph(store)
         let clean = try await store.createPermanentBackup(in: f.backups, appVersion: "synthetic", createdAt: graph.entry.recordedAt)
-        let output = f.root.appendingPathComponent("Export")
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        let oldOutput = f.root.appendingPathComponent("Export")
+        try FileManager.default.createDirectory(at: oldOutput, withIntermediateDirectories: false)
+        let protected = [f.backups, f.database.deletingLastPathComponent(), f.database,
+            f.root.appendingPathComponent("Cache"), f.root.appendingPathComponent("Cache/cache.sqlite")]
+        let diagnostic = try exportDestinationDiagnostics(oldOutput, protected: protected)
+        print("Synthetic Export original guards: \(diagnostic)")
+        #expect(diagnostic["fileURL"] == true && diagnostic["directory"] == true && diagnostic["writable"] == true)
+        #expect(diagnostic["resolvedMatches"] == true && diagnostic["outsideProtected"] == true)
+        #expect(diagnostic["directChildURLMatches"] == false)
+        let before = MaterialExportMutation(committed: committed, target: graph.entry.id)
+        #expect(throws: PermanentBackupExportError.unsafeOrUnsupportedDestination) {
+            _ = try PermanentBackupExportService.export(internalGenerationURL: clean.directoryURL, to: oldOutput, configuration: .init(internalBackupRootURL: f.backups, permanentDatabaseURL: f.database, marketCacheDatabaseURL: f.root.appendingPathComponent("Cache/cache.sqlite"), additionalProtectedDestinationRoots: []), operationID: UUID(), fileOperations: before)
+        }
+        #expect(before.counts.values.allSatisfy { $0 == 0 })
+        // Explicit directory semantics make parent URL equality match the existing guard.
+        let output = f.root.appendingPathComponent("Export", isDirectory: true)
+        let corrected = try exportDestinationDiagnostics(output, protected: protected)
+        print("Synthetic Export corrected guards: \(corrected)")
+        #expect(corrected.values.allSatisfy { $0 })
         let operations = MaterialExportMutation(committed: committed, target: graph.entry.id)
         #expect(throws: committed ? PermanentBackupExportError.committedRevalidationFailure : .stagingCreationOrCopyFailure) {
             _ = try PermanentBackupExportService.export(internalGenerationURL: clean.directoryURL, to: output, configuration: .init(internalBackupRootURL: f.backups, permanentDatabaseURL: f.database, marketCacheDatabaseURL: f.root.appendingPathComponent("Cache/cache.sqlite"), additionalProtectedDestinationRoots: []), operationID: UUID(), fileOperations: operations)
         }
         #expect(operations.reached.value)
+        #expect(operations.counts == ["create": 1, "copyStarted": 2, "copyFinished": 2,
+            "moveStarted": committed ? 1 : 0, "moveFinished": committed ? 1 : 0, "mutation": 1])
+        print("Synthetic Export reached counters: \(operations.counts)")
         #expect(try PermanentBackupService.validateGeneration(clean.directoryURL, in: f.backups) == clean)
         let names = try FileManager.default.contentsOfDirectory(atPath: output.path)
         #expect(names.count == (committed ? 1 : 0))
     }
 }
 
-private struct MaterialExportMutation: PermanentBackupExportFileOperations {
+private func exportDestinationDiagnostics(_ url: URL, protected: [URL]) throws -> [String: Bool] {
+    let destination = url.standardizedFileURL
+    let attributes = try FileManager.default.attributesOfItem(atPath: destination.path)
+    let overlaps = protected.map { other -> Bool in
+        let a = destination.path, b = other.standardizedFileURL.path
+        return a == b || a.hasPrefix(b + "/") || b.hasPrefix(a + "/")
+    }
+    var result = ["fileURL": url.isFileURL, "absolute": url.path.hasPrefix("/"),
+        "resolvedMatches": destination.resolvingSymlinksInPath().path == destination.path,
+        "directory": attributes[.type] as? FileAttributeType == .typeDirectory,
+        "writable": FileManager.default.isWritableFile(atPath: destination.path),
+        "outsideProtected": !overlaps.contains(true),
+        "directChildURLMatches": destination.appendingPathComponent("synthetic-child", isDirectory: true).standardizedFileURL.deletingLastPathComponent() == destination]
+    for (index, overlap) in overlaps.enumerated() { result["outsideProtectedRole\(index)"] = !overlap }
+    return result
+}
+
+private final class MaterialExportMutation: PermanentBackupExportFileOperations, @unchecked Sendable {
     let committed: Bool
     let target: UUID
     let reached = IntegrationFlag()
-    func createDirectory(at url: URL) throws { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false) }
+    private let lock = NSLock()
+    private var recorded = ["create": 0, "copyStarted": 0, "copyFinished": 0, "moveStarted": 0, "moveFinished": 0, "mutation": 0]
+    init(committed: Bool, target: UUID) { self.committed = committed; self.target = target }
+    var counts: [String: Int] { lock.withLock { recorded } }
+    private func count(_ key: String) { lock.withLock { recorded[key, default: 0] += 1 } }
+    func createDirectory(at url: URL) throws { count("create"); try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false) }
     func copyItem(at sourceURL: URL, to destinationURL: URL) throws {
+        count("copyStarted")
         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        count("copyFinished")
         if !committed && destinationURL.lastPathComponent == "manifest.json" { try mutate(destinationURL.deletingLastPathComponent()) }
     }
     func moveItem(at sourceURL: URL, to destinationURL: URL) throws {
+        count("moveStarted")
         try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
+        count("moveFinished")
         if committed { try mutate(destinationURL) }
     }
     private func mutate(_ root: URL) throws {
@@ -505,6 +551,7 @@ private struct MaterialExportMutation: PermanentBackupExportFileOperations {
         let digest = try PermanentBackupService.streamingDigest(of: url)
         try JSONEncoder().encode(PermanentBackupManifest(backupFormatVersion: 1, appVersion: old.appVersion, schemaVersion: 7, createdAt: old.createdAt, databaseByteCount: digest.byteCount, databaseSHA256: digest.sha256)).write(to: manifestURL)
         reached.set()
+        count("mutation")
     }
 }
 

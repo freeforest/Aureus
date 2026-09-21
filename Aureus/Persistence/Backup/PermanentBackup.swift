@@ -75,12 +75,22 @@ enum PermanentBackupService {
             throw PermanentBackupError.invalidAppVersion
         }
 
-        try source.read { db in
-            guard try !EvidenceSQL.containsEvidence(db) else { throw PermanentBackupError.evidenceRequiresCompleteBackup }
+        do {
+            try source.read { db in
+                guard try !EvidenceSQL.containsEvidence(db) else { throw PermanentBackupError.evidenceRequiresCompleteBackup }
+            }
+            let sourceVersion = try source.read { try Int.fetchOne($0, sql: "SELECT version FROM schema_metadata WHERE store_kind = 'permanent'") ?? 0 }
+            _ = try PermanentDatabaseValidation.inspect(source, expectedSchemaVersion: sourceVersion,
+                requireCurrentApplicationSchema: sourceVersion == PermanentDatabaseValidation.currentSchemaVersion)
+        } catch PermanentDatabaseValidationFailure.foreignKeys {
+            throw PermanentBackupError.foreignKeyFailure
+        } catch PermanentDatabaseValidationFailure.schema {
+            throw PermanentBackupError.schemaMismatch
+        } catch let error as PermanentBackupError {
+            throw error
+        } catch {
+            throw PermanentBackupError.databaseOpenOrIntegrityFailure
         }
-        let sourceVersion = try source.read { try Int.fetchOne($0, sql: "SELECT version FROM schema_metadata WHERE store_kind = 'permanent'") ?? 0 }
-        _ = try PermanentDatabaseValidation.inspect(source, expectedSchemaVersion: sourceVersion,
-            requireCurrentApplicationSchema: sourceVersion == PermanentDatabaseValidation.currentSchemaVersion)
         try ensureBackupRoot(backupRoot, createIfMissing: true, fileManager: fileManager)
         let createdAtText = canonicalCreatedAt(createdAt)
         let identity = generationID.uuidString.lowercased()
