@@ -22,10 +22,10 @@ struct DashboardPersistenceTests {
         let schemaVersion = try queue.read { db in
             try Int.fetchOne(db, sql: "SELECT version FROM schema_metadata WHERE store_kind = 'permanent'")
         }
-        #expect(schemaVersion == 6)
+        #expect(schemaVersion == 7)
         #expect(try queue.read { db in try db.tableExists("snapshot_items") })
         try migrator.migrate(queue)
-        #expect(try queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM grdb_migrations") } == 6)
+        #expect(try queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM grdb_migrations") } == 7)
     }
 
     @Test("Legacy foundation Snapshot and valuation are preserved but remain incomplete")
@@ -98,7 +98,7 @@ struct DashboardPersistenceTests {
         #expect(usd.isManualFX)
         #expect(usd.fxReferenceDate == date)
         #expect(try await reopened.dashboardSnapshotStorageClasses() == ["integer"])
-        #expect(try await reopened.schemaVersion() == 6)
+        #expect(try await reopened.schemaVersion() == 7)
     }
 
     @Test("Empty Wealth Store creates no fabricated zero Snapshot")

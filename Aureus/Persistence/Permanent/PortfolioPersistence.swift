@@ -146,8 +146,7 @@ extension WealthStore {
             guard existingPortfolio == activity.portfolioID.uuidString else {
                 throw PortfolioPersistenceError.notFound
             }
-            try db.execute(sql: "DELETE FROM portfolio_activities WHERE id = ?", arguments: [activity.id.uuidString])
-            try Self.insert(activity, in: db)
+            try Self.insert(activity, in: db, updating: true)
             do { try Self.validatePortfolioReplay(activity.portfolioID, in: db) }
             catch { throw PortfolioPersistenceError.invalidHistoricalMutation }
         }
@@ -389,7 +388,7 @@ extension WealthStore {
             && (row["mic"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == link.rawMIC
     }
 
-    private nonisolated static func insert(_ activity: PortfolioActivity, in db: Database) throws {
+    private nonisolated static func insert(_ activity: PortfolioActivity, in db: Database, updating: Bool = false) throws {
         var quantity: Int64?, price: Int64?, fee: Int64?, total: Int64?, currency: String?
         var converted: Int64?, fxCoefficient: Int64?, fxSource: String?, fxDate: String?, fxRecorded: Int64?
         var fxManual: Bool?, fxStale: Bool?, splitFrom: Int64?, splitTo: Int64?, note: String?
@@ -405,6 +404,24 @@ extension WealthStore {
             quantity = value.coefficient; price = unitPrice.coefficient; fee = tradeFee.minorUnits; assign(fx)
         case let .manualSplit(from, to): splitFrom = from.coefficient; splitTo = to.coefficient
         }
+        let arguments: StatementArguments = [activity.id.uuidString, activity.portfolioID.uuidString,
+            activity.securityLinkID.uuidString, activity.kind.rawValue, activity.civilDate.description,
+            activity.recordedAt.millisecondsSince1970, activity.exchangeTimeZoneIdentifier,
+            activity.ledgerEntryID?.uuidString, quantity, price, fee, total, currency, converted,
+            fxCoefficient, fxSource, fxDate, fxRecorded, fxManual, fxStale, splitFrom, splitTo, note]
+        if updating {
+            try db.execute(sql: """
+                UPDATE portfolio_activities SET
+                    id = ?, portfolio_id = ?, security_link_id = ?, kind = ?, civil_date = ?, recorded_at_ms = ?,
+                    exchange_time_zone_id = ?, ledger_entry_id = ?, quantity_coefficient = ?,
+                    unit_price_coefficient = ?, fee_minor = ?, total_original_minor = ?, currency_code = ?,
+                    converted_cny_minor = ?, fx_coefficient = ?, fx_source = ?, fx_reference_date = ?,
+                    fx_recorded_at_ms = ?, fx_is_manual = ?, fx_is_stale = ?, split_from_coefficient = ?,
+                    split_to_coefficient = ?, sanitized_note = ? WHERE id = ?
+                """, arguments: arguments + [activity.id.uuidString])
+            guard db.changesCount == 1 else { throw PortfolioPersistenceError.notFound }
+            return
+        }
         try db.execute(sql: """
             INSERT INTO portfolio_activities
                 (id, portfolio_id, security_link_id, kind, civil_date, recorded_at_ms,
@@ -414,11 +431,7 @@ extension WealthStore {
                  fx_recorded_at_ms, fx_is_manual, fx_is_stale, split_from_coefficient,
                  split_to_coefficient, sanitized_note)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, arguments: [activity.id.uuidString, activity.portfolioID.uuidString,
-                activity.securityLinkID.uuidString, activity.kind.rawValue, activity.civilDate.description,
-                activity.recordedAt.millisecondsSince1970, activity.exchangeTimeZoneIdentifier,
-                activity.ledgerEntryID?.uuidString, quantity, price, fee, total, currency, converted,
-                fxCoefficient, fxSource, fxDate, fxRecorded, fxManual, fxStale, splitFrom, splitTo, note])
+            """, arguments: arguments)
     }
 
     private nonisolated static func activities(_ portfolioID: UUID, in db: Database) throws -> [PortfolioActivity] {

@@ -28,6 +28,7 @@ enum PermanentExternalRestoreError: Error, Equatable, Sendable {
     case replacementFailed
     case restoreFailedRollbackSucceeded(PermanentRestoreFailureCategory)
     case rollbackFailed
+    case evidenceRequiresCompleteRestore
 }
 
 extension PermanentExternalRestoreError: LocalizedError {
@@ -53,6 +54,8 @@ extension PermanentExternalRestoreError: LocalizedError {
             "External Restore failed and the prior Permanent Store was recovered from the safety Backup."
         case .rollbackFailed:
             "External Restore recovery requires manual maintenance; the safety Backup was retained."
+        case .evidenceRequiresCompleteRestore:
+            "This dataset requires a complete material-aware Restore."
         }
     }
 }
@@ -70,6 +73,8 @@ extension WealthStore {
         guard maintenanceState == .ready else {
             throw PermanentExternalRestoreError.maintenanceUnavailable
         }
+        do { try requireFormatOneEligible() }
+        catch { throw PermanentExternalRestoreError.evidenceRequiresCompleteRestore }
         guard configuration.permanentDatabaseURL.standardizedFileURL
                 == databaseURL.standardizedFileURL else {
             throw PermanentExternalRestoreError.unsafeConfiguration
@@ -151,6 +156,8 @@ extension WealthStore {
             .restoreFailedRollbackSucceeded(category)
         case .rollbackFailed:
             .rollbackFailed
+        case .evidenceRequiresCompleteRestore:
+            .evidenceRequiresCompleteRestore
         }
     }
 }

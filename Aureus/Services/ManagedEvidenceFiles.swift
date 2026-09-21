@@ -11,6 +11,18 @@ struct ManagedEvidenceFile: Equatable, Sendable {
     let copiedAt: Date
 }
 
+struct ManagedEvidenceIdentity: Equatable, Sendable {
+    let rootDevice: Int32
+    let rootInode: UInt64
+    let fileDevice: Int32
+    let fileInode: UInt64
+}
+
+enum ManagedEvidenceReceipt: Equatable, Sendable {
+    case stagingOwned(ManagedEvidenceIdentity)
+    case prepared(ManagedEvidenceFile, ManagedEvidenceIdentity)
+}
+
 enum ManagedEvidenceFailure: Error, Equatable, Sendable {
     case invalidConfiguration, unsafePath, notRegularFile, busy, cancelled
     case tooLarge, sourceChanged, collision, readFailed, writeFailed
@@ -58,6 +70,19 @@ final class ManagedEvidenceFiles: @unchecked Sendable {
     }
 
     func copy(source: URL, cancelled: @Sendable () -> Bool = { false }) throws -> ManagedEvidenceFile {
+        try copy(source: source, documentID: nil, observer: nil, cancelled: cancelled)
+    }
+
+    /// The synchronous observer must persist prepared before returning. It is not a test checkpoint.
+    func copy(source: URL, documentID: UUID, observer: (ManagedEvidenceReceipt) throws -> Void,
+              cancelled: @Sendable () -> Bool = { false }) throws -> ManagedEvidenceFile {
+        try withoutActuallyEscaping(observer) { callback in
+            try copy(source: source, documentID: Optional(documentID), observer: callback, cancelled: cancelled)
+        }
+    }
+
+    private func copy(source: URL, documentID: UUID?, observer: ((ManagedEvidenceReceipt) throws -> Void)?,
+                      cancelled: @Sendable () -> Bool) throws -> ManagedEvidenceFile {
         guard writer.try() else { throw ManagedEvidenceFileError(reason: .busy, artifact: nil) }
         defer { writer.unlock() }
         var directory: Descriptor?
@@ -80,7 +105,7 @@ final class ManagedEvidenceFiles: @unchecked Sendable {
             }
             try configuration.checkpoint(.openedSource)
             try checkSource(source, initial: initial, input: input)
-            let id = configuration.makeID()
+            let id = documentID ?? configuration.makeID()
             let name = id.uuidString.lowercased()
             pending = "." + name + ".pending"
             final = name + ".original"
@@ -90,6 +115,9 @@ final class ManagedEvidenceFiles: @unchecked Sendable {
             let output = Descriptor(fd)
             staging = output
             owned = try Stamp(fd)
+            let receiptIdentity = ManagedEvidenceIdentity(rootDevice: rootIdentity.device, rootInode: rootIdentity.inode,
+                fileDevice: owned!.device, fileInode: owned!.inode)
+            try observer?(.stagingOwned(receiptIdentity))
             var count: Int64 = 0
             var hash = SHA256()
             var buffer = [UInt8](repeating: 0, count: configuration.chunkBytes)
@@ -130,6 +158,11 @@ final class ManagedEvidenceFiles: @unchecked Sendable {
             }
             try checkDigest(staged, bytes: count, hash: digest)
             try staged.closeChecked()
+            let preparedTime = observer == nil ? Date(timeIntervalSince1970: 0)
+                : Date(timeIntervalSince1970: Double(try EvidenceValue.milliseconds(configuration.now())) / 1_000)
+            let prepared = ManagedEvidenceFile(id: id, originalFilename: source.lastPathComponent,
+                relativeReference: final, byteCount: count, sha256: digest, copiedAt: preparedTime)
+            try observer?(.prepared(prepared, receiptIdentity))
             try configuration.checkpoint(.beforePublish)
             try checkCancellation(cancelled)
             try checkRoot(rootIdentity)
@@ -151,6 +184,7 @@ final class ManagedEvidenceFiles: @unchecked Sendable {
             try checkDigest(published, bytes: count, hash: digest)
             try published.closeChecked()
             try parent.closeChecked()
+            if observer != nil { return prepared }
             return ManagedEvidenceFile(
                 id: id, originalFilename: source.lastPathComponent, relativeReference: final,
                 byteCount: count, sha256: digest, copiedAt: configuration.now()
@@ -187,6 +221,10 @@ final class ManagedEvidenceFiles: @unchecked Sendable {
     /// Validates a saved reference with bounded reads, without any source URL or prior instance.
     /// It does not grant a race-free external-open URL or commit Document metadata.
     func validate(_ file: ManagedEvidenceFile) throws {
+        try validate(file, expectedIdentity: nil)
+    }
+
+    func validate(_ file: ManagedEvidenceFile, expectedIdentity: ManagedEvidenceIdentity?) throws {
         do {
             try checkConfiguration()
             guard file.relativeReference == file.id.uuidString.lowercased() + ".original",
@@ -198,6 +236,13 @@ final class ManagedEvidenceFiles: @unchecked Sendable {
             let parent = try Self.openDirectory(root)
             let identity = try Stamp(parent.raw)
             let input = try Self.openRegular(at: parent.raw, name: file.relativeReference)
+            if let expectedIdentity {
+                let actual = try Stamp(input.raw)
+                guard identity.device == expectedIdentity.rootDevice, identity.inode == expectedIdentity.rootInode,
+                      actual.device == expectedIdentity.fileDevice, actual.inode == expectedIdentity.fileInode else {
+                    throw ManagedEvidenceFailure.integrityFailed
+                }
+            }
             try checkDigest(input, bytes: file.byteCount, hash: file.sha256)
             try checkRoot(identity)
             guard try Self.stamp(at: parent.raw, name: file.relativeReference).sameObject(Stamp(input.raw)) else {

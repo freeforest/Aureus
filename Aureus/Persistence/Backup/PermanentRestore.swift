@@ -44,6 +44,7 @@ enum PermanentRestoreError: Error, Equatable, Sendable {
     case replacementFailed
     case restoreFailedRollbackSucceeded(PermanentRestoreFailureCategory)
     case rollbackFailed
+    case evidenceRequiresCompleteRestore
 }
 
 extension PermanentRestoreError: LocalizedError {
@@ -71,6 +72,8 @@ extension PermanentRestoreError: LocalizedError {
             "Restore failed and the prior Permanent Store was recovered from the safety Backup."
         case .rollbackFailed:
             "Restore recovery requires manual maintenance; the safety Backup was retained."
+        case .evidenceRequiresCompleteRestore:
+            "This dataset requires a complete material-aware Restore."
         }
     }
 }
@@ -368,6 +371,8 @@ extension WealthStore {
         guard maintenanceState == .ready else {
             throw PermanentRestoreError.maintenanceUnavailable
         }
+        do { try requireFormatOneEligible() }
+        catch { throw PermanentRestoreError.evidenceRequiresCompleteRestore }
         try PermanentRestoreService.validateLiveDatabaseURL(databaseURL)
         let candidate = try PermanentRestoreService.validateCandidate(
             generationURL,
@@ -398,6 +403,10 @@ extension WealthStore {
         guard maintenanceState == .ready else {
             throw PermanentRestoreError.maintenanceUnavailable
         }
+        do {
+            try requireFormatOneEligible()
+            _ = try PermanentBackupService.validateGeneration(candidate.directoryURL, in: candidate.directoryURL.deletingLastPathComponent())
+        } catch { throw PermanentRestoreError.evidenceRequiresCompleteRestore }
         maintenanceState = .restoring
 
         var candidateStageURL: URL?

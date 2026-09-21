@@ -46,6 +46,7 @@ enum PermanentBackupError: Error, Equatable, Sendable {
     case invalidAppVersion
     case fileSystemFailure
     case retentionFailure
+    case evidenceRequiresCompleteBackup
 }
 
 struct PermanentBackupFileDigest: Equatable, Sendable {
@@ -74,6 +75,9 @@ enum PermanentBackupService {
             throw PermanentBackupError.invalidAppVersion
         }
 
+        try source.read { db in
+            guard try !EvidenceSQL.containsEvidence(db) else { throw PermanentBackupError.evidenceRequiresCompleteBackup }
+        }
         try ensureBackupRoot(backupRoot, createIfMissing: true, fileManager: fileManager)
         let createdAtText = canonicalCreatedAt(createdAt)
         let identity = generationID.uuidString.lowercased()
@@ -540,6 +544,11 @@ enum PermanentBackupService {
         expectedSchemaVersion: Int
     ) throws {
         do {
+            let reader = try readOnlyQueue(at: databaseURL)
+            defer { try? reader.close() }
+            try reader.read { db in
+                guard try !EvidenceSQL.containsEvidence(db) else { throw PermanentBackupError.evidenceRequiresCompleteBackup }
+            }
             _ = try PermanentDatabaseValidation.inspectFile(
                 databaseURL,
                 expectedSchemaVersion: expectedSchemaVersion,
@@ -755,7 +764,8 @@ extension WealthStore {
         createdAt: UTCInstant,
         generationID: UUID = UUID()
     ) throws -> PermanentBackupGeneration {
-        try PermanentBackupService.create(
+        try requireFormatOneEligible()
+        return try PermanentBackupService.create(
             from: queue,
             in: backupRoot,
             appVersion: appVersion,

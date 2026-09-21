@@ -382,6 +382,52 @@ struct ManagedEvidenceFilesTests {
         try service.validate(result)
         #expect(try FileManager.default.contentsOfDirectory(atPath: f.managed.path) == [result.relativeReference])
     }
+    @Test("Fixed ID receipts precede exclusive publication and survive validation")
+    func persistentReceiptOrdering() throws {
+        let f = try EvidenceFixture(); defer { f.remove() }
+        let id = UUID(), source = try f.source(Data([0, 1, 255]))
+        var receipts: [ManagedEvidenceReceipt] = []
+        let service = ManagedEvidenceFiles(root: f.managed, configuration: f.config)
+        let file = try service.copy(source: source, documentID: id, observer: { receipt in
+            receipts.append(receipt)
+            #expect(!FileManager.default.fileExists(atPath: f.managed.appendingPathComponent(id.uuidString.lowercased() + ".original").path))
+            #expect(FileManager.default.fileExists(atPath: f.managed.appendingPathComponent("." + id.uuidString.lowercased() + ".pending").path))
+        })
+        try #require(receipts.count == 2)
+        guard case .stagingOwned(let owned) = receipts[0], case .prepared(let prepared, let identity) = receipts[1] else {
+            Issue.record("Receipt order was not staging then prepared"); return
+        }
+        #expect(file.id == id && file == prepared && owned == identity)
+        try service.validate(file, expectedIdentity: identity)
+        let replaced = f.managed.appendingPathComponent("replacement")
+        try Data([0, 1, 255]).write(to: replaced)
+        try FileManager.default.removeItem(at: f.file(file))
+        try FileManager.default.moveItem(at: replaced, to: f.file(file))
+        #expect(throws: ManagedEvidenceFileError.self) { try service.validate(file, expectedIdentity: identity) }
+    }
+
+    @Test("A failed persistent observer prevents publication and only cleans its staging")
+    func persistentObserverFailure() throws {
+        for failPrepared in [false, true] {
+            let f = try EvidenceFixture(); defer { f.remove() }
+            let sentinel = f.managed.appendingPathComponent("unknown")
+            try Data([9]).write(to: sentinel)
+            let id = UUID(), source = try f.source(Data([1, 2]))
+            var count = 0
+            let error = try evidenceFailure {
+                try ManagedEvidenceFiles(root: f.managed, configuration: f.config).copy(source: source, documentID: id, observer: { receipt in
+                    count += 1
+                    if !failPrepared { throw EvidenceError.operationConflict }
+                    if case .prepared = receipt { throw EvidenceError.operationConflict }
+                })
+            }
+            #expect(count == (failPrepared ? 2 : 1))
+            #expect(error.artifact == nil)
+            #expect(try FileManager.default.contentsOfDirectory(atPath: f.managed.path) == ["unknown"])
+            #expect(try Data(contentsOf: sentinel) == Data([9]))
+            #expect(try Data(contentsOf: source) == Data([1, 2]))
+        }
+    }
 }
 
 private struct EvidenceFixture: Sendable {

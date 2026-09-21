@@ -227,7 +227,7 @@ struct LedgerPersistenceTests {
         let transfer = try context.transfer()
         try await store.createLedgerEntry(income)
         try await store.createLedgerEntry(transfer)
-        #expect(try await store.schemaVersion() == 6)
+        #expect(try await store.schemaVersion() == 7)
         #expect(try await store.ledgerTransactionCount() == 2)
         #expect(try await store.ledgerFinancialStorageClasses() == ["integer"])
 

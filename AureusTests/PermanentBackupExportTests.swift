@@ -14,7 +14,7 @@ struct PermanentBackupExportTests {
 
         let result = try exportGeneration(context, source: source, operation: 1)
         let exported = exportedURL(context, result: result)
-        #expect(result.schemaVersion == 6)
+        #expect(result.schemaVersion == 7)
         #expect(result.databaseByteCount == source.manifest.databaseByteCount)
         #expect(result.operationCategory == .internalGenerationExternalExport)
         #expect(try artifactNames(at: exported) == ["aureus.sqlite", "manifest.json"])
@@ -62,7 +62,7 @@ struct PermanentBackupExportTests {
             requireCurrentApplicationSchema: true
         )
 
-        #expect(inspection.schemaVersion == 6)
+        #expect(inspection.schemaVersion == 7)
         #expect(inspection.migrationIdentifiers == PermanentDatabaseValidation.migrationIdentifiers)
     }
 

@@ -16,7 +16,7 @@ struct PermanentExternalRestoreTests {
         )
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-candidate-only",
             count: 1,
             identity: 1
@@ -25,9 +25,9 @@ struct PermanentExternalRestoreTests {
 
         let result = try await performExternalRestore(context, candidate: candidate, operation: 1)
 
-        #expect(result.previousSchemaVersion == 6)
-        #expect(result.candidateSchemaVersion == 6)
-        #expect(result.finalSchemaVersion == 6)
+        #expect(result.previousSchemaVersion == 7)
+        #expect(result.candidateSchemaVersion == 7)
+        #expect(result.finalSchemaVersion == 7)
         #expect(!result.migrationRan)
         #expect(result.operationCategory == .externalGenerationRestore)
         #expect(result.databaseByteCount == candidate.manifest.databaseByteCount)
@@ -59,7 +59,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-independent",
             count: 2,
             identity: 2
@@ -83,7 +83,7 @@ struct PermanentExternalRestoreTests {
         #expect(try Data(contentsOf: sibling) == siblingBytes)
     }
 
-    @Test("Legacy schema 1 through 5 migrate forward without modifying External source", arguments: [1, 2, 3, 4, 5])
+    @Test("Legacy schema 1 through 6 migrate forward without modifying External source", arguments: [1, 2, 3, 4, 5, 6])
     func legacyForwardMigration(version: Int) async throws {
         let context = try externalRestoreContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
@@ -103,9 +103,9 @@ struct PermanentExternalRestoreTests {
         )
 
         #expect(result.candidateSchemaVersion == version)
-        #expect(result.finalSchemaVersion == 6)
+        #expect(result.finalSchemaVersion == 7)
         #expect(result.migrationRan)
-        #expect(try await context.store.schemaVersion() == 6)
+        #expect(try await context.store.schemaVersion() == 7)
         #expect(try await externalAccountIDs(context.store) == [
             "external-legacy-v\(version)-00000"
         ])
@@ -118,7 +118,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-unsupported",
             count: 1,
             identity: 20 + variant.rawValue
@@ -163,7 +163,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-manifest",
             count: 1,
             identity: 30 + variant.rawValue
@@ -206,7 +206,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-digest",
             count: 1,
             identity: 40 + variant.rawValue
@@ -244,13 +244,13 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-corrupt",
             count: 1,
             identity: 50
         )
         try Data(repeating: 0x41, count: 4_096).write(to: externalDatabaseURL(candidate))
-        try resignExternalGeneration(candidate, schemaVersion: 6)
+        try resignExternalGeneration(candidate, schemaVersion: 7)
 
         #expect(await externalRestoreError(context, candidate: candidate, operation: 50)
             == .invalidExternalCandidate(.databaseOpenOrIntegrityFailure))
@@ -263,7 +263,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-fk",
             count: 1,
             identity: 51
@@ -277,7 +277,7 @@ struct PermanentExternalRestoreTests {
                 """)
         }
         try queue.close()
-        try resignExternalGeneration(candidate, schemaVersion: 6)
+        try resignExternalGeneration(candidate, schemaVersion: 7)
 
         #expect(await externalRestoreError(context, candidate: candidate, operation: 51)
             == .invalidExternalCandidate(.foreignKeyFailure))
@@ -289,7 +289,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-third-file",
             count: 1,
             identity: 52
@@ -308,7 +308,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-symlink",
             count: 1,
             identity: 60 + variant.rawValue
@@ -359,7 +359,7 @@ struct PermanentExternalRestoreTests {
         )
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-schema-zero",
             count: 1,
             identity: 70
@@ -387,29 +387,29 @@ struct PermanentExternalRestoreTests {
         #expect(try externalFingerprint(candidate) == sourceBefore)
     }
 
-    @Test("Future schema seven is rejected by the External Restore API before staging")
-    func futureSchemaSeven() async throws {
+    @Test("Future schema eight is rejected by the External Restore API before staging")
+    func futureSchemaEight() async throws {
         let context = try externalRestoreContext()
         defer { try? FileManager.default.removeItem(at: context.root) }
         try await seedExternalAccounts(
             context.store,
-            prefix: "external-schema-seven-live",
+            prefix: "external-schema-eight-live",
             count: 1
         )
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
-            prefix: "external-schema-seven",
+            schemaVersion: 7,
+            prefix: "external-schema-eight",
             count: 1,
             identity: 77
         )
         try mutateExternalDatabase(candidate) { db in
             try db.execute(
                 sql: "UPDATE schema_metadata SET version = ? WHERE store_kind = 'permanent'",
-                arguments: [7]
+                arguments: [8]
             )
         }
-        try resignExternalGeneration(candidate, schemaVersion: 7)
+        try resignExternalGeneration(candidate, schemaVersion: 8)
         let sourceBefore = try externalFingerprint(candidate)
         let liveBefore = try await externalAccountIDs(context.store)
         let operations = ExternalTrackingRestoreOperations()
@@ -436,7 +436,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-overlap",
             count: 1,
             identity: 90 + variant.rawValue
@@ -492,7 +492,7 @@ struct PermanentExternalRestoreTests {
         try await seedExternalAccounts(context.store, prefix: "external-early-live", count: 1)
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-early-candidate",
             count: 1,
             identity: 100
@@ -524,7 +524,7 @@ struct PermanentExternalRestoreTests {
         try await seedExternalAccounts(context.store, prefix: "external-stage-live", count: 1)
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-stage-candidate",
             count: 1,
             identity: 110 + variant.rawValue
@@ -551,7 +551,7 @@ struct PermanentExternalRestoreTests {
         try await seedExternalAccounts(context.store, prefix: "external-safety-live", count: 1)
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-safety-candidate",
             count: 1,
             identity: 120
@@ -586,7 +586,7 @@ struct PermanentExternalRestoreTests {
         try await seedExternalAccounts(context.store, prefix: "external-replace-live", count: 1)
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-replace-candidate",
             count: 1,
             identity: 130
@@ -619,7 +619,7 @@ struct PermanentExternalRestoreTests {
         } else {
             candidate = try await makeExternalCandidate(
                 context,
-                schemaVersion: 6,
+                schemaVersion: 7,
                 prefix: "external-activation-candidate",
                 count: 1,
                 identity: 140 + variant.rawValue
@@ -680,7 +680,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let external = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-boundary",
             count: 1,
             identity: 160
@@ -744,7 +744,7 @@ struct PermanentExternalRestoreTests {
         try Data("preserve internal".utf8).write(to: unknownInternal)
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-retention-candidate",
             count: 1,
             identity: 170
@@ -771,7 +771,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-private-business-987654",
             count: 1,
             identity: 180
@@ -798,7 +798,7 @@ struct PermanentExternalRestoreTests {
         defer { try? FileManager.default.removeItem(at: context.root) }
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-repeat",
             count: 1,
             identity: 190
@@ -836,7 +836,7 @@ struct PermanentExternalRestoreTests {
         try Data("not a provider payload".utf8).write(to: providerLike)
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-isolation",
             count: 1,
             identity: 200
@@ -864,7 +864,7 @@ struct PermanentExternalRestoreTests {
         )
         let candidate = try await makeExternalCandidate(
             context,
-            schemaVersion: 6,
+            schemaVersion: 7,
             prefix: "external-perf-candidate",
             count: 10_000,
             identity: 900
@@ -1020,7 +1020,7 @@ private func makeExternalCandidate(
     )
     let sourcePaths = RuntimePaths.temporary(root: sourceRoot)
     let sourceQueue: DatabaseQueue
-    if schemaVersion == 6 {
+    if schemaVersion == 7 {
         let sourceStore = try WealthStore(databaseURL: sourcePaths.permanentDatabaseURL)
         try await seedExternalAccounts(sourceStore, prefix: prefix, count: count)
         return try await exportExternalGeneration(

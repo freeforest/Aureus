@@ -19,9 +19,9 @@ struct PermanentRestoreTests {
 
         let result = try await performRestore(context, candidate: candidate, operation: 1)
 
-        #expect(result.previousSchemaVersion == 6)
-        #expect(result.candidateSchemaVersion == 6)
-        #expect(result.finalSchemaVersion == 6)
+        #expect(result.previousSchemaVersion == 7)
+        #expect(result.candidateSchemaVersion == 7)
+        #expect(result.finalSchemaVersion == 7)
         #expect(!result.migrationRan)
         #expect(result.operationCategory == .internalGenerationRestore)
         #expect(try await accountIDs(context.store) == ["restore-candidate-only"])
@@ -73,7 +73,7 @@ struct PermanentRestoreTests {
         #expect(try generationAccountIDs(candidate) == ["restore-candidate-a"])
     }
 
-    @Test("Legacy schema candidates migrate forward and preserve synthetic records", arguments: [1, 2, 3, 4, 5])
+    @Test("Legacy schema candidates migrate forward and preserve synthetic records", arguments: [1, 2, 3, 4, 5, 6])
     func legacyForwardMigration(version: Int) async throws {
         let context = try restoreContext()
         try await seedAccount(context.store, id: "restore-current-v\(version)", name: "Synthetic Current v\(version)")
@@ -82,9 +82,9 @@ struct PermanentRestoreTests {
         let result = try await performRestore(context, candidate: candidate, operation: 10 + version)
 
         #expect(result.candidateSchemaVersion == version)
-        #expect(result.finalSchemaVersion == 6)
+        #expect(result.finalSchemaVersion == 7)
         #expect(result.migrationRan)
-        #expect(try await context.store.schemaVersion() == 6)
+        #expect(try await context.store.schemaVersion() == 7)
         #expect(try await accountIDs(context.store) == ["restore-legacy-v\(version)"])
     }
 
@@ -99,19 +99,19 @@ struct PermanentRestoreTests {
             generation: 20
         )
         try mutateGeneration(candidate) { db in
-            try db.execute(sql: "UPDATE schema_metadata SET version = 7 WHERE store_kind = 'permanent'")
+            try db.execute(sql: "UPDATE schema_metadata SET version = 8 WHERE store_kind = 'permanent'")
         }
-        try resignGeneration(candidate, schemaVersion: 7)
-        #expect(try PermanentBackupService.validateGeneration(
-            candidate.directoryURL,
-            in: context.paths.internalBackupDirectoryURL
-        ).manifest.schemaVersion == 7)
+        try resignGeneration(candidate, schemaVersion: 8)
+        #expect(throws: PermanentBackupError.self) {
+            _ = try PermanentBackupService.validateGeneration(candidate.directoryURL, in: context.paths.internalBackupDirectoryURL)
+        }
 
         let error = await restoreError(context, candidate: candidate, operation: 20)
 
-        #expect(error == .unsupportedCandidateSchema)
+        #expect(error == .candidateValidationFailed)
         #expect(try await accountIDs(context.store) == ["restore-future-current"])
-        #expect(try validGenerationCount(context) == 1)
+        #expect(try validGenerationCount(context) == 0)
+        #expect(try ownedStageNames(context).isEmpty)
     }
 
     @Test("Tampered candidate is rejected before safety Backup or replacement")
@@ -247,7 +247,7 @@ struct PermanentRestoreTests {
 
         #expect(error == .restoreFailedRollbackSucceeded(.migration))
         #expect(try await accountIDs(context.store) == ["restore-migration-old"])
-        #expect(try await context.store.schemaVersion() == 6)
+        #expect(try await context.store.schemaVersion() == 7)
         #expect(await context.store.maintenanceState == .ready)
         #expect(!(try await accountIDs(context.store)).contains("restore-migration-bad"))
     }
@@ -290,7 +290,7 @@ struct PermanentRestoreTests {
         try mutateGeneration(candidate) { db in
             try db.execute(sql: "DROP TABLE goals")
         }
-        try resignGeneration(candidate, schemaVersion: 6)
+        try resignGeneration(candidate, schemaVersion: 7)
         _ = try PermanentBackupService.validateGeneration(
             candidate.directoryURL,
             in: context.paths.internalBackupDirectoryURL

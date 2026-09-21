@@ -1,3 +1,4 @@
+import Foundation
 import GRDB
 
 enum WealthMigrationError: Error, Equatable {
@@ -11,6 +12,7 @@ enum DatabaseMigrations {
     static let permanentV4 = "permanent_v4_ledger_semantic_fingerprint"
     static let permanentV5 = "permanent_v5_dashboard_snapshots"
     static let permanentV6 = "permanent_v6_portfolio"
+    static let permanentV7 = "permanent_v7_evidence_import"
     static let cacheV1 = "cache_v1_foundation"
     static let cacheV2 = "cache_v2_market_data"
 
@@ -755,7 +757,81 @@ enum DatabaseMigrations {
                 """)
             try db.execute(sql: "UPDATE schema_metadata SET version = 6 WHERE store_kind = 'permanent'")
         }
+        migrator.registerMigration(permanentV7) { db in
+            for statement in evidenceTables { try db.execute(sql: statement.sql) }
+            for target in [EvidenceTarget.ledger(UUID()), .container(UUID()), .portfolioActivity(UUID())] {
+                try db.execute(sql: "CREATE INDEX \(target.linkTable)_target ON \(target.linkTable)(\(target.column))")
+            }
+            try db.execute(sql: "UPDATE schema_metadata SET version = 7 WHERE store_kind = 'permanent'")
+        }
         return migrator
+    }
+
+    // Fixed schema declarations are also the validator's exact constraint contract.
+    static var evidenceTables: [(name: String, sql: String)] {
+        func uuid(_ name: String) -> String {
+            "length(\(name)) = 36 AND \(name) = upper(\(name)) AND substr(\(name),9,1) = '-' AND substr(\(name),14,1) = '-' AND substr(\(name),19,1) = '-' AND substr(\(name),24,1) = '-' AND length(replace(\(name),'-','')) = 32 AND replace(\(name),'-','') NOT GLOB '*[^0-9A-F]*'"
+        }
+        let hash = "length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'"
+        let filename = "length(original_filename) > 0 AND instr(original_filename, char(0)) = 0"
+        let documents = """
+            CREATE TABLE evidence_documents (
+                id TEXT PRIMARY KEY NOT NULL CHECK (\(uuid("id"))),
+                original_filename TEXT NOT NULL CHECK (\(filename)),
+                relative_reference TEXT NOT NULL UNIQUE CHECK (relative_reference = lower(id) || '.original'),
+                byte_count INTEGER NOT NULL CHECK (typeof(byte_count) = 'integer' AND byte_count >= 0),
+                sha256 TEXT NOT NULL CHECK (\(hash)),
+                copied_at_ms INTEGER NOT NULL CHECK (typeof(copied_at_ms) = 'integer'),
+                registered_at_ms INTEGER NOT NULL CHECK (typeof(registered_at_ms) = 'integer')
+            )
+            """
+        var tables = [(name: "evidence_documents", sql: documents)]
+        for target in [EvidenceTarget.ledger(UUID()), .container(UUID()), .portfolioActivity(UUID())] {
+            tables.append((target.linkTable, """
+                CREATE TABLE \(target.linkTable) (
+                    document_id TEXT NOT NULL REFERENCES evidence_documents(id) ON DELETE RESTRICT CHECK (\(uuid("document_id"))),
+                    \(target.column) TEXT NOT NULL REFERENCES \(target.table)(id) ON DELETE CASCADE CHECK (\(uuid(target.column))),
+                    link_id TEXT NOT NULL UNIQUE CHECK (\(uuid("link_id"))),
+                    created_at_ms INTEGER NOT NULL CHECK (typeof(created_at_ms) = 'integer'),
+                    meaning TEXT NOT NULL CHECK (instr(meaning, char(0)) = 0),
+                    PRIMARY KEY (document_id, \(target.column))
+                )
+                """))
+        }
+        func inode(_ name: String) -> String {
+            "length(\(name)) BETWEEN 1 AND 20 AND \(name) NOT GLOB '*[^0-9]*' AND (\(name) = '0' OR substr(\(name),1,1) != '0') AND (length(\(name)) < 20 OR \(name) <= '18446744073709551615')"
+        }
+        tables.append(("evidence_import_operations", """
+            CREATE TABLE evidence_import_operations (
+                operation_id TEXT PRIMARY KEY NOT NULL CHECK (\(uuid("operation_id"))),
+                document_id TEXT NOT NULL UNIQUE CHECK (\(uuid("document_id"))),
+                ledger_entry_id TEXT CHECK (ledger_entry_id IS NULL OR (\(uuid("ledger_entry_id")))),
+                container_id TEXT CHECK (container_id IS NULL OR (\(uuid("container_id")))),
+                portfolio_activity_id TEXT CHECK (portfolio_activity_id IS NULL OR (\(uuid("portfolio_activity_id")))),
+                intended_meaning TEXT NOT NULL CHECK (instr(intended_meaning, char(0)) = 0),
+                original_filename TEXT NOT NULL CHECK (\(filename)),
+                relative_reference TEXT NOT NULL UNIQUE CHECK (relative_reference = lower(document_id) || '.original'),
+                registered_at_ms INTEGER NOT NULL CHECK (typeof(registered_at_ms) = 'integer'),
+                updated_at_ms INTEGER NOT NULL CHECK (typeof(updated_at_ms) = 'integer'),
+                state TEXT NOT NULL CHECK (state IN ('registered','stagingOwned','prepared','committed','cancelled','recoveryRequired')),
+                root_device INTEGER CHECK (root_device IS NULL OR (typeof(root_device) = 'integer' AND root_device BETWEEN -2147483648 AND 2147483647)),
+                root_inode TEXT CHECK (root_inode IS NULL OR (\(inode("root_inode")))),
+                file_device INTEGER CHECK (file_device IS NULL OR (typeof(file_device) = 'integer' AND file_device BETWEEN -2147483648 AND 2147483647)),
+                file_inode TEXT CHECK (file_inode IS NULL OR (\(inode("file_inode")))),
+                byte_count INTEGER CHECK (byte_count IS NULL OR (typeof(byte_count) = 'integer' AND byte_count >= 0)),
+                sha256 TEXT CHECK (sha256 IS NULL OR (\(hash))),
+                copied_at_ms INTEGER CHECK (copied_at_ms IS NULL OR typeof(copied_at_ms) = 'integer'),
+                last_error TEXT CHECK (last_error IS NULL OR last_error IN ('disabled','invalidValue','unsafeRoot','ownerConflict','maintenanceUnavailable','targetMissing','operationConflict','materialUnavailable','relationshipChanged','inconsistentRegistration','recoveryRequired','legacyFormatUnsupported')),
+                CHECK ((ledger_entry_id IS NOT NULL) + (container_id IS NOT NULL) + (portfolio_activity_id IS NOT NULL) = 1),
+                CHECK ((root_device IS NULL AND root_inode IS NULL AND file_device IS NULL AND file_inode IS NULL)
+                    OR (root_device IS NOT NULL AND root_inode IS NOT NULL AND file_device IS NOT NULL AND file_inode IS NOT NULL)),
+                CHECK ((byte_count IS NULL AND sha256 IS NULL AND copied_at_ms IS NULL)
+                    OR (byte_count IS NOT NULL AND sha256 IS NOT NULL AND copied_at_ms IS NOT NULL)),
+                CHECK (state != 'stagingOwned' OR root_device IS NOT NULL),
+                CHECK (state NOT IN ('prepared','committed') OR (root_device IS NOT NULL AND byte_count IS NOT NULL))
+            )
+            """))
+        return tables
     }
 
     private static func backfillNormalizedNames(in db: Database, table: String) throws {

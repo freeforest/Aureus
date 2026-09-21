@@ -10,18 +10,30 @@ actor WealthStore {
     let diagnostics: DataLifecycleDiagnostics
     private(set) var lastMigrationSafetyResult: PermanentMigrationSafetyResult?
     var maintenanceState: PermanentRestoreMaintenanceState = .ready
+    let datasetAccess: PermanentDatasetAccess
+    let evidenceFilesService: ManagedEvidenceFiles?
 
     init(
         databaseURL: URL,
         migrationSafetyConfiguration: PermanentMigrationSafetyConfiguration? = nil,
-        diagnostics: DataLifecycleDiagnostics = .disabled
+        diagnostics: DataLifecycleDiagnostics = .disabled,
+        evidenceConfiguration: EvidenceConfiguration? = nil
     ) throws {
         self.databaseURL = databaseURL
+        self.datasetAccess = try PermanentDatasetAccess(database: databaseURL, evidence: evidenceConfiguration,
+            backupRoot: migrationSafetyConfiguration?.backupRoot)
+        self.evidenceFilesService = evidenceConfiguration.map { ManagedEvidenceFiles(root: $0.root, configuration: $0.files) }
         self.queue = try DatabaseQueueFactory.open(at: databaseURL)
         self.migrator = DatabaseMigrations.permanentMigrator()
         self.migrationSafetyConfiguration = migrationSafetyConfiguration
         self.diagnostics = diagnostics
         do {
+            if evidenceConfiguration == nil, try queue.read({ try EvidenceSQL.containsEvidence($0) }) {
+                throw EvidenceError.disabled
+            }
+            if case .legacy = try PermanentMigrationSafetyService.classify(queue, migrator: migrator) {
+                try datasetAccess.requireEmptyEvidenceRoot()
+            }
             self.lastMigrationSafetyResult = try PermanentMigrationSafetyService.migrate(
             queue,
             databaseURL: databaseURL,
@@ -32,6 +44,7 @@ actor WealthStore {
                 diagnostics.record(.init(operation: .permanentMigration, outcome: .succeeded, errorCategory: .none))
             }
         } catch {
+            try? queue.close()
             diagnostics.record(.init(operation: .permanentMigration, outcome: .failed, errorCategory: Self.migrationDiagnosticCategory(error)))
             throw error
         }
@@ -39,6 +52,9 @@ actor WealthStore {
 
     func migrate() throws {
         do {
+            if case .legacy = try PermanentMigrationSafetyService.classify(queue, migrator: migrator) {
+                try datasetAccess.requireEmptyEvidenceRoot()
+            }
             lastMigrationSafetyResult = try PermanentMigrationSafetyService.migrate(
             queue,
             databaseURL: databaseURL,

@@ -87,7 +87,7 @@ struct PermanentBackupTests {
         ]))
         #expect(generation.manifest.backupFormatVersion == 1)
         #expect(generation.manifest.appVersion == backupTestAppVersion)
-        #expect(generation.manifest.schemaVersion == 6)
+        #expect(generation.manifest.schemaVersion == 7)
     }
 
     @Test("Manifest excludes business values Provider Credential and absolute paths")
