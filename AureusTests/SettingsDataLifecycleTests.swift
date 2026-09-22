@@ -690,23 +690,41 @@ struct SettingsDataLifecycleTests {
             ids: [lifecycleUUID(70), lifecycleUUID(71), lifecycleUUID(72)],
             operations: operations
         )
+        var restoreHasFinished = true
         defer {
-            operations.allowCopyToFinish.signal()
-            try? FileManager.default.removeItem(at: context.root)
+            operations.releaseCopy()
+            if restoreHasFinished {
+                try? FileManager.default.removeItem(at: context.root)
+            }
         }
         let model = context.model()
         #expect(await model.createBackup())
         let identity = try #require(model.generations.first?.id)
         #expect(model.selectGeneration(identity))
-        let restore = Task { await model.restoreSelected(confirmed: true) }
-        for _ in 0..<1_000 where !operations.copyHasStarted {
-            await Task.yield()
+        let completion = RestoreTestEvent()
+        restoreHasFinished = false
+        let restore = Task {
+            let result = await model.restoreSelected(confirmed: true)
+            completion.signal()
+            return result
         }
-        #expect(operations.copyHasStarted)
-        #expect(model.state == .restoring)
-        #expect(!(await model.createBackup()))
-        operations.allowCopyToFinish.signal()
+        let arrived = await operations.arrival.wait(timeout: .seconds(10))
+        #expect(arrived, "Restore did not reach the real copy boundary before the deadline")
+        if arrived {
+            #expect(operations.copyHasStarted)
+            #expect(operations.copyIsBlocked)
+            #expect(model.state == .restoring)
+            #expect(!(await model.createBackup()))
+            #expect(operations.copyIsBlocked)
+        }
+        operations.releaseCopy()
+        guard await completion.wait(timeout: .seconds(20)) else {
+            Issue.record("Restore task did not finish; synthetic fixture retained for investigation")
+            return
+        }
         #expect(await restore.value)
+        restoreHasFinished = true
+        #expect(!operations.releaseTimedOut)
     }
 
     @Test("Errors and rows expose no absolute path or financial content")
@@ -1081,20 +1099,86 @@ private final class InvalidatingRestoreOperations: PermanentRestoreFileOperation
 }
 
 private final class BlockingRestoreOperations: PermanentRestoreFileOperations, @unchecked Sendable {
-    let allowCopyToFinish = DispatchSemaphore(value: 0)
+    let arrival = RestoreTestEvent()
     private let live = LocalPermanentRestoreFileOperations()
-    private let lock = NSLock()
+    private let condition = NSCondition()
     private var started = false
+    private var released = false
+    private var timedOut = false
 
-    var copyHasStarted: Bool { lock.withLock { started } }
+    var copyHasStarted: Bool { condition.withLock { started } }
+    var copyIsBlocked: Bool { condition.withLock { started && !released } }
+    var releaseTimedOut: Bool { condition.withLock { timedOut } }
+
+    func releaseCopy() {
+        condition.lock()
+        released = true
+        condition.broadcast()
+        condition.unlock()
+    }
 
     func copyValidatedDatabase(from sourceURL: URL, to stagingURL: URL) throws {
         try live.copyValidatedDatabase(from: sourceURL, to: stagingURL)
-        lock.withLock { started = true }
-        allowCopyToFinish.wait()
+        condition.lock()
+        defer { condition.unlock() }
+        started = true
+        arrival.signal()
+        let deadline = Date().addingTimeInterval(30)
+        while !released {
+            if !condition.wait(until: deadline), !released {
+                timedOut = true
+                released = true
+                throw CocoaError(.userCancelled)
+            }
+        }
     }
 
     func atomicallyReplaceDatabase(at databaseURL: URL, with stagingURL: URL) throws {
         try live.atomicallyReplaceDatabase(at: databaseURL, with: stagingURL)
+    }
+}
+
+/// A single-consumer event used only by the blocking Restore test. Resolution is
+/// remembered, so signal-before-wait and wait-before-signal cannot lose a wakeup.
+private final class RestoreTestEvent: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: Bool?
+    private var waiter: CheckedContinuation<Bool, Never>?
+
+    func signal() { resolve(true) }
+
+    func wait(timeout: Duration) async -> Bool {
+        let timer = Task {
+            do {
+                try await Task.sleep(for: timeout)
+                resolve(false)
+            } catch { /* Cancellation ends the timeout worker. */ }
+        }
+        let value = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                let resolved = lock.withLock { () -> Bool? in
+                    if let result { return result }
+                    precondition(waiter == nil)
+                    waiter = continuation
+                    return nil
+                }
+                if let resolved { continuation.resume(returning: resolved) }
+            }
+        } onCancel: {
+            self.resolve(false)
+        }
+        timer.cancel()
+        await timer.value
+        return value
+    }
+
+    private func resolve(_ value: Bool) {
+        let continuation = lock.withLock { () -> CheckedContinuation<Bool, Never>? in
+            guard result == nil else { return nil }
+            result = value
+            defer { waiter = nil }
+            return waiter
+        }
+        continuation?.resume(returning: value)
     }
 }
