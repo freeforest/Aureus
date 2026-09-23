@@ -156,7 +156,10 @@ extension WealthStore {
     }
 
     func updateLedgerEntry(_ entry: LedgerEntry) throws {
-        try queue.write { db in
+        try queue.write { db in try Self.updateLedgerEntry(entry, in: db) }
+    }
+
+    static func updateLedgerEntry(_ entry: LedgerEntry, in db: Database) throws {
             guard try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ledger_transactions WHERE id = ?", arguments: [entry.id.uuidString]) == 1 else {
                 throw LedgerPersistenceError.transactionNotFound
             }
@@ -175,11 +178,11 @@ extension WealthStore {
             try db.execute(sql: "DELETE FROM ledger_postings WHERE transaction_id = ?", arguments: [entry.id.uuidString])
             try db.execute(sql: "DELETE FROM ledger_transaction_tags WHERE transaction_id = ?", arguments: [entry.id.uuidString])
             try Self.insertLedgerChildren(entry, in: db)
-        }
     }
 
     func deleteLedgerEntry(id: UUID) throws {
         try queue.write { db in
+            try LedgerCorrectionSQL.deletionContext(db, id: id)
             try db.execute(sql: "DELETE FROM ledger_transactions WHERE id = ?", arguments: [id.uuidString])
             guard db.changesCount == 1 else { throw LedgerPersistenceError.transactionNotFound }
         }

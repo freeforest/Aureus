@@ -12,6 +12,10 @@ actor WealthStore {
     var maintenanceState: PermanentRestoreMaintenanceState = .ready
     let datasetAccess: PermanentDatasetAccess
     let evidenceFilesService: ManagedEvidenceFiles?
+    let ledgerEditStoreID = UUID()
+    var ledgerEditEpoch = UUID()
+
+    func invalidateLedgerEditTokens() { ledgerEditEpoch = UUID() }
 
     init(
         databaseURL: URL,

@@ -13,6 +13,7 @@ enum DatabaseMigrations {
     static let permanentV5 = "permanent_v5_dashboard_snapshots"
     static let permanentV6 = "permanent_v6_portfolio"
     static let permanentV7 = "permanent_v7_evidence_import"
+    static let permanentV8 = "permanent_v8_ledger_correction_history"
     static let cacheV1 = "cache_v1_foundation"
     static let cacheV2 = "cache_v2_market_data"
 
@@ -763,6 +764,10 @@ enum DatabaseMigrations {
                 try db.execute(sql: "CREATE INDEX \(target.linkTable)_target ON \(target.linkTable)(\(target.column))")
             }
             try db.execute(sql: "UPDATE schema_metadata SET version = 7 WHERE store_kind = 'permanent'")
+        }
+        migrator.registerMigration(permanentV8) { db in
+            for (_, statement) in LedgerCorrectionSQL.declarations { try db.execute(sql: statement) }
+            try db.execute(sql: "UPDATE schema_metadata SET version = 8 WHERE store_kind = 'permanent'")
         }
         return migrator
     }

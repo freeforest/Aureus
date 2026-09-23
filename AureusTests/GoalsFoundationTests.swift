@@ -563,12 +563,12 @@ struct GoalPersistenceTests {
         }
     }
 
-    @Test("Goal schema remains permanent version 7 with INTEGER authority and no REAL column")
+    @Test("Goal schema remains permanent version 8 with INTEGER authority and no REAL column")
     func schemaBoundary() async throws {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
-        #expect(try await store.schemaVersion() == 7)
+        #expect(try await store.schemaVersion() == 8)
         let queue = await store.queue
         let declarations = try await queue.read { db in
             try Row.fetchAll(db, sql: "PRAGMA table_info(goals)").map { row -> (String, String) in

@@ -87,7 +87,7 @@ struct PermanentBackupTests {
         ]))
         #expect(generation.manifest.backupFormatVersion == 1)
         #expect(generation.manifest.appVersion == backupTestAppVersion)
-        #expect(generation.manifest.schemaVersion == 7)
+        #expect(generation.manifest.schemaVersion == 8)
     }
 
     @Test("Manifest excludes business values Provider Credential and absolute paths")
@@ -445,7 +445,7 @@ struct PermanentBackupTests {
         #expect(hashAfter == hashBefore)
         #expect(try await context.store.isolationSentinels() == recordsBefore)
         #expect(try await context.store.schemaVersion() == schemaBefore)
-        #expect(schemaBefore == 7)
+        #expect(schemaBefore == 8)
     }
 
     @Test("Market Cache and key-like sentinels remain adjacent and excluded")

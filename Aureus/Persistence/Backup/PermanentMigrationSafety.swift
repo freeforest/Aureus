@@ -96,7 +96,7 @@ struct PermanentDatabaseInspection: Equatable, Sendable {
 }
 
 enum PermanentDatabaseValidation {
-    static let currentSchemaVersion = 7
+    static let currentSchemaVersion = 8
 
     static let migrationIdentifiers = [
         DatabaseMigrations.permanentV1,
@@ -105,7 +105,8 @@ enum PermanentDatabaseValidation {
         DatabaseMigrations.permanentV4,
         DatabaseMigrations.permanentV5,
         DatabaseMigrations.permanentV6,
-        DatabaseMigrations.permanentV7
+        DatabaseMigrations.permanentV7,
+        DatabaseMigrations.permanentV8
     ]
 
     static let requiredPermanentTables: Set<String> = [
@@ -140,7 +141,8 @@ enum PermanentDatabaseValidation {
         "portfolio_nav_snapshots",
         "portfolio_nav_snapshot_items",
         "evidence_documents", "evidence_ledger_links", "evidence_container_links",
-        "evidence_portfolio_activity_links", "evidence_import_operations"
+        "evidence_portfolio_activity_links", "evidence_import_operations",
+        "ledger_correction_history"
     ]
 
     static func inspectFile(
@@ -213,7 +215,8 @@ enum PermanentDatabaseValidation {
                       migrations == Array(migrationIdentifiers.prefix(schemaVersion)) else {
                     throw PermanentDatabaseValidationFailure.schema
                 }
-                if schemaVersion == currentSchemaVersion { try EvidenceSQL.validateSchema(db) }
+                if schemaVersion >= 7 { try EvidenceSQL.validateSchema(db) }
+                if schemaVersion >= 8 { try LedgerCorrectionSQL.validateSchema(db) }
                 if requireCurrentApplicationSchema {
                     guard schemaVersion == currentSchemaVersion else {
                         throw PermanentDatabaseValidationFailure.schema

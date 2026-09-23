@@ -218,10 +218,10 @@ struct SettingsDataLifecycleTests {
         #expect(model.selectedGenerationID == identity)
         #expect(model.canExport)
         let result = try #require(model.externalExportResult)
-        #expect(result.schemaVersion == 7)
+        #expect(result.schemaVersion == 8)
         #expect(result.databaseByteCount > 0)
         #expect(result.operationCategory == .internalGenerationExternalExport)
-        #expect(model.externalExportResultLabel == "External Backup export completed: schema 7, \(result.databaseByteCount) bytes.")
+        #expect(model.externalExportResultLabel == "External Backup export completed: schema 8, \(result.databaseByteCount) bytes.")
 
         let externalGenerations = try FileManager.default.contentsOfDirectory(
             at: context.destination,
@@ -383,13 +383,13 @@ struct SettingsDataLifecycleTests {
         #expect(operationID != safetyID)
         #expect(model.operationMessage == "External Backup Restore Completed")
         #expect(model.externalRestoreResult?.sourceSchemaVersion == 3)
-        #expect(model.externalRestoreResult?.finalSchemaVersion == 7)
+        #expect(model.externalRestoreResult?.finalSchemaVersion == 8)
         #expect(model.externalRestoreResult?.migrationRan == true)
         #expect(model.externalRestoreResult?.operationCategory == .externalGenerationRestore)
-        #expect(model.externalRestoreResultLabel == "External Backup Restore completed: source schema 3, final schema 7, 4096 bytes.")
+        #expect(model.externalRestoreResultLabel == "External Backup Restore completed: source schema 3, final schema 8, 4096 bytes.")
     }
 
-    @Test("External Restore migration presentation covers every supported legacy schema", arguments: [1, 2, 3, 4, 5, 6])
+    @Test("External Restore migration presentation covers every supported legacy schema", arguments: [1, 2, 3, 4, 5, 6, 7])
     @MainActor
     func externalRestoreLegacyPresentation(schemaVersion: Int) async throws {
         let context = try lifecycleContext(ids: [lifecycleUUID(133), lifecycleUUID(134)])
@@ -404,10 +404,10 @@ struct SettingsDataLifecycleTests {
         await model.load()
         #expect(await model.restoreExternal(from: context.destination))
         #expect(model.externalRestoreResult?.sourceSchemaVersion == schemaVersion)
-        #expect(model.externalRestoreResult?.finalSchemaVersion == 7)
+        #expect(model.externalRestoreResult?.finalSchemaVersion == 8)
         #expect(model.externalRestoreResult?.migrationRan == true)
         #expect(model.externalRestoreResult?.operationCategory == .externalGenerationRestore)
-        #expect(model.externalRestoreResultLabel == "External Backup Restore completed: source schema \(schemaVersion), final schema 7, 4096 bytes.")
+        #expect(model.externalRestoreResultLabel == "External Backup Restore completed: source schema \(schemaVersion), final schema 8, 4096 bytes.")
     }
 
     @Test("Live External Restore retains the source and publishes only the internal safety generation")
@@ -464,8 +464,8 @@ struct SettingsDataLifecycleTests {
             $0.directoryURL.lastPathComponent != internalIdentity
         })
         #expect(try lifecycleAccountNames(in: safety).contains("Synthetic Settings External Current"))
-        #expect(model.externalRestoreResult?.sourceSchemaVersion == 7)
-        #expect(model.externalRestoreResult?.finalSchemaVersion == 7)
+        #expect(model.externalRestoreResult?.sourceSchemaVersion == 8)
+        #expect(model.externalRestoreResult?.finalSchemaVersion == 8)
         #expect(model.externalRestoreResult?.migrationRan == false)
         #expect(model.externalRestoreResult?.operationCategory == .externalGenerationRestore)
 
@@ -982,7 +982,7 @@ private final class BlockingLifecycleExportClient: @unchecked Sendable {
         }
         return PermanentBackupExportResult(
             exportedGenerationIdentity: "synthetic-export",
-            schemaVersion: 7,
+            schemaVersion: 8,
             databaseByteCount: 1,
             operationCategory: .internalGenerationExternalExport
         )
@@ -998,13 +998,13 @@ private final class BlockingLifecycleExportClient: @unchecked Sendable {
 }
 
 private func lifecycleExternalRestoreResult(
-    candidateSchema: Int = 7,
+    candidateSchema: Int = 8,
     migrationRan: Bool = false
 ) -> PermanentExternalRestoreResult {
     PermanentExternalRestoreResult(
-        previousSchemaVersion: 7,
+        previousSchemaVersion: 8,
         candidateSchemaVersion: candidateSchema,
-        finalSchemaVersion: 7,
+        finalSchemaVersion: 8,
         migrationRan: migrationRan,
         safetyGenerationIdentity: "synthetic-safety",
         databaseByteCount: 4_096,
