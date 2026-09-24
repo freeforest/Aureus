@@ -316,6 +316,8 @@ struct LedgerCorrectionFeatureTests {
         #expect(model.editLoadState == .ready)
         #expect(model.draft.categoryID == category.id)
         #expect(model.draft.tagIDs == [tag.id])
+        #expect(model.formCategories.contains(where: { $0.id == category.id }))
+        #expect(model.formTags.contains(where: { $0.id == tag.id }))
         if branch == "note" { model.draft.note = "Synthetic changed note" }
         if branch == "description" {
             model.draft.description = "Synthetic important description"
@@ -425,6 +427,56 @@ struct LedgerCorrectionFeatureTests {
         let requests = await probe.requests
         #expect(requests.count == 2 && requests[0].operationID != requests[1].operationID)
         #expect(try await f.store.fetchLedgerEntries().first?.description == "Synthetic new request")
+    }
+
+    @Test("New FX timestamp and the entire candidate stay fixed across a precommit retry")
+    func newFXRequestIsFrozenAcrossRetry() async throws {
+        let f = try FeatureFixture(); defer { f.remove() }
+        let original = try await f.seedEntry(mode: "USD")
+        let probe = FeaturePrecommitProbe()
+        let clock = FeatureMutableClock(f.clock.instant)
+        let model = LedgerFeatureModel(store: f.store, clock: clock,
+            correctionWriter: { request in try await probe.writeFailingFirst(request, store: f.store) })
+        await model.load(); await model.beginEdit(id: original.id)
+        model.draft.sourceFXRate = "7.50"
+        model.correctionReason = "Synthetic new FX retry"
+        await model.save()
+        clock.set(UTCInstant(millisecondsSince1970: f.clock.instant.millisecondsSince1970 + 100_000))
+        await model.save()
+        let requests = await probe.requests
+        #expect(requests.count == 2)
+        let first = try #require(requests.first), second = try #require(requests.last)
+        #expect(first.operationID == second.operationID && first.expected == second.expected)
+        #expect(first.reason == second.reason && first.occurredAt == second.occurredAt)
+        #expect(try LedgerCorrectionEncoding.data(LedgerCorrectionEncoding.Candidate(first.candidate))
+            == LedgerCorrectionEncoding.data(LedgerCorrectionEncoding.Candidate(second.candidate)))
+        #expect(first.candidate.primaryPosting?.valuation.fetchedAt == f.clock.instant)
+        #expect(first.occurredAt == f.clock.instant)
+        let current = try #require(await f.store.fetchLedgerEntries().first)
+        #expect(current.primaryPosting?.valuation.fetchedAt == f.clock.instant)
+        #expect(current.recordedAt == original.recordedAt)
+        #expect(try await f.store.ledgerCorrectionHistory(id: original.id).count == 1)
+    }
+
+    @Test("The actual read-only history formatter distinguishes a container-only correction")
+    func historyFormatterShowsStableContainerIDs() async throws {
+        let f = try FeatureFixture(); defer { f.remove() }
+        let original = try await f.seedEntry()
+        let source = try #require(original.primaryPosting)
+        let moved = try LedgerPosting(id: source.id, role: source.role,
+            containerID: f.context.target.id, valuation: source.valuation)
+        let changed = try LedgerEntry(id: original.id, kind: original.kind,
+            civilDate: original.civilDate, recordedAt: original.recordedAt,
+            description: original.description, payee: original.payee,
+            category: original.category, tags: original.tags, postings: [moved],
+            note: original.note, importFingerprint: original.importFingerprint)
+        let before = LedgerView.historyProjection(LedgerCorrectionProjection(original))
+        let after = LedgerView.historyProjection(LedgerCorrectionProjection(changed))
+        #expect(before.contains(f.context.source.id.uuidString))
+        #expect(after.contains(f.context.target.id.uuidString))
+        #expect(!before.contains(f.context.target.id.uuidString))
+        #expect(!after.contains(f.context.source.id.uuidString))
+        #expect(before != after)
     }
 }
 

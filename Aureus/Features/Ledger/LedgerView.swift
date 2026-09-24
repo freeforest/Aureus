@@ -291,13 +291,13 @@ struct LedgerView: View {
         return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(instant.millisecondsSince1970) / 1000))
     }
 
-    private static func historyProjection(_ value: LedgerCorrectionProjection) -> String {
+    static func historyProjection(_ value: LedgerCorrectionProjection) -> String {
         let header = "\(value.civilDate.description) · \(value.kind.title) · \(value.description)"
             + (value.payee.map { " · \($0)" } ?? "")
         let postings = value.postings.map { posting in
             let fx = posting.valuation
             let rate = NSDecimalNumber(decimal: fx.rate.decimal).stringValue
-            return "\(posting.role.rawValue): \(money(fx.original)) × \(rate) "
+            return "\(posting.role.rawValue), container \(posting.containerID.uuidString): \(money(fx.original)) × \(rate) "
                 + "= \(money(fx.convertedCNY)) CNY; source \(fx.providerIdentifier), "
                 + "reference \(fx.referenceDate.description), FX fetched \(historyTime(fx.fetchedAt)), "
                 + "manual \(fx.isManualOverride), stale \(fx.isStale)"
@@ -526,12 +526,12 @@ private struct LedgerEntryForm: View {
                 } else {
                     Picker("Category", selection: $model.draft.categoryID) {
                         Text("None").tag(nil as UUID?)
-                        ForEach(model.categories) { Text($0.name).tag($0.id as UUID?) }
+                        ForEach(model.formCategories) { Text($0.name).tag($0.id as UUID?) }
                     }.accessibilityIdentifier("ledger.form.category")
                 }
-                if !model.tags.isEmpty {
+                if !model.formTags.isEmpty {
                     Text("Tags")
-                    ForEach(model.tags) { tag in
+                    ForEach(model.formTags) { tag in
                         Toggle(tag.name, isOn: Binding(get: { model.draft.tagIDs.contains(tag.id) }, set: { value in if value { model.draft.tagIDs.insert(tag.id) } else { model.draft.tagIDs.remove(tag.id) } }))
                             .accessibilityIdentifier("ledger.form.tag.\(tag.id.uuidString)")
                     }

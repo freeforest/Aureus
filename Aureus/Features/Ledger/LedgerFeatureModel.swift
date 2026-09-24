@@ -216,6 +216,24 @@ final class LedgerFeatureModel {
         requiresEditReload = false
     }
 
+    var formCategories: [Category] {
+        guard case .edit = formMode, let selected = editContext?.entry.category else { return categories }
+        var choices = categories
+        if let index = choices.firstIndex(where: { $0.id == selected.id }) { choices[index] = selected }
+        else { choices.append(selected) }
+        return choices
+    }
+
+    var formTags: [Tag] {
+        guard case .edit = formMode, let selected = editContext?.entry.tags else { return tags }
+        var choices = tags
+        for tag in selected {
+            if let index = choices.firstIndex(where: { $0.id == tag.id }) { choices[index] = tag }
+            else { choices.append(tag) }
+        }
+        return choices
+    }
+
     var needsCorrectionReason: Bool {
         guard case .edit = formMode, let context = editContext,
               let candidate = try? makeEntry() else { return false }
@@ -247,20 +265,24 @@ final class LedgerFeatureModel {
             case .edit(let id):
                 guard let context = editContext, context.entry.id == id else { return }
                 if let pendingCorrection {
+                    let effectiveReason = pendingCorrection.reason.isEmpty ? ""
+                        : correctionReason.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard pendingDraft == draft,
-                          correctionReason.trimmingCharacters(in: .whitespacesAndNewlines) == pendingCorrection.reason else {
-                        editFeedback = "This draft differs from the pending request. Reload the current transaction before making a new request."
+                          effectiveReason == pendingCorrection.reason else {
+                        requiresEditReload = true
+                        editFeedback = "This draft differs from the pending request. Discard the draft and reload current data before making a new request."
                         return
                     }
                     entry = pendingCorrection.candidate
                     request = pendingCorrection
                 } else {
-                    entry = try makeEntry()
+                    let commandTime = clock.now()
+                    entry = try makeEntry(newFXAt: commandTime)
                     let important = !LedgerCorrectionProjection(context.entry)
                         .hasSameImportantValues(as: LedgerCorrectionProjection(entry))
                     let reason = important ? try LedgerCorrectionEncoding.reason(correctionReason) : ""
                     let prepared = LedgerCorrectionRequest(candidate: entry, expected: context.token,
-                        operationID: UUID(), reason: reason, occurredAt: clock.now())
+                        operationID: UUID(), reason: reason, occurredAt: commandTime)
                     pendingCorrection = prepared
                     pendingDraft = draft
                     request = prepared
@@ -462,16 +484,17 @@ final class LedgerFeatureModel {
 
     func exportData() -> Data { LedgerCSV.export(entries) }
 
-    private func makeEntry() throws -> LedgerEntry {
+    private func makeEntry(newFXAt: UTCInstant? = nil) throws -> LedgerEntry {
         guard let sourceID = draft.sourceContainerID else { throw LedgerCSVError.invalidField("source container") }
         let date = try CivilDate(canonical: draft.date)
         let original: LedgerEntry?
         if case .edit = formMode { original = editContext?.entry } else { original = nil }
-        let instant = original?.recordedAt ?? clock.now()
+        let sampledAt = newFXAt ?? clock.now()
+        let recordedAt = original?.recordedAt ?? sampledAt
         let source = try makePosting(
             role: draft.kind == .transfer ? .transferSource : .primary,
             containerID: sourceID, currency: draft.sourceCurrency,
-            amount: draft.sourceAmount, rate: draft.sourceFXRate, date: date, instant: instant,
+            amount: draft.sourceAmount, rate: draft.sourceFXRate, date: date, newFXAt: sampledAt,
             previous: original?.postings.first { $0.role == (draft.kind == .transfer ? .transferSource : .primary) }
         )
         var postings = [source]
@@ -479,24 +502,36 @@ final class LedgerFeatureModel {
             guard let targetID = draft.targetContainerID else { throw LedgerCSVError.invalidField("target container") }
             postings.append(try makePosting(
                 role: .transferTarget, containerID: targetID, currency: draft.targetCurrency,
-                amount: draft.targetAmount, rate: draft.targetFXRate, date: date, instant: instant,
+                amount: draft.targetAmount, rate: draft.targetFXRate, date: date, newFXAt: sampledAt,
                 previous: original?.transferTarget
             ))
         }
         let id: UUID
         if case .edit(let existing) = formMode { id = existing } else { id = UUID() }
+        let selectedCategory: Category?
+        if draft.kind == .transfer || draft.categoryID == nil { selectedCategory = nil }
+        else {
+            guard let category = formCategories.first(where: { $0.id == draft.categoryID }) else {
+                throw LedgerCSVError.invalidField("category")
+            }
+            selectedCategory = category
+        }
+        let availableTags = formTags
+        guard draft.tagIDs.isSubset(of: Set(availableTags.map(\.id))) else {
+            throw LedgerCSVError.invalidField("tags")
+        }
         return try LedgerEntry(
-            id: id, kind: draft.kind, civilDate: date, recordedAt: instant,
+            id: id, kind: draft.kind, civilDate: date, recordedAt: recordedAt,
             description: draft.description, payee: draft.payee,
-            category: draft.kind == .transfer ? nil : categories.first { $0.id == draft.categoryID },
-            tags: tags.filter { draft.tagIDs.contains($0.id) }, postings: postings, note: draft.note,
+            category: selectedCategory,
+            tags: availableTags.filter { draft.tagIDs.contains($0.id) }, postings: postings, note: draft.note,
             importFingerprint: original?.importFingerprint
         )
     }
 
     private func makePosting(
         role: LedgerPostingRole, containerID: UUID, currency: CurrencyCode,
-        amount: String, rate: String, date: CivilDate, instant: UTCInstant,
+        amount: String, rate: String, date: CivilDate, newFXAt: UTCInstant,
         previous: LedgerPosting?
     ) throws -> LedgerPosting {
         let money = try Money(decimal: FixedPointMath.parseCanonical(amount), currency: currency)
@@ -512,7 +547,7 @@ final class LedgerFeatureModel {
             return try LedgerPosting(id: previous.id, role: role, containerID: containerID, valuation: valuation)
         }
         let valuation = try FXValuation(
-            original: money, rate: fx, referenceDate: date, fetchedAt: instant,
+            original: money, rate: fx, referenceDate: date, fetchedAt: newFXAt,
             providerIdentifier: currency == .cny ? "identity" : "manual.user.stage4",
             isManualOverride: currency == .usd, isStale: false
         )
