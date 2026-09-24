@@ -2413,6 +2413,7 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["ledger.empty"].waitForExistence(timeout: 10))
         addLedgerEntry(app: app, kind: "Expense", description: "Synthetic Correction Expense", amount: "100.00")
         assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "100.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-100.00", transfers: "0")
+        ledgerCorrectionAXInspect(app: app, description: "Synthetic Correction Expense")
         ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
         XCTAssertTrue(app.descendants(matching: .any)["ledger.corrections.empty"].waitForExistence(timeout: 5))
         ledgerCorrectionCloseHistory(app: app)
@@ -2510,6 +2511,7 @@ final class AureusUITests: XCTestCase {
 
         ledgerCorrectionAddUSDEntry(app: app, kind: "Income", description: "Synthetic USD Income", amount: "100.00", rate: "7.25")
         assertLedgerSummary(app: app, ordinaryInflow: "725.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "725.00", transfers: "0")
+        ledgerCorrectionAXInspect(app: app, description: "Synthetic USD Income")
         ledgerCorrectionOpenEdit(app: app, description: "Synthetic USD Income")
         replaceText(in: app.descendants(matching: .any)["ledger.form.sourceAmount"], with: "110.00")
         replaceText(in: app.descendants(matching: .any)["ledger.form.correctionReason"], with: "Synthetic USD amount correction")
@@ -2914,20 +2916,60 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    private func ledgerCorrectionAXInspect(app: XCUIApplication, description: String) {
+        let predicate = NSPredicate(
+            format: "identifier == %@ OR identifier BEGINSWITH %@ OR identifier BEGINSWITH %@ OR identifier BEGINSWITH %@ OR label CONTAINS[c] %@ OR label BEGINSWITH %@",
+            "ledger.history", "ledger.row.", "ledger.edit.", "ledger.corrections.open.",
+            description, "Edit "
+        )
+        let queries: [(String, XCUIElementQuery)] = [
+            ("app", app.descendants(matching: .any).matching(predicate)),
+            ("ledger.history", app.descendants(matching: .any)["ledger.history"]
+                .descendants(matching: .any).matching(predicate))
+        ]
+        for (scope, query) in queries {
+            let count = query.count
+            print("LEDGER_CORRECTION_AX scope=\(scope) fixture=\(description) count=\(count) truncated=\(count > 50)")
+            for index in 0..<min(count, 50) {
+                let element = query.element(boundBy: index)
+                func bounded(_ value: String) -> String { String(value.prefix(2_048)) }
+                print("LEDGER_CORRECTION_AX scope=\(scope) index=\(index) type=\(element.elementType) identifier=\(bounded(element.identifier)) label=\(bounded(element.label)) value=\(bounded(element.value as? String ?? "")) exists=\(element.exists) isHittable=\(element.isHittable)")
+            }
+        }
+    }
+
+    @MainActor
+    private func ledgerCorrectionAXInspectHistory(app: XCUIApplication, checkpoint: String) {
+        let predicate = NSPredicate(
+            format: "identifier BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@",
+            "ledger.corrections.", "Before: ", "After: ", "Reason: "
+        )
+        let query = app.descendants(matching: .any).matching(predicate)
+        let count = query.count
+        print("LEDGER_CORRECTION_AX_HISTORY checkpoint=\(checkpoint) count=\(count) truncated=\(count > 50)")
+        for index in 0..<min(count, 50) {
+            let element = query.element(boundBy: index)
+            func bounded(_ value: String) -> String { String(value.prefix(2_048)) }
+            print("LEDGER_CORRECTION_AX_HISTORY index=\(index) type=\(element.elementType) identifier=\(bounded(element.identifier)) label=\(bounded(element.label)) value=\(bounded(element.value as? String ?? "")) exists=\(element.exists) isHittable=\(element.isHittable)")
+        }
+    }
+
+    @MainActor
     private func ledgerCorrectionEntryID(app: XCUIApplication, description: String) -> String {
         let list = app.descendants(matching: .any)["ledger.history"]
         XCTAssertTrue(list.waitForExistence(timeout: 5))
-        let labels = list.staticTexts.matching(NSPredicate(format: "label == %@", description))
-        XCTAssertEqual(labels.count, 1, "Synthetic description must be unique within the Ledger list")
-        let kind = String(description.split(separator: " ").last ?? "")
-        let edits = list.buttons.matching(NSPredicate(format: "label == %@", "Edit \(kind) transaction"))
-        XCTAssertEqual(edits.count, 1, "Synthetic Ledger kind must identify one edit button")
-        let identifier = edits.element(boundBy: 0).identifier
-        XCTAssertTrue(identifier.hasPrefix("ledger.edit."))
-        let id = String(identifier.dropFirst("ledger.edit.".count))
+        let descriptions = list.descendants(matching: .any)
+            .matching(NSPredicate(format: "value == %@ AND identifier BEGINSWITH %@", description, "ledger.row."))
+        XCTAssertEqual(descriptions.count, 1, "Synthetic description must identify one Ledger row value")
+        let rowIdentifier = descriptions.element(boundBy: 0).identifier
+        XCTAssertTrue(rowIdentifier.hasPrefix("ledger.row."))
+        let id = String(rowIdentifier.dropFirst("ledger.row.".count))
         XCTAssertNotNil(UUID(uuidString: id))
-        let rowMatches = list.descendants(matching: .any).matching(identifier: "ledger.row.\(id)")
-        XCTAssertGreaterThan(rowMatches.count, 0, "Edit button must belong to an identified Ledger row")
+        let kind = String(description.split(separator: " ").last ?? "")
+        let edits = list.buttons.matching(NSPredicate(
+            format: "identifier == %@ AND label == %@", rowIdentifier, "Edit \(kind) transaction"
+        ))
+        XCTAssertEqual(edits.count, 1, "Edit button must share the identified Ledger row")
         return id
     }
 
@@ -2935,7 +2977,10 @@ final class AureusUITests: XCTestCase {
     private func ledgerCorrectionOpenEdit(app: XCUIApplication, description: String) {
         let id = ledgerCorrectionEntryID(app: app, description: description)
         let list = app.descendants(matching: .any)["ledger.history"]
-        let buttons = list.buttons.matching(identifier: "ledger.edit.\(id)")
+        let buttons = list.buttons.matching(NSPredicate(
+            format: "identifier == %@ AND label == %@", "ledger.row.\(id)",
+            "Edit \(String(description.split(separator: " ").last ?? "")) transaction"
+        ))
         XCTAssertEqual(buttons.count, 1)
         buttons.element(boundBy: 0).click()
         XCTAssertTrue(app.descendants(matching: .any)["ledger.form.sourceAmount"].waitForExistence(timeout: 5))
@@ -2960,15 +3005,22 @@ final class AureusUITests: XCTestCase {
     private func ledgerCorrectionOpenHistory(app: XCUIApplication, description: String) {
         let id = ledgerCorrectionEntryID(app: app, description: description)
         let list = app.descendants(matching: .any)["ledger.history"]
-        let buttons = list.buttons.matching(identifier: "ledger.corrections.open.\(id)")
+        let buttons = list.buttons.matching(NSPredicate(
+            format: "identifier == %@ AND label == %@", "ledger.row.\(id)",
+            "Correction history for \(description)"
+        ))
         XCTAssertEqual(buttons.count, 1)
         buttons.element(boundBy: 0).click()
-        XCTAssertTrue(app.descendants(matching: .any)["ledger.corrections.close"].waitForExistence(timeout: 5))
+        let close = app.descendants(matching: .any)["ledger.corrections.close"]
+        let appeared = close.waitForExistence(timeout: 5)
+        if !appeared { ledgerCorrectionAXInspectHistory(app: app, checkpoint: "missing-close") }
+        XCTAssertTrue(appeared)
     }
 
     @MainActor
     private func ledgerCorrectionHistorySheet(_ app: XCUIApplication) -> XCUIElement {
         let sheets = app.sheets.containing(.button, identifier: "ledger.corrections.close")
+        if sheets.count != 1 { ledgerCorrectionAXInspectHistory(app: app, checkpoint: "history-sheet") }
         XCTAssertEqual(sheets.count, 1, "Expected one correction-history sheet")
         return sheets.element(boundBy: 0)
     }
@@ -2985,9 +3037,11 @@ final class AureusUITests: XCTestCase {
     private func ledgerCorrectionHistoryRows(app: XCUIApplication, expected: Int) -> XCUIElementQuery {
         let sheet = ledgerCorrectionHistorySheet(app)
         let lists = sheet.descendants(matching: .any).matching(identifier: "ledger.corrections.list")
+        if lists.count != 1 { ledgerCorrectionAXInspectHistory(app: app, checkpoint: "history-list") }
         XCTAssertEqual(lists.count, 1)
         let rows = lists.element(boundBy: 0).descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH %@", "ledger.corrections.row."))
+        if rows.count != expected { ledgerCorrectionAXInspectHistory(app: app, checkpoint: "rows-expected-\(expected)") }
         XCTAssertEqual(rows.count, expected)
         return rows
     }
