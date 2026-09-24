@@ -49,8 +49,12 @@ struct LedgerView: View {
             }
         }
         .task { await model.load() }
-        .sheet(isPresented: Binding(get: { model.formMode != nil }, set: { if !$0 { model.formMode = nil } })) {
+        .sheet(isPresented: Binding(get: { model.formMode != nil }, set: { if !$0 { model.cancelForm() } })) {
             LedgerEntryForm(model: model)
+                .interactiveDismissDisabled(model.isSaving)
+        }
+        .sheet(isPresented: Binding(get: { model.historyTargetID != nil }, set: { if !$0 { model.closeCorrectionHistory() } })) {
+            correctionHistorySheet
         }
         .sheet(isPresented: $showingTaxonomy) {
             taxonomySheet
@@ -217,9 +221,12 @@ struct LedgerView: View {
                     Text(Self.money(posting.valuation.original))
                     Text("→ \(Self.money(posting.valuation.convertedCNY))").foregroundStyle(.secondary)
                 }
-                Button("Edit") { model.beginEdit(entry) }
+                Button("Edit") { Task { await model.beginEdit(id: entry.id) } }
                     .accessibilityIdentifier("ledger.edit.\(entry.id.uuidString)")
                     .accessibilityLabel("Edit \(entry.kind.title) transaction")
+                Button("History") { Task { await model.showCorrectionHistory(id: entry.id) } }
+                    .accessibilityIdentifier("ledger.corrections.open.\(entry.id.uuidString)")
+                    .accessibilityLabel("Correction history for \(entry.description)")
                 Button("Delete", role: .destructive) { model.pendingDeletion = entry }
                     .accessibilityIdentifier("ledger.delete.\(entry.id.uuidString)")
                     .accessibilityLabel("Delete \(entry.kind.title) transaction")
@@ -229,6 +236,73 @@ struct LedgerView: View {
                 .accessibilityIdentifier("ledger.history")
             }
         }
+    }
+
+    private var correctionHistorySheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Ledger Correction History").font(.title2)
+                Spacer()
+                Button("Done") { model.closeCorrectionHistory() }
+                    .accessibilityIdentifier("ledger.corrections.close")
+            }
+            Text("These are snapshots of earlier corrections, not the current transaction or values used in cash-flow calculations.")
+                .font(.caption).foregroundStyle(.secondary)
+            switch model.historyLoadState {
+            case .idle, .loading:
+                ProgressView("Loading correction history")
+                    .accessibilityIdentifier("ledger.corrections.loading")
+            case .failed:
+                Text("Correction history could not be loaded.")
+                    .accessibilityIdentifier("ledger.corrections.error")
+            case .ready:
+                if model.correctionHistory.isEmpty {
+                    ContentUnavailableView("No Important Corrections", systemImage: "clock.arrow.circlepath")
+                        .accessibilityIdentifier("ledger.corrections.empty")
+                } else {
+                    List(model.correctionHistory, id: \.id) { record in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(record.kind == "deletionContext" ? "Deletion context" : "Important correction")
+                                .font(.headline)
+                            Text(Self.historyTime(record.occurredAt))
+                                .font(.caption).foregroundStyle(.secondary)
+                            if let reason = record.reason { Text("Reason: \(reason)") }
+                            Text("Before: \(Self.historyProjection(record.payload.before))")
+                            if let after = record.payload.after {
+                                Text("After: \(Self.historyProjection(after))")
+                            } else {
+                                Text("After: transaction deleted")
+                            }
+                        }
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("ledger.corrections.row.\(record.id.uuidString)")
+                    }
+                    .accessibilityIdentifier("ledger.corrections.list")
+                }
+            }
+        }
+        .padding(24).frame(minWidth: 680, minHeight: 440)
+    }
+
+    private static func historyTime(_ instant: UTCInstant) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)!
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(instant.millisecondsSince1970) / 1000))
+    }
+
+    private static func historyProjection(_ value: LedgerCorrectionProjection) -> String {
+        let header = "\(value.civilDate.description) · \(value.kind.title) · \(value.description)"
+            + (value.payee.map { " · \($0)" } ?? "")
+        let postings = value.postings.map { posting in
+            let fx = posting.valuation
+            let rate = NSDecimalNumber(decimal: fx.rate.decimal).stringValue
+            return "\(posting.role.rawValue): \(money(fx.original)) × \(rate) "
+                + "= \(money(fx.convertedCNY)) CNY; source \(fx.providerIdentifier), "
+                + "reference \(fx.referenceDate.description), FX fetched \(historyTime(fx.fetchedAt)), "
+                + "manual \(fx.isManualOverride), stale \(fx.isStale)"
+        }.joined(separator: " · ")
+        return header + " · " + postings
     }
 
     private var rulesSheet: some View {
@@ -411,7 +485,16 @@ private struct LedgerEntryForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(model.formMode == .create ? "New Ledger Transaction" : "Edit Ledger Transaction").font(.title2)
-            Form {
+            if case .edit = model.formMode, model.editLoadState == .loading {
+                ProgressView("Loading current transaction")
+                    .accessibilityIdentifier("ledger.form.loading")
+            } else if case .edit = model.formMode, model.editLoadState == .failed {
+                Text(model.editFeedback ?? "Transaction could not be loaded.")
+                    .accessibilityIdentifier("ledger.form.loadError")
+                Button("Retry Loading") { Task { await model.reloadEdit() } }
+                    .accessibilityIdentifier("ledger.form.reload")
+            } else {
+                Form {
                 Picker("Kind", selection: $model.draft.kind) {
                     ForEach(TransactionKind.allCases, id: \.rawValue) { Text($0.title).tag($0) }
                 }.accessibilityIdentifier("ledger.form.kind")
@@ -454,11 +537,31 @@ private struct LedgerEntryForm: View {
                     }
                 }
                 TextField("Note", text: $model.draft.note).accessibilityIdentifier("ledger.form.note")
+                if model.needsCorrectionReason {
+                    TextField("Reason for important correction", text: $model.correctionReason)
+                        .accessibilityIdentifier("ledger.form.correctionReason")
+                    Text("Required for changes to transaction facts. Maximum 500 characters.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                }
+                .disabled(model.isSaving)
+            }
+            if let message = model.editFeedback {
+                Text(message).foregroundStyle(.red)
+                    .accessibilityIdentifier("ledger.form.feedback")
             }
             HStack {
                 Spacer()
-                Button("Cancel") { model.formMode = nil }
-                Button("Save") { Task { await model.save() } }.keyboardShortcut(.defaultAction).accessibilityIdentifier("ledger.form.save")
+                if model.requiresEditReload {
+                    Button("Discard Draft and Reload") { Task { await model.reloadEdit() } }
+                        .accessibilityIdentifier("ledger.form.reload")
+                }
+                Button("Cancel") { model.cancelForm() }
+                    .disabled(model.isSaving)
+                Button(model.isSaving ? "Saving…" : "Save") { Task { await model.save() } }
+                    .disabled(!model.canSaveForm)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("ledger.form.save")
             }
         }.padding(24).frame(minWidth: 620, minHeight: 650)
     }

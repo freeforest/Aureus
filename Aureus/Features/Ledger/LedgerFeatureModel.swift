@@ -3,6 +3,8 @@ import Observation
 
 enum LedgerFormMode: Equatable { case create, edit(UUID) }
 enum ClassificationRuleFormMode: Equatable { case create, edit(UUID) }
+enum LedgerEditLoadState: Equatable { case idle, loading, ready, failed }
+enum LedgerHistoryLoadState: Equatable { case idle, loading, ready, failed }
 
 struct ClassificationRuleDraft: Equatable {
     var name = ""
@@ -81,8 +83,16 @@ final class LedgerFeatureModel {
     var filterStartDateText = ""
     var filterEndDateText = ""
     private(set) var filterValidationMessage: String?
-    var formMode: LedgerFormMode?
+    private(set) var formMode: LedgerFormMode?
     var draft = LedgerDraft()
+    private(set) var editLoadState: LedgerEditLoadState = .idle
+    private(set) var editFeedback: String?
+    private(set) var isSaving = false
+    private(set) var requiresEditReload = false
+    var correctionReason = ""
+    private(set) var historyTargetID: UUID?
+    private(set) var correctionHistory: [LedgerCorrectionHistory] = []
+    private(set) var historyLoadState: LedgerHistoryLoadState = .idle
     var ruleFormMode: ClassificationRuleFormMode?
     var ruleDraft = ClassificationRuleDraft()
     var errorMessage: String?
@@ -90,10 +100,26 @@ final class LedgerFeatureModel {
 
     @ObservationIgnored private let store: WealthStore
     @ObservationIgnored private let clock: any Clock
+    @ObservationIgnored private let contextLoader: @Sendable (UUID) async throws -> LedgerEditContext
+    @ObservationIgnored private let historyLoader: @Sendable (UUID) async throws -> [LedgerCorrectionHistory]
+    @ObservationIgnored private let correctionWriter: @Sendable (LedgerCorrectionRequest) async throws -> LedgerCorrectionResult
+    @ObservationIgnored private var editContext: LedgerEditContext?
+    @ObservationIgnored private var editSessionID = UUID()
+    @ObservationIgnored private var historySessionID = UUID()
+    @ObservationIgnored private var pendingCorrection: LedgerCorrectionRequest?
+    @ObservationIgnored private var pendingDraft: LedgerDraft?
 
-    init(store: WealthStore, clock: any Clock) {
+    init(
+        store: WealthStore, clock: any Clock,
+        contextLoader: (@Sendable (UUID) async throws -> LedgerEditContext)? = nil,
+        historyLoader: (@Sendable (UUID) async throws -> [LedgerCorrectionHistory])? = nil,
+        correctionWriter: (@Sendable (LedgerCorrectionRequest) async throws -> LedgerCorrectionResult)? = nil
+    ) {
         self.store = store
         self.clock = clock
+        self.contextLoader = contextLoader ?? { try await store.readLedgerEditContext(id: $0) }
+        self.historyLoader = historyLoader ?? { try await store.ledgerCorrectionHistory(id: $0) }
+        self.correctionWriter = correctionWriter ?? { try await store.correctLedgerEntry($0) }
     }
 
     func load() async {
@@ -143,26 +169,177 @@ final class LedgerFeatureModel {
     }
 
     func beginCreate() {
+        guard !isSaving else { return }
+        clearEditSession()
         draft = LedgerDraft(sourceContainerID: containers.first?.id, targetContainerID: containers.dropFirst().first?.id)
         formMode = .create
     }
 
-    func beginEdit(_ entry: LedgerEntry) {
-        draft = .editing(entry)
-        formMode = .edit(entry.id)
+    func beginEdit(id: UUID) async {
+        guard !isSaving else { return }
+        clearEditSession()
+        let session = editSessionID
+        formMode = .edit(id)
+        editLoadState = .loading
+        do {
+            let context = try await contextLoader(id)
+            guard editSessionID == session, formMode == .edit(id) else { return }
+            editContext = context
+            draft = .editing(context.entry)
+            editLoadState = .ready
+        } catch {
+            guard editSessionID == session, formMode == .edit(id) else { return }
+            editLoadState = .failed
+            editFeedback = "Transaction could not be loaded for editing. Close and try again."
+        }
+    }
+
+    func reloadEdit() async {
+        guard case .edit(let id) = formMode, !isSaving else { return }
+        await beginEdit(id: id)
+    }
+
+    func cancelForm() {
+        guard !isSaving else { return }
+        clearEditSession()
+        formMode = nil
+    }
+
+    private func clearEditSession() {
+        editSessionID = UUID()
+        editContext = nil
+        pendingCorrection = nil
+        pendingDraft = nil
+        correctionReason = ""
+        editFeedback = nil
+        editLoadState = .idle
+        requiresEditReload = false
+    }
+
+    var needsCorrectionReason: Bool {
+        guard case .edit = formMode, let context = editContext,
+              let candidate = try? makeEntry() else { return false }
+        return !LedgerCorrectionProjection(context.entry)
+            .hasSameImportantValues(as: LedgerCorrectionProjection(candidate))
+    }
+
+    var canSaveForm: Bool {
+        guard !isSaving else { return false }
+        switch formMode {
+        case .create: return true
+        case .edit:
+            guard editLoadState == .ready, !requiresEditReload else { return false }
+            return !needsCorrectionReason || (try? LedgerCorrectionEncoding.reason(correctionReason)) != nil
+        case nil: return false
+        }
     }
 
     func save() async {
+        guard !isSaving, let mode = formMode else { return }
+        guard mode == .create || (editLoadState == .ready && !requiresEditReload) else { return }
         do {
-            let entry = try makeEntry()
-            switch formMode {
-            case .create: try await store.createLedgerEntry(entry)
-            case .edit: try await store.updateLedgerEntry(entry)
-            case nil: return
+            let request: LedgerCorrectionRequest?
+            let entry: LedgerEntry
+            switch mode {
+            case .create:
+                entry = try makeEntry()
+                request = nil
+            case .edit(let id):
+                guard let context = editContext, context.entry.id == id else { return }
+                if let pendingCorrection {
+                    guard pendingDraft == draft,
+                          correctionReason.trimmingCharacters(in: .whitespacesAndNewlines) == pendingCorrection.reason else {
+                        editFeedback = "This draft differs from the pending request. Reload the current transaction before making a new request."
+                        return
+                    }
+                    entry = pendingCorrection.candidate
+                    request = pendingCorrection
+                } else {
+                    entry = try makeEntry()
+                    let important = !LedgerCorrectionProjection(context.entry)
+                        .hasSameImportantValues(as: LedgerCorrectionProjection(entry))
+                    let reason = important ? try LedgerCorrectionEncoding.reason(correctionReason) : ""
+                    let prepared = LedgerCorrectionRequest(candidate: entry, expected: context.token,
+                        operationID: UUID(), reason: reason, occurredAt: clock.now())
+                    pendingCorrection = prepared
+                    pendingDraft = draft
+                    request = prepared
+                }
             }
-            formMode = nil
-            await load()
-        } catch { errorMessage = "Transaction was not saved: \(error.localizedDescription)" }
+            isSaving = true
+            editFeedback = nil
+            let session = editSessionID
+            do {
+                if let request {
+                    let result = try await correctionWriter(request)
+                    guard editSessionID == session else { isSaving = false; return }
+                    switch result {
+                    case .applied, .noChange, .minorUpdate, .alreadyApplied(_, .unchanged):
+                        isSaving = false
+                        cancelForm()
+                        await load()
+                    case .alreadyApplied(_, .changed):
+                        requiresEditReload = true
+                        editFeedback = "The correction was saved, but this transaction changed afterward. Reload current data before another edit."
+                        isSaving = false
+                    case .alreadyApplied(_, .deleted):
+                        requiresEditReload = true
+                        editFeedback = "The correction was saved, but this transaction was later deleted. Reload current data."
+                        isSaving = false
+                    }
+                } else {
+                    try await store.createLedgerEntry(entry)
+                    guard editSessionID == session else { isSaving = false; return }
+                    isSaving = false
+                    cancelForm()
+                    await load()
+                }
+            } catch {
+                isSaving = false
+                if case .edit = mode {
+                    switch error {
+                    case LedgerCorrectionError.staleDraft, LedgerPersistenceError.transactionNotFound:
+                        requiresEditReload = true
+                        editFeedback = "This transaction changed or was deleted. Your draft remains; reload current data before editing again."
+                    case LedgerCorrectionError.operationConflict:
+                        requiresEditReload = true
+                        editFeedback = "This request ID belongs to another correction. Reload current data before editing again."
+                    case LedgerCorrectionError.maintenanceUnavailable:
+                        editFeedback = "Data maintenance is in progress. Retry the same request when it finishes."
+                    default:
+                        editFeedback = "Save status could not be confirmed. Retry the same request without changing this draft."
+                    }
+                } else {
+                    errorMessage = "Transaction was not saved. Check the entry and retry."
+                }
+            }
+        } catch {
+            editFeedback = "Check the transaction values and correction reason before saving."
+        }
+    }
+
+    func showCorrectionHistory(id: UUID) async {
+        historySessionID = UUID()
+        let session = historySessionID
+        historyTargetID = id
+        correctionHistory = []
+        historyLoadState = .loading
+        do {
+            let records = try await historyLoader(id)
+            guard historySessionID == session, historyTargetID == id else { return }
+            correctionHistory = records
+            historyLoadState = .ready
+        } catch {
+            guard historySessionID == session, historyTargetID == id else { return }
+            historyLoadState = .failed
+        }
+    }
+
+    func closeCorrectionHistory() {
+        historySessionID = UUID()
+        historyTargetID = nil
+        correctionHistory = []
+        historyLoadState = .idle
     }
 
     func delete(_ entry: LedgerEntry) async {
@@ -288,18 +465,22 @@ final class LedgerFeatureModel {
     private func makeEntry() throws -> LedgerEntry {
         guard let sourceID = draft.sourceContainerID else { throw LedgerCSVError.invalidField("source container") }
         let date = try CivilDate(canonical: draft.date)
-        let instant = clock.now()
+        let original: LedgerEntry?
+        if case .edit = formMode { original = editContext?.entry } else { original = nil }
+        let instant = original?.recordedAt ?? clock.now()
         let source = try makePosting(
             role: draft.kind == .transfer ? .transferSource : .primary,
             containerID: sourceID, currency: draft.sourceCurrency,
-            amount: draft.sourceAmount, rate: draft.sourceFXRate, date: date, instant: instant
+            amount: draft.sourceAmount, rate: draft.sourceFXRate, date: date, instant: instant,
+            previous: original?.postings.first { $0.role == (draft.kind == .transfer ? .transferSource : .primary) }
         )
         var postings = [source]
         if draft.kind == .transfer {
             guard let targetID = draft.targetContainerID else { throw LedgerCSVError.invalidField("target container") }
             postings.append(try makePosting(
                 role: .transferTarget, containerID: targetID, currency: draft.targetCurrency,
-                amount: draft.targetAmount, rate: draft.targetFXRate, date: date, instant: instant
+                amount: draft.targetAmount, rate: draft.targetFXRate, date: date, instant: instant,
+                previous: original?.transferTarget
             ))
         }
         let id: UUID
@@ -308,23 +489,33 @@ final class LedgerFeatureModel {
             id: id, kind: draft.kind, civilDate: date, recordedAt: instant,
             description: draft.description, payee: draft.payee,
             category: draft.kind == .transfer ? nil : categories.first { $0.id == draft.categoryID },
-            tags: tags.filter { draft.tagIDs.contains($0.id) }, postings: postings, note: draft.note
+            tags: tags.filter { draft.tagIDs.contains($0.id) }, postings: postings, note: draft.note,
+            importFingerprint: original?.importFingerprint
         )
     }
 
     private func makePosting(
         role: LedgerPostingRole, containerID: UUID, currency: CurrencyCode,
-        amount: String, rate: String, date: CivilDate, instant: UTCInstant
+        amount: String, rate: String, date: CivilDate, instant: UTCInstant,
+        previous: LedgerPosting?
     ) throws -> LedgerPosting {
         let money = try Money(decimal: FixedPointMath.parseCanonical(amount), currency: currency)
         let fx = currency == .cny
             ? FXRate.cnyIdentity
             : try FXRate(decimal: FixedPointMath.parseCanonical(rate), sourceCurrency: .usd, targetCurrency: .cny)
+        if let previous, previous.valuation.original.currency == currency, previous.valuation.rate == fx {
+            let old = previous.valuation
+            let valuation = try FXValuation(original: money, rate: old.rate,
+                referenceDate: old.referenceDate, fetchedAt: old.fetchedAt,
+                providerIdentifier: old.providerIdentifier,
+                isManualOverride: old.isManualOverride, isStale: old.isStale)
+            return try LedgerPosting(id: previous.id, role: role, containerID: containerID, valuation: valuation)
+        }
         let valuation = try FXValuation(
             original: money, rate: fx, referenceDate: date, fetchedAt: instant,
             providerIdentifier: currency == .cny ? "identity" : "manual.user.stage4",
             isManualOverride: currency == .usd, isStale: false
         )
-        return try LedgerPosting(role: role, containerID: containerID, valuation: valuation)
+        return try LedgerPosting(id: previous?.id ?? UUID(), role: role, containerID: containerID, valuation: valuation)
     }
 }

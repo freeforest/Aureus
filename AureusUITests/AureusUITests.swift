@@ -2358,6 +2358,10 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(editExpense.waitForExistence(timeout: 5)); editExpense.click()
         let amount = app.descendants(matching: .any)["ledger.form.sourceAmount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5)); replaceText(in: amount, with: "40.00")
+        let correctionReason = app.descendants(matching: .any)["ledger.form.correctionReason"]
+        XCTAssertTrue(correctionReason.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["ledger.form.save"].isEnabled)
+        replaceText(in: correctionReason, with: "Synthetic UI amount correction")
         app.descendants(matching: .any)["ledger.form.save"].click()
         selectLedgerKindFilter(app: app, title: "All Kinds")
         assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "10.00", net: "50.00", transfers: "1")

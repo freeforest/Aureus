@@ -10,6 +10,7 @@
 		A1000000000000000000004C /* LedgerCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004C /* LedgerCorrection.swift */; };
 		A1000000000000000000004D /* LedgerCorrectionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004D /* LedgerCorrectionPersistence.swift */; };
 		A20000000000000000000021 /* LedgerCorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000020 /* LedgerCorrectionTests.swift */; };
+		A20000000000000000000022 /* LedgerCorrectionFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000021 /* LedgerCorrectionFeatureTests.swift */; };
 		A10000000000000000000049 /* EvidenceDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000049 /* EvidenceDomain.swift */; };
 		A1000000000000000000004A /* EvidencePersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004A /* EvidencePersistence.swift */; };
 		A1000000000000000000004B /* PermanentDatasetAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004B /* PermanentDatasetAccess.swift */; };
@@ -137,6 +138,7 @@
 		B1000000000000000000004C /* LedgerCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCorrection.swift; sourceTree = "<group>"; };
 		B1000000000000000000004D /* LedgerCorrectionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCorrectionPersistence.swift; sourceTree = "<group>"; };
 		B20000000000000000000020 /* LedgerCorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCorrectionTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000021 /* LedgerCorrectionFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCorrectionFeatureTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000049 /* EvidenceDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceDomain.swift; sourceTree = "<group>"; };
 		B1000000000000000000004A /* EvidencePersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidencePersistence.swift; sourceTree = "<group>"; };
 		B1000000000000000000004B /* PermanentDatasetAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentDatasetAccess.swift; sourceTree = "<group>"; };
@@ -604,6 +606,7 @@
 			children = (
 				B2000000000000000000001E /* EvidencePersistenceTests.swift */,
 				B20000000000000000000020 /* LedgerCorrectionTests.swift */,
+				B20000000000000000000021 /* LedgerCorrectionFeatureTests.swift */,
 				B2000000000000000000001F /* PermanentDatasetAccessTests.swift */,
 				B20000000000000000000001 /* FinancialValueTests.swift */,
 				B20000000000000000000002 /* TimeFoundationTests.swift */,
@@ -820,6 +823,7 @@
 			files = (
 				A2000000000000000000001E /* EvidencePersistenceTests.swift in Sources */,
 				A20000000000000000000021 /* LedgerCorrectionTests.swift in Sources */,
+				A20000000000000000000022 /* LedgerCorrectionFeatureTests.swift in Sources */,
 				A2000000000000000000001F /* PermanentDatasetAccessTests.swift in Sources */,
 				A20000000000000000000001 /* FinancialValueTests.swift in Sources */,
 				A20000000000000000000002 /* TimeFoundationTests.swift in Sources */,
