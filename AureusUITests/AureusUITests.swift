@@ -2291,7 +2291,7 @@ final class AureusUITests: XCTestCase {
     @MainActor
     func testLedgerDynamicCashFlowTransferInvestmentEditAndDelete() throws {
         let app = XCUIApplication()
-        app.launchArguments = uiTestingArguments()
+        app.launchArguments = uiTestingArguments() + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         launchApp(app)
         defer {
             dismissResidualNativePanels(in: app)
@@ -2396,6 +2396,184 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["ledger.filter.validation"].waitForExistence(timeout: 5))
         app.descendants(matching: .any)["ledger.filter.clear"].click()
         assertLedgerSummary(app: app, ordinaryInflow: "100.00", ordinaryOutflow: "40.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "60.00", transfers: "1")
+    }
+
+    @MainActor
+    func testLedgerCorrectionReasonCancelAndHistory() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments() + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        launchApp(app)
+        defer { dismissResidualNativePanels(in: app); app.terminate() }
+
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.empty.add"].waitForExistence(timeout: 10))
+        addContainer(app: app, name: "Synthetic Correction Cash A", kind: "Bank / Cash", amount: "1000.00", currency: "CNY", fxRate: nil)
+        addContainer(app: app, name: "Synthetic Correction Cash B", kind: "Bank / Cash", amount: "500.00", currency: "CNY", fxRate: nil)
+        app.descendants(matching: .any)["sidebar.ledger"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.empty"].waitForExistence(timeout: 10))
+        addLedgerEntry(app: app, kind: "Expense", description: "Synthetic Correction Expense", amount: "100.00")
+        assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "100.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-100.00", transfers: "0")
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.corrections.empty"].waitForExistence(timeout: 5))
+        ledgerCorrectionCloseHistory(app: app)
+
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic Correction Expense")
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.form.save"].isEnabled)
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.corrections.empty"].waitForExistence(timeout: 5))
+        ledgerCorrectionCloseHistory(app: app)
+
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic Correction Expense")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.note"], with: "Synthetic note only")
+        XCTAssertFalse(app.descendants(matching: .any)["ledger.form.correctionReason"].exists)
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic Correction Expense")
+        XCTAssertEqual(app.descendants(matching: .any)["ledger.form.note"].value as? String, "Synthetic note only")
+        ledgerCorrectionCancelForm(app: app)
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.corrections.empty"].waitForExistence(timeout: 5))
+        ledgerCorrectionCloseHistory(app: app)
+
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic Correction Expense")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.sourceAmount"], with: "125.00")
+        let reason = app.descendants(matching: .any)["ledger.form.correctionReason"]
+        XCTAssertTrue(reason.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["ledger.form.save"].isEnabled)
+        ledgerCorrectionAttachAppScreenshot(app, named: "Synthetic amount correction requires a reason")
+        replaceText(in: reason, with: "Synthetic amount correction")
+        ledgerCorrectionCancelForm(app: app)
+        assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "100.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-100.00", transfers: "0")
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.corrections.empty"].waitForExistence(timeout: 5))
+        ledgerCorrectionCloseHistory(app: app)
+
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic Correction Expense")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.sourceAmount"], with: "125.00")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.correctionReason"], with: "Synthetic amount correction")
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.form.save"].isEnabled)
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+        assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "125.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-125.00", transfers: "0")
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
+        let firstHistory = ledgerCorrectionHistoryRows(app: app, expected: 1).element(boundBy: 0)
+        let firstParts = ledgerCorrectionHistoryParts(firstHistory)
+        XCTAssertTrue(firstParts.before.contains("CNY 100.00"))
+        XCTAssertTrue(firstParts.after.contains("CNY 125.00"))
+        XCTAssertTrue(firstParts.reason.contains("Synthetic amount correction"))
+        ledgerCorrectionCloseHistory(app: app)
+
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic Correction Expense")
+        selectPicker(app: app, identifier: "ledger.form.sourceContainer", title: "Synthetic Correction Cash B")
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.form.correctionReason"].waitForExistence(timeout: 5))
+        replaceText(in: app.descendants(matching: .any)["ledger.form.correctionReason"], with: "Synthetic container correction")
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+        assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "125.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-125.00", transfers: "0")
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
+        let rows = ledgerCorrectionHistoryRows(app: app, expected: 2)
+        let containerParts = ledgerCorrectionHistoryParts(rows.element(boundBy: 1))
+        XCTAssertTrue(containerParts.before.contains("primary, container "))
+        XCTAssertTrue(containerParts.after.contains("primary, container "))
+        XCTAssertEqual(ledgerCorrectionContainerID(containerParts.before).count, 36)
+        XCTAssertEqual(ledgerCorrectionContainerID(containerParts.after).count, 36)
+        XCTAssertNotEqual(ledgerCorrectionContainerID(containerParts.before), ledgerCorrectionContainerID(containerParts.after))
+        XCTAssertTrue(containerParts.before.contains("CNY 125.00"))
+        XCTAssertTrue(containerParts.after.contains("CNY 125.00"))
+        XCTAssertTrue(containerParts.reason.contains("Synthetic container correction"))
+        XCTAssertEqual(ledgerCorrectionHistorySheet(app).buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "Apply", "Edit")
+        ).count, 0)
+        ledgerCorrectionAttachAppScreenshot(app, named: "Synthetic container correction history")
+        ledgerCorrectionCloseHistory(app: app)
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
+        XCTAssertEqual(ledgerCorrectionHistoryRows(app: app, expected: 2).count, 2)
+        ledgerCorrectionCloseHistory(app: app)
+    }
+
+    @MainActor
+    func testLedgerCorrectionUSDAndTransferHistory() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments() + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        launchApp(app)
+        defer { dismissResidualNativePanels(in: app); app.terminate() }
+
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.empty.add"].waitForExistence(timeout: 10))
+        addContainer(app: app, name: "Synthetic FX Cash A", kind: "Bank / Cash", amount: "1000.00", currency: "CNY", fxRate: nil)
+        addContainer(app: app, name: "Synthetic FX Cash B", kind: "Bank / Cash", amount: "500.00", currency: "CNY", fxRate: nil)
+        addContainer(app: app, name: "Synthetic FX Cash C", kind: "Bank / Cash", amount: "300.00", currency: "CNY", fxRate: nil)
+        app.descendants(matching: .any)["sidebar.ledger"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.empty"].waitForExistence(timeout: 10))
+
+        ledgerCorrectionAddUSDEntry(app: app, kind: "Income", description: "Synthetic USD Income", amount: "100.00", rate: "7.25")
+        assertLedgerSummary(app: app, ordinaryInflow: "725.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "725.00", transfers: "0")
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic USD Income")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.sourceAmount"], with: "110.00")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.correctionReason"], with: "Synthetic USD amount correction")
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+        assertLedgerSummary(app: app, ordinaryInflow: "797.50", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "797.50", transfers: "0")
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic USD Income")
+        let usdParts = ledgerCorrectionHistoryParts(ledgerCorrectionHistoryRows(app: app, expected: 1).element(boundBy: 0))
+        XCTAssertTrue(usdParts.before.contains("USD 100.00 × 7.25 = CNY 725.00"))
+        XCTAssertTrue(usdParts.after.contains("USD 110.00 × 7.25 = CNY 797.50"))
+        XCTAssertTrue(usdParts.before.contains("source manual.user.stage4"))
+        XCTAssertTrue(usdParts.after.contains("source manual.user.stage4"))
+        XCTAssertTrue(usdParts.reason.contains("Synthetic USD amount correction"))
+        ledgerCorrectionAttachAppScreenshot(app, named: "Synthetic USD correction history")
+        ledgerCorrectionCloseHistory(app: app)
+
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic USD Income")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.sourceAmount"], with: "120.00")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.correctionReason"], with: "Synthetic USD follow-up")
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+        assertLedgerSummary(app: app, ordinaryInflow: "870.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "870.00", transfers: "0")
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic USD Income")
+        let orderedRows = ledgerCorrectionHistoryRows(app: app, expected: 2)
+        let earlier = ledgerCorrectionHistoryParts(orderedRows.element(boundBy: 0))
+        let later = ledgerCorrectionHistoryParts(orderedRows.element(boundBy: 1))
+        XCTAssertTrue(earlier.reason.contains("Synthetic USD amount correction"))
+        XCTAssertTrue(later.reason.contains("Synthetic USD follow-up"))
+        XCTAssertTrue(later.before.contains("USD 110.00 × 7.25 = CNY 797.50"))
+        XCTAssertTrue(later.after.contains("USD 120.00 × 7.25 = CNY 870.00"))
+        ledgerCorrectionCloseHistory(app: app)
+
+        ledgerCorrectionAddUSDEntry(app: app, kind: "Transfer", description: "Synthetic USD Transfer", amount: "20.00", rate: "7.25", targetAmount: "145.00")
+        assertLedgerSummary(app: app, ordinaryInflow: "870.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "870.00", transfers: "1")
+        ledgerCorrectionOpenEdit(app: app, description: "Synthetic USD Transfer")
+        selectPicker(app: app, identifier: "ledger.form.targetContainer", title: "Synthetic FX Cash C")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.correctionReason"], with: "Synthetic transfer target correction")
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+        assertLedgerSummary(app: app, ordinaryInflow: "870.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "870.00", transfers: "1")
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic USD Transfer")
+        let transferParts = ledgerCorrectionHistoryParts(ledgerCorrectionHistoryRows(app: app, expected: 1).element(boundBy: 0))
+        XCTAssertTrue(transferParts.before.contains("transferSource, container "))
+        XCTAssertTrue(transferParts.before.contains("transferTarget, container "))
+        XCTAssertTrue(transferParts.after.contains("transferSource, container "))
+        XCTAssertTrue(transferParts.after.contains("transferTarget, container "))
+        XCTAssertTrue(transferParts.before.contains("USD 20.00 × 7.25 = CNY 145.00"))
+        XCTAssertTrue(transferParts.after.contains("USD 20.00 × 7.25 = CNY 145.00"))
+        XCTAssertTrue(transferParts.before.contains("CNY 145.00 × 1 = CNY 145.00"))
+        XCTAssertTrue(transferParts.after.contains("CNY 145.00 × 1 = CNY 145.00"))
+        XCTAssertTrue(transferParts.before.contains("source manual.user.stage4"))
+        XCTAssertTrue(transferParts.after.contains("source manual.user.stage4"))
+        XCTAssertEqual(ledgerCorrectionContainerID(transferParts.before), ledgerCorrectionContainerID(transferParts.after))
+        XCTAssertFalse(ledgerCorrectionPosting(transferParts.before, role: "transferSource").isEmpty)
+        XCTAssertEqual(ledgerCorrectionPosting(transferParts.before, role: "transferSource"),
+                       ledgerCorrectionPosting(transferParts.after, role: "transferSource"))
+        XCTAssertEqual(ledgerCorrectionTargetContainerID(transferParts.before).count, 36)
+        XCTAssertEqual(ledgerCorrectionTargetContainerID(transferParts.after).count, 36)
+        XCTAssertNotEqual(ledgerCorrectionTargetContainerID(transferParts.before), ledgerCorrectionTargetContainerID(transferParts.after))
+        ledgerCorrectionAttachAppScreenshot(app, named: "Synthetic transfer correction history")
+        ledgerCorrectionCloseHistory(app: app)
+        ledgerCorrectionOpenHistory(app: app, description: "Synthetic USD Transfer")
+        XCTAssertEqual(ledgerCorrectionHistoryRows(app: app, expected: 1).count, 1)
+        ledgerCorrectionCloseHistory(app: app)
     }
 
     @MainActor
@@ -2733,6 +2911,147 @@ final class AureusUITests: XCTestCase {
         }
         app.descendants(matching: .any)["ledger.form.save"].click()
         XCTAssertFalse(app.descendants(matching: .any)["ledger.form.save"].waitForExistence(timeout: 2))
+    }
+
+    @MainActor
+    private func ledgerCorrectionEntryID(app: XCUIApplication, description: String) -> String {
+        let list = app.descendants(matching: .any)["ledger.history"]
+        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        let labels = list.staticTexts.matching(NSPredicate(format: "label == %@", description))
+        XCTAssertEqual(labels.count, 1, "Synthetic description must be unique within the Ledger list")
+        let kind = String(description.split(separator: " ").last ?? "")
+        let edits = list.buttons.matching(NSPredicate(format: "label == %@", "Edit \(kind) transaction"))
+        XCTAssertEqual(edits.count, 1, "Synthetic Ledger kind must identify one edit button")
+        let identifier = edits.element(boundBy: 0).identifier
+        XCTAssertTrue(identifier.hasPrefix("ledger.edit."))
+        let id = String(identifier.dropFirst("ledger.edit.".count))
+        XCTAssertNotNil(UUID(uuidString: id))
+        let rowMatches = list.descendants(matching: .any).matching(identifier: "ledger.row.\(id)")
+        XCTAssertGreaterThan(rowMatches.count, 0, "Edit button must belong to an identified Ledger row")
+        return id
+    }
+
+    @MainActor
+    private func ledgerCorrectionOpenEdit(app: XCUIApplication, description: String) {
+        let id = ledgerCorrectionEntryID(app: app, description: description)
+        let list = app.descendants(matching: .any)["ledger.history"]
+        let buttons = list.buttons.matching(identifier: "ledger.edit.\(id)")
+        XCTAssertEqual(buttons.count, 1)
+        buttons.element(boundBy: 0).click()
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.form.sourceAmount"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    private func ledgerCorrectionFormSheet(_ app: XCUIApplication) -> XCUIElement {
+        let sheets = app.sheets.containing(.textField, identifier: "ledger.form.description")
+        XCTAssertEqual(sheets.count, 1, "Expected one Ledger edit sheet")
+        return sheets.element(boundBy: 0)
+    }
+
+    @MainActor
+    private func ledgerCorrectionCancelForm(app: XCUIApplication) {
+        let buttons = ledgerCorrectionFormSheet(app).buttons.matching(identifier: "Cancel")
+        XCTAssertEqual(buttons.count, 1)
+        buttons.element(boundBy: 0).click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+    }
+
+    @MainActor
+    private func ledgerCorrectionOpenHistory(app: XCUIApplication, description: String) {
+        let id = ledgerCorrectionEntryID(app: app, description: description)
+        let list = app.descendants(matching: .any)["ledger.history"]
+        let buttons = list.buttons.matching(identifier: "ledger.corrections.open.\(id)")
+        XCTAssertEqual(buttons.count, 1)
+        buttons.element(boundBy: 0).click()
+        XCTAssertTrue(app.descendants(matching: .any)["ledger.corrections.close"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    private func ledgerCorrectionHistorySheet(_ app: XCUIApplication) -> XCUIElement {
+        let sheets = app.sheets.containing(.button, identifier: "ledger.corrections.close")
+        XCTAssertEqual(sheets.count, 1, "Expected one correction-history sheet")
+        return sheets.element(boundBy: 0)
+    }
+
+    @MainActor
+    private func ledgerCorrectionCloseHistory(app: XCUIApplication) {
+        let buttons = ledgerCorrectionHistorySheet(app).buttons.matching(identifier: "ledger.corrections.close")
+        XCTAssertEqual(buttons.count, 1)
+        buttons.element(boundBy: 0).click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.corrections.close"], timeout: 5))
+    }
+
+    @MainActor
+    private func ledgerCorrectionHistoryRows(app: XCUIApplication, expected: Int) -> XCUIElementQuery {
+        let sheet = ledgerCorrectionHistorySheet(app)
+        let lists = sheet.descendants(matching: .any).matching(identifier: "ledger.corrections.list")
+        XCTAssertEqual(lists.count, 1)
+        let rows = lists.element(boundBy: 0).descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "ledger.corrections.row."))
+        XCTAssertEqual(rows.count, expected)
+        return rows
+    }
+
+    @MainActor
+    private func ledgerCorrectionHistoryParts(_ row: XCUIElement) -> (before: String, after: String, reason: String) {
+        func single(_ prefix: String) -> String {
+            let matches = row.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", prefix))
+            XCTAssertEqual(matches.count, 1, "History row should have one \(prefix) field")
+            return matches.element(boundBy: 0).label
+        }
+        return (single("Before: "), single("After: "), single("Reason: "))
+    }
+
+    private func ledgerCorrectionContainerID(_ projection: String) -> String {
+        let pattern = #"(?:primary|transferSource), container ([0-9A-Fa-f-]{36})"#
+        let range = NSRange(projection.startIndex..<projection.endIndex, in: projection)
+        let match = try? NSRegularExpression(pattern: pattern).firstMatch(in: projection, range: range)
+        guard let match, let value = Range(match.range(at: 1), in: projection) else { return "" }
+        return String(projection[value])
+    }
+
+    private func ledgerCorrectionTargetContainerID(_ projection: String) -> String {
+        let pattern = #"transferTarget, container ([0-9A-Fa-f-]{36})"#
+        let range = NSRange(projection.startIndex..<projection.endIndex, in: projection)
+        let match = try? NSRegularExpression(pattern: pattern).firstMatch(in: projection, range: range)
+        guard let match, let value = Range(match.range(at: 1), in: projection) else { return "" }
+        return String(projection[value])
+    }
+
+    private func ledgerCorrectionPosting(_ projection: String, role: String) -> String {
+        projection.components(separatedBy: " · ").first { $0.hasPrefix("\(role), container ") } ?? ""
+    }
+
+    @MainActor
+    private func ledgerCorrectionAddUSDEntry(
+        app: XCUIApplication, kind: String, description: String, amount: String,
+        rate: String, targetAmount: String? = nil
+    ) {
+        app.descendants(matching: .any)["ledger.add"].click()
+        let descriptionField = app.descendants(matching: .any)["ledger.form.description"]
+        XCTAssertTrue(descriptionField.waitForExistence(timeout: 5))
+        replaceText(in: descriptionField, with: description)
+        if kind != "Income" { selectPicker(app: app, identifier: "ledger.form.kind", title: kind) }
+        selectPicker(app: app, identifier: "ledger.form.sourceCurrency", title: "USD")
+        replaceText(in: app.descendants(matching: .any)["ledger.form.sourceAmount"], with: amount)
+        let fx = app.descendants(matching: .any)["ledger.form.sourceFX"]
+        XCTAssertTrue(fx.waitForExistence(timeout: 5))
+        replaceText(in: fx, with: rate)
+        if let targetAmount {
+            let target = app.descendants(matching: .any)["ledger.form.targetAmount"]
+            XCTAssertTrue(target.waitForExistence(timeout: 5))
+            replaceText(in: target, with: targetAmount)
+        }
+        app.descendants(matching: .any)["ledger.form.save"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
+    }
+
+    @MainActor
+    private func ledgerCorrectionAttachAppScreenshot(_ app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     @MainActor
