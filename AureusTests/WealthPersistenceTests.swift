@@ -204,7 +204,7 @@ struct WealthPersistenceTests {
         #expect(result.1?["name"] as String? == "Synthetic Legacy Cash")
         #expect(result.1?["kind"] as String? == AssetContainerKind.bankCash.rawValue)
         #expect(result.1?["primary_currency_code"] as String? == CurrencyCode.usd.rawValue)
-        #expect(result.2 == 8)
+        #expect(result.2 == 9)
     }
 
     @Test("Stage 3 migration failure rolls back every v2 schema write")

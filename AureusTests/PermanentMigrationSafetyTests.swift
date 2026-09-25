@@ -46,7 +46,7 @@ struct PermanentMigrationSafetyTests {
             diagnostics: sink.diagnostics
         )
 
-        #expect(try await store.schemaVersion() == 8)
+        #expect(try await store.schemaVersion() == 9)
         #expect(try migrationInventory(context).validGenerations.isEmpty)
         #expect(await store.lastMigrationSafetyResult?.initialState == .fresh)
         #expect(sink.events == [.init(operation: .permanentMigration, outcome: .succeeded, errorCategory: .none)])
@@ -76,7 +76,7 @@ struct PermanentMigrationSafetyTests {
         #expect(sink.events.isEmpty)
     }
 
-    @Test("Recognized legacy v1 through v7 Backup exactly once before migration", arguments: [1, 2, 3, 4, 5, 6, 7])
+    @Test("Recognized legacy v1 through v8 Backup exactly once before migration", arguments: [1, 2, 3, 4, 5, 6, 7, 8])
     func legacyVersions(version: Int) async throws {
         let sink = RecordingDataLifecycleSink()
         let context = try migrationSafetyContext()
@@ -93,13 +93,13 @@ struct PermanentMigrationSafetyTests {
 
         #expect(generation.manifest.schemaVersion == version)
         #expect(try backupAccountIDs(generation) == [legacyAccountID(version)])
-        #expect(try await store.schemaVersion() == 8)
+        #expect(try await store.schemaVersion() == 9)
         #expect(try await store.isolationSentinels() == [legacyAccountName(version)])
         #expect(
             await store.lastMigrationSafetyResult
                 == PermanentMigrationSafetyResult(
                     initialState: .legacy(schemaVersion: version),
-                    finalSchemaVersion: 8,
+                    finalSchemaVersion: 9,
                     migrationRan: true,
                     preMigrationGenerationIdentity: generation.directoryURL.lastPathComponent
                 )
@@ -295,7 +295,7 @@ struct PermanentMigrationSafetyTests {
         _ = try WealthStore(databaseURL: context.paths.permanentDatabaseURL)
         try mutateMetadata(context.paths.permanentDatabaseURL) { db in
             try db.execute(
-                sql: "UPDATE schema_metadata SET version = 9 WHERE store_kind = 'permanent'"
+                sql: "UPDATE schema_metadata SET version = 10 WHERE store_kind = 'permanent'"
             )
         }
 
@@ -444,7 +444,7 @@ struct PermanentMigrationSafetyTests {
         try await reopened.migrate()
 
         #expect(try migrationInventory(context).validGenerations.count == 1)
-        #expect(try await reopened.schemaVersion() == 8)
+        #expect(try await reopened.schemaVersion() == 9)
     }
 
     @Test("Generation collision prevents migration")
@@ -536,7 +536,7 @@ struct PermanentMigrationSafetyTests {
         #expect(configuredRoot == context.paths.internalBackupDirectoryURL)
         #expect(generation.manifest.appVersion == migrationTestAppVersion)
         #expect(generation.manifest.schemaVersion == 1)
-        #expect(try await dependencies.wealthStore.schemaVersion() == 8)
+        #expect(try await dependencies.wealthStore.schemaVersion() == 9)
     }
 
     @Test("Production and temporary Backup roots never mix")
@@ -594,8 +594,8 @@ struct PermanentMigrationSafetyTests {
 
         #expect(stores.count == 2)
         #expect(try migrationInventory(context).validGenerations.count == 1)
-        #expect(try await stores[0].schemaVersion() == 8)
-        #expect(try await stores[1].schemaVersion() == 8)
+        #expect(try await stores[0].schemaVersion() == 9)
+        #expect(try await stores[1].schemaVersion() == 9)
     }
 
     @Test("Market Cache and key-like sentinels remain outside migration Backup")
@@ -667,11 +667,11 @@ struct PermanentMigrationSafetyTests {
         )
         let inspection = try PermanentDatabaseValidation.inspectFile(
             generation.directoryURL.appendingPathComponent("aureus.sqlite"),
-            expectedSchemaVersion: 8,
+            expectedSchemaVersion: 9,
             requireCurrentApplicationSchema: true
         )
 
-        #expect(inspection.schemaVersion == 8)
+        #expect(inspection.schemaVersion == 9)
         #expect(inspection.migrationIdentifiers == PermanentDatabaseValidation.migrationIdentifiers)
         #expect(inspection.accountIDs == ["shared-validation-sentinel"])
         #expect(try await store.validatePermanentBackup(
@@ -700,7 +700,7 @@ struct PermanentMigrationSafetyTests {
             + elapsed.components.attoseconds / 1_000_000_000_000_000
         let generation = try #require(try migrationInventory(context).validGenerations.only)
 
-        #expect(try await store.schemaVersion() == 8)
+        #expect(try await store.schemaVersion() == 9)
         #expect(try rawAccountCount(context.paths.permanentDatabaseURL) == 10_000)
         #expect(try backupAccountCount(generation) == 10_000)
         #expect(milliseconds < 10_000)

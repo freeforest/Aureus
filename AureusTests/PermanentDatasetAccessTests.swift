@@ -54,7 +54,7 @@ struct PermanentDatasetAccessTests {
         _ = try await owner.restorePermanentBackup(generation.directoryURL, in: f.backups, appVersion: "synthetic", createdAt: instant)
         #expect(throws: EvidenceError.ownerConflict) { _ = try WealthStore(databaseURL: f.database) }
         #expect(throws: EvidenceError.ownerConflict) { _ = try f.open() }
-        #expect(try await owner.schemaVersion() == 8)
+        #expect(try await owner.schemaVersion() == 9)
     }
 
     @Test("Shared roots, hard-linked databases and symbolic roots are refused")

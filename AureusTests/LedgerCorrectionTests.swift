@@ -160,12 +160,12 @@ struct LedgerCorrectionTests {
         await #expect(throws: LedgerPersistenceError.transactionNotFound) { try await store.deleteLedgerEntry(id: original.id) }
     }
 
-    @Test("Real legacy prefixes preserve IDs USD values and original-schema safety generations", arguments: [1, 2, 3, 4, 5, 6, 7])
+    @Test("Real legacy prefixes preserve IDs USD values and original-schema safety generations", arguments: [1, 2, 3, 4, 5, 6, 7, 8])
     func migrationPrefixes(_ version: Int) async throws {
         let f = try CorrectionFixture(); defer { f.remove() }
         try f.legacy(version)
         let store = try f.open()
-        #expect(try await store.schemaVersion() == 8)
+        #expect(try await store.schemaVersion() == 9)
         #expect(try f.count("ledger_correction_history") == 0)
         #expect(try f.financialRows() == ["synthetic-account", "synthetic-transaction", "12345", "USD"])
         let safety = try #require(PermanentBackupService.inventory(in: f.backups).validGenerations.first)
@@ -242,7 +242,7 @@ struct LedgerCorrectionTests {
         }
         try q.close()
         let digest = try PermanentBackupService.streamingDigest(of: url)
-        let manifest = PermanentBackupManifest(backupFormatVersion: 1, appVersion: corrupt.manifest.appVersion, schemaVersion: 8, createdAt: corrupt.manifest.createdAt, databaseByteCount: digest.byteCount, databaseSHA256: digest.sha256)
+        let manifest = PermanentBackupManifest(backupFormatVersion: 1, appVersion: corrupt.manifest.appVersion, schemaVersion: 9, createdAt: corrupt.manifest.createdAt, databaseByteCount: digest.byteCount, databaseSHA256: digest.sha256)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         var bytes = try encoder.encode(manifest); bytes.append(10)
         try bytes.write(to: corrupt.directoryURL.appendingPathComponent("manifest.json"))
@@ -251,14 +251,14 @@ struct LedgerCorrectionTests {
         #expect(FileManager.default.fileExists(atPath: corrupt.directoryURL.path))
     }
 
-    @Test("Legacy v7 Evidence structure remains validated and future v9 remains unknown", arguments: [false, true])
+    @Test("Legacy v7 Evidence structure remains validated and future v10 remains unknown", arguments: [false, true])
     func legacyEvidenceAndFutureValidation(_ future: Bool) throws {
         let f = try CorrectionFixture(); defer { f.remove() }
         try f.legacy(7)
-        if future { try f.write("UPDATE schema_metadata SET version=9 WHERE store_kind='permanent'") }
+        if future { try f.write("UPDATE schema_metadata SET version=10 WHERE store_kind='permanent'") }
         else { try f.write("DROP INDEX evidence_ledger_links_target") }
         #expect(throws: (any Error).self) {
-            _ = try PermanentDatabaseValidation.inspectFile(f.database, expectedSchemaVersion: future ? 9 : 7, requireCurrentApplicationSchema: false)
+            _ = try PermanentDatabaseValidation.inspectFile(f.database, expectedSchemaVersion: future ? 10 : 7, requireCurrentApplicationSchema: false)
         }
         #expect(throws: (any Error).self) { _ = try f.open() }
         #expect(try PermanentBackupService.inventory(in: f.backups).validGenerations.isEmpty)
@@ -433,7 +433,7 @@ private final class CorrectionRestoreOperations: PermanentRestoreFileOperations,
         replacements += 1
         if fail && replacements == 1 {
             let q = try DatabaseQueueFactory.open(at: databaseURL); defer { try? q.close() }
-            try q.write { try $0.execute(sql: "UPDATE schema_metadata SET version=9 WHERE store_kind='permanent'") }
+            try q.write { try $0.execute(sql: "UPDATE schema_metadata SET version=10 WHERE store_kind='permanent'") }
         }
     }
 }

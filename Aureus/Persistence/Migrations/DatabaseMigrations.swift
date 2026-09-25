@@ -14,6 +14,7 @@ enum DatabaseMigrations {
     static let permanentV6 = "permanent_v6_portfolio"
     static let permanentV7 = "permanent_v7_evidence_import"
     static let permanentV8 = "permanent_v8_ledger_correction_history"
+    static let permanentV9 = "permanent_v9_wealth_correction_history"
     static let cacheV1 = "cache_v1_foundation"
     static let cacheV2 = "cache_v2_market_data"
 
@@ -768,6 +769,10 @@ enum DatabaseMigrations {
         migrator.registerMigration(permanentV8) { db in
             for (_, statement) in LedgerCorrectionSQL.declarations { try db.execute(sql: statement) }
             try db.execute(sql: "UPDATE schema_metadata SET version = 8 WHERE store_kind = 'permanent'")
+        }
+        migrator.registerMigration(permanentV9) { db in
+            for (_, statement) in WealthCorrectionSQL.declarations { try db.execute(sql: statement) }
+            try db.execute(sql: "UPDATE schema_metadata SET version = 9 WHERE store_kind = 'permanent'")
         }
         return migrator
     }

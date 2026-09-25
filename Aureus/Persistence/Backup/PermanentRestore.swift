@@ -447,6 +447,7 @@ extension WealthStore {
         } catch { throw PermanentRestoreError.currentStoreValidationFailed }
         maintenanceState = .restoring
         invalidateLedgerEditTokens()
+        invalidateWealthEditTokens()
 
         var candidateStageURL: URL?
         defer {

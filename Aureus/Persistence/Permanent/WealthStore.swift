@@ -14,8 +14,11 @@ actor WealthStore {
     let evidenceFilesService: ManagedEvidenceFiles?
     let ledgerEditStoreID = UUID()
     var ledgerEditEpoch = UUID()
+    let wealthEditStoreID = UUID()
+    var wealthEditEpoch = UUID()
 
     func invalidateLedgerEditTokens() { ledgerEditEpoch = UUID() }
+    func invalidateWealthEditTokens() { wealthEditEpoch = UUID() }
 
     init(
         databaseURL: URL,
@@ -224,15 +227,19 @@ actor WealthStore {
 
     func updateWealthContainer(_ record: WealthContainer) throws {
         try queue.write { db in
-            let exists = try Int.fetchOne(
-                db,
-                sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
-                arguments: [record.id.uuidString]
-            ) ?? 0
-            guard exists == 1 else { throw WealthPersistenceError.containerNotFound }
-            try AssetContainerPersistenceRow(container: record.container).update(db)
-            try WealthRecordPersistenceRow(record: record).update(db)
+            try Self.updateWealthContainer(record, in: db)
         }
+    }
+
+    static func updateWealthContainer(_ record: WealthContainer, in db: Database) throws {
+        let exists = try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM wealth_records WHERE container_id = ?",
+            arguments: [record.id.uuidString]
+        ) ?? 0
+        guard exists == 1 else { throw WealthPersistenceError.containerNotFound }
+        try AssetContainerPersistenceRow(container: record.container).update(db)
+        try WealthRecordPersistenceRow(record: record).update(db)
     }
 
     func deletionImpact(for id: UUID) throws -> ContainerDeletionImpact {
@@ -251,6 +258,7 @@ actor WealthStore {
             guard impact.wealthRecordCount == 1 else {
                 throw WealthPersistenceError.containerNotFound
             }
+            try WealthCorrectionSQL.deletionContext(db, id: id)
             try db.execute(
                 sql: "DELETE FROM asset_containers WHERE id = ?",
                 arguments: [id.uuidString]

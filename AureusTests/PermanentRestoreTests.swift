@@ -11,7 +11,7 @@ struct PermanentRestoreTests {
         let context = try restoreContext()
         let candidate = try await currentCandidate(context, id: "synthetic-candidate", name: "Synthetic", generation: 701)
         let probe = try DatabaseQueueFactory.open(at: context.paths.permanentDatabaseURL)
-        try await probe.write { try $0.execute(sql: "UPDATE schema_metadata SET version = 9 WHERE store_kind = 'permanent'") }
+        try await probe.write { try $0.execute(sql: "UPDATE schema_metadata SET version = 10 WHERE store_kind = 'permanent'") }
         try probe.close()
         await #expect(throws: PermanentRestoreError.currentStoreValidationFailed) {
             _ = try await performRestore(context, candidate: candidate, operation: 701)
@@ -48,9 +48,9 @@ struct PermanentRestoreTests {
 
         let result = try await performRestore(context, candidate: candidate, operation: 1)
 
-        #expect(result.previousSchemaVersion == 8)
-        #expect(result.candidateSchemaVersion == 8)
-        #expect(result.finalSchemaVersion == 8)
+        #expect(result.previousSchemaVersion == 9)
+        #expect(result.candidateSchemaVersion == 9)
+        #expect(result.finalSchemaVersion == 9)
         #expect(!result.migrationRan)
         #expect(result.operationCategory == .internalGenerationRestore)
         #expect(try await accountIDs(context.store) == ["restore-candidate-only"])
@@ -102,7 +102,7 @@ struct PermanentRestoreTests {
         #expect(try generationAccountIDs(candidate) == ["restore-candidate-a"])
     }
 
-    @Test("Legacy schema candidates migrate forward and preserve synthetic records", arguments: [1, 2, 3, 4, 5, 6, 7])
+    @Test("Legacy schema candidates migrate forward and preserve synthetic records", arguments: [1, 2, 3, 4, 5, 6, 7, 8])
     func legacyForwardMigration(version: Int) async throws {
         let context = try restoreContext()
         try await seedAccount(context.store, id: "restore-current-v\(version)", name: "Synthetic Current v\(version)")
@@ -111,9 +111,9 @@ struct PermanentRestoreTests {
         let result = try await performRestore(context, candidate: candidate, operation: 10 + version)
 
         #expect(result.candidateSchemaVersion == version)
-        #expect(result.finalSchemaVersion == 8)
+        #expect(result.finalSchemaVersion == 9)
         #expect(result.migrationRan)
-        #expect(try await context.store.schemaVersion() == 8)
+        #expect(try await context.store.schemaVersion() == 9)
         #expect(try await accountIDs(context.store) == ["restore-legacy-v\(version)"])
     }
 
@@ -128,9 +128,9 @@ struct PermanentRestoreTests {
             generation: 20
         )
         try mutateGeneration(candidate) { db in
-            try db.execute(sql: "UPDATE schema_metadata SET version = 9 WHERE store_kind = 'permanent'")
+            try db.execute(sql: "UPDATE schema_metadata SET version = 10 WHERE store_kind = 'permanent'")
         }
-        try resignGeneration(candidate, schemaVersion: 9)
+        try resignGeneration(candidate, schemaVersion: 10)
         #expect(throws: PermanentBackupError.self) {
             _ = try PermanentBackupService.validateGeneration(candidate.directoryURL, in: context.paths.internalBackupDirectoryURL)
         }
@@ -276,7 +276,7 @@ struct PermanentRestoreTests {
 
         #expect(error == .restoreFailedRollbackSucceeded(.migration))
         #expect(try await accountIDs(context.store) == ["restore-migration-old"])
-        #expect(try await context.store.schemaVersion() == 8)
+        #expect(try await context.store.schemaVersion() == 9)
         #expect(await context.store.maintenanceState == .ready)
         #expect(!(try await accountIDs(context.store)).contains("restore-migration-bad"))
     }
@@ -871,6 +871,7 @@ private func restoreMigrationIdentifier(_ version: Int) -> String {
     case 5: DatabaseMigrations.permanentV5
     case 6: DatabaseMigrations.permanentV6
     case 7: DatabaseMigrations.permanentV7
+    case 8: DatabaseMigrations.permanentV8
     default: preconditionFailure("Synthetic Restore fixture version out of range")
     }
 }

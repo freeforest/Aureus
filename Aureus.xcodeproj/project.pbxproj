@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1000000000000000000004E /* WealthCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004E /* WealthCorrection.swift */; };
+		A1000000000000000000004F /* WealthCorrectionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004F /* WealthCorrectionPersistence.swift */; };
+		A20000000000000000000023 /* WealthCorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000022 /* WealthCorrectionTests.swift */; };
 		A1000000000000000000004C /* LedgerCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004C /* LedgerCorrection.swift */; };
 		A1000000000000000000004D /* LedgerCorrectionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004D /* LedgerCorrectionPersistence.swift */; };
 		A20000000000000000000021 /* LedgerCorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000020 /* LedgerCorrectionTests.swift */; };
@@ -135,6 +138,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B1000000000000000000004E /* WealthCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthCorrection.swift; sourceTree = "<group>"; };
+		B1000000000000000000004F /* WealthCorrectionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthCorrectionPersistence.swift; sourceTree = "<group>"; };
+		B20000000000000000000022 /* WealthCorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthCorrectionTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000004C /* LedgerCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCorrection.swift; sourceTree = "<group>"; };
 		B1000000000000000000004D /* LedgerCorrectionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCorrectionPersistence.swift; sourceTree = "<group>"; };
 		B20000000000000000000020 /* LedgerCorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCorrectionTests.swift; sourceTree = "<group>"; };
@@ -380,7 +386,10 @@
 		};
 		D12500000000000000000001 /* Wealth */ = {
 			isa = PBXGroup;
-			children = (B10000000000000000000012 /* WealthDomain.swift */);
+			children = (
+				B10000000000000000000012 /* WealthDomain.swift */,
+				B1000000000000000000004E /* WealthCorrection.swift */,
+			);
 			path = Wealth;
 			sourceTree = "<group>";
 		};
@@ -455,6 +464,7 @@
 			children = (
 				B1000000000000000000004A /* EvidencePersistence.swift */,
 				B1000000000000000000004D /* LedgerCorrectionPersistence.swift */,
+				B1000000000000000000004F /* WealthCorrectionPersistence.swift */,
 				B1000000000000000000004B /* PermanentDatasetAccess.swift */,
 				B1000000000000000000000E /* WealthStore.swift */,
 				B10000000000000000000013 /* WealthPersistenceRows.swift */,
@@ -606,6 +616,7 @@
 			children = (
 				B2000000000000000000001E /* EvidencePersistenceTests.swift */,
 				B20000000000000000000020 /* LedgerCorrectionTests.swift */,
+				B20000000000000000000022 /* WealthCorrectionTests.swift */,
 				B20000000000000000000021 /* LedgerCorrectionFeatureTests.swift */,
 				B2000000000000000000001F /* PermanentDatasetAccessTests.swift */,
 				B20000000000000000000001 /* FinancialValueTests.swift */,
@@ -748,6 +759,8 @@
 				A1000000000000000000004A /* EvidencePersistence.swift in Sources */,
 				A1000000000000000000004C /* LedgerCorrection.swift in Sources */,
 				A1000000000000000000004D /* LedgerCorrectionPersistence.swift in Sources */,
+				A1000000000000000000004E /* WealthCorrection.swift in Sources */,
+				A1000000000000000000004F /* WealthCorrectionPersistence.swift in Sources */,
 				A1000000000000000000004B /* PermanentDatasetAccess.swift in Sources */,
 				A10000000000000000000001 /* AureusApp.swift in Sources */,
 				A10000000000000000000002 /* AppModel.swift in Sources */,
@@ -823,6 +836,7 @@
 			files = (
 				A2000000000000000000001E /* EvidencePersistenceTests.swift in Sources */,
 				A20000000000000000000021 /* LedgerCorrectionTests.swift in Sources */,
+				A20000000000000000000023 /* WealthCorrectionTests.swift in Sources */,
 				A20000000000000000000022 /* LedgerCorrectionFeatureTests.swift in Sources */,
 				A2000000000000000000001F /* PermanentDatasetAccessTests.swift in Sources */,
 				A20000000000000000000001 /* FinancialValueTests.swift in Sources */,

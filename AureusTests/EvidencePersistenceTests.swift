@@ -193,7 +193,7 @@ struct EvidencePersistenceTests {
         weak var released = store; store = nil; try #require(released == nil)
         #expect(throws: EvidenceError.disabled) { _ = try WealthStore(databaseURL: f.database) }
         let reopened = try f.open()
-        #expect(try await reopened.schemaVersion() == 8)
+        #expect(try await reopened.schemaVersion() == 9)
     }
 
     @Test("Database checks reject malformed IDs, references, receipt groups and states")
@@ -363,7 +363,7 @@ struct EvidencePersistenceTests {
         #expect(throws: PermanentMigrationSafetyError.self) { _ = try f.open() }
     }
 
-    @Test("Actual legacy prefixes retain financial bytes and pre-migration safety copies", arguments: [1, 2, 3, 4, 5, 6, 7])
+    @Test("Actual legacy prefixes retain financial bytes and pre-migration safety copies", arguments: [1, 2, 3, 4, 5, 6, 7, 8])
     func legacyFinancialPreservation(_ version: Int) async throws {
         let f = try IntegrationFixture(); defer { f.remove() }
         let queue = try DatabaseQueueFactory.open(at: f.database)
@@ -384,7 +384,7 @@ struct EvidencePersistenceTests {
         #expect(throws: PermanentMigrationSafetyError.missingBackupConfiguration) { _ = try f.open() }
         let safety = PermanentMigrationSafetyConfiguration(backupRoot: f.backups, appVersion: "synthetic", createdAt: { UTCInstant(millisecondsSince1970: 1_800_000_000_000) }, generationID: { UUID() })
         var store: WealthStore? = try WealthStore(databaseURL: f.database, migrationSafetyConfiguration: safety, evidenceConfiguration: .init(root: f.managed, protectedPaths: [f.backups]))
-        #expect(try await store!.schemaVersion() == 8)
+        #expect(try await store!.schemaVersion() == 9)
         for table in EvidenceSQL.tables { #expect(try f.count(table) == 0) }
         let generations = try PermanentBackupService.inventory(in: f.backups).validGenerations
         try #require(generations.count == 1)
@@ -396,7 +396,7 @@ struct EvidencePersistenceTests {
         try old.close()
         weak var released = store; store = nil; try #require(released == nil)
         let reopened = try f.open()
-        #expect(try await reopened.schemaVersion() == 8)
+        #expect(try await reopened.schemaVersion() == 9)
         let current = try DatabaseQueueFactory.open(at: f.database); defer { try? current.close() }
         #expect(try await current.read { try Row.fetchAll($0, sql: "SELECT * FROM wealth_transactions").map(\.description) } == before)
         if version >= 2 {
@@ -443,7 +443,7 @@ struct EvidencePersistenceTests {
         try q.close()
         let digest = try PermanentBackupService.streamingDigest(of: dbURL)
         let original = clean[0].manifest
-        let manifest = PermanentBackupManifest(backupFormatVersion: 1, appVersion: original.appVersion, schemaVersion: 8, createdAt: original.createdAt, databaseByteCount: digest.byteCount, databaseSHA256: digest.sha256)
+        let manifest = PermanentBackupManifest(backupFormatVersion: 1, appVersion: original.appVersion, schemaVersion: 9, createdAt: original.createdAt, databaseByteCount: digest.byteCount, databaseSHA256: digest.sha256)
         try JSONEncoder().encode(manifest).write(to: forged.appendingPathComponent("manifest.json"))
         #expect(throws: PermanentBackupError.evidenceRequiresCompleteBackup) { _ = try PermanentBackupService.validateGeneration(forged, in: f.backups) }
         let inventory = try PermanentBackupService.pruneValidGenerations(in: f.backups)
@@ -549,7 +549,7 @@ private final class MaterialExportMutation: PermanentBackupExportFileOperations,
         let manifestURL = root.appendingPathComponent("manifest.json")
         let old = try JSONDecoder().decode(PermanentBackupManifest.self, from: Data(contentsOf: manifestURL))
         let digest = try PermanentBackupService.streamingDigest(of: url)
-        try JSONEncoder().encode(PermanentBackupManifest(backupFormatVersion: 1, appVersion: old.appVersion, schemaVersion: 8, createdAt: old.createdAt, databaseByteCount: digest.byteCount, databaseSHA256: digest.sha256)).write(to: manifestURL)
+        try JSONEncoder().encode(PermanentBackupManifest(backupFormatVersion: 1, appVersion: old.appVersion, schemaVersion: 9, createdAt: old.createdAt, databaseByteCount: digest.byteCount, databaseSHA256: digest.sha256)).write(to: manifestURL)
         reached.set()
         count("mutation")
     }
