@@ -2459,7 +2459,7 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
         assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "125.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-125.00", transfers: "0")
         ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
-        let firstHistory = ledgerCorrectionHistoryRows(app: app, expected: 1).element(boundBy: 0)
+        let firstHistory = try ledgerCorrectionHistoryRows(app: app, expected: 1)[0]
         let firstParts = ledgerCorrectionHistoryParts(firstHistory)
         XCTAssertTrue(firstParts.before.contains("CNY 100.00"))
         XCTAssertTrue(firstParts.after.contains("CNY 125.00"))
@@ -2474,8 +2474,10 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
         assertLedgerSummary(app: app, ordinaryInflow: "0.00", ordinaryOutflow: "125.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "-125.00", transfers: "0")
         ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
-        let rows = ledgerCorrectionHistoryRows(app: app, expected: 2)
-        let containerParts = ledgerCorrectionHistoryParts(rows.element(boundBy: 1))
+        let rows = try ledgerCorrectionHistoryRows(app: app, expected: 2)
+        XCTAssertEqual(rows[0].id, firstHistory.id)
+        XCTAssertNotEqual(rows[1].id, firstHistory.id)
+        let containerParts = ledgerCorrectionHistoryParts(rows[1])
         XCTAssertTrue(containerParts.before.contains("primary, container "))
         XCTAssertTrue(containerParts.after.contains("primary, container "))
         XCTAssertEqual(ledgerCorrectionContainerID(containerParts.before).count, 36)
@@ -2490,7 +2492,7 @@ final class AureusUITests: XCTestCase {
         ledgerCorrectionAttachAppScreenshot(app, named: "Synthetic container correction history")
         ledgerCorrectionCloseHistory(app: app)
         ledgerCorrectionOpenHistory(app: app, description: "Synthetic Correction Expense")
-        XCTAssertEqual(ledgerCorrectionHistoryRows(app: app, expected: 2).count, 2)
+        XCTAssertEqual(try ledgerCorrectionHistoryRows(app: app, expected: 2).count, 2)
         ledgerCorrectionCloseHistory(app: app)
     }
 
@@ -2519,7 +2521,8 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
         assertLedgerSummary(app: app, ordinaryInflow: "797.50", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "797.50", transfers: "0")
         ledgerCorrectionOpenHistory(app: app, description: "Synthetic USD Income")
-        let usdParts = ledgerCorrectionHistoryParts(ledgerCorrectionHistoryRows(app: app, expected: 1).element(boundBy: 0))
+        let firstUSDHistory = try ledgerCorrectionHistoryRows(app: app, expected: 1)[0]
+        let usdParts = ledgerCorrectionHistoryParts(firstUSDHistory)
         XCTAssertTrue(usdParts.before.contains("USD 100.00 × 7.25 = CNY 725.00"))
         XCTAssertTrue(usdParts.after.contains("USD 110.00 × 7.25 = CNY 797.50"))
         XCTAssertTrue(usdParts.before.contains("source manual.user.stage4"))
@@ -2535,9 +2538,11 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
         assertLedgerSummary(app: app, ordinaryInflow: "870.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "870.00", transfers: "0")
         ledgerCorrectionOpenHistory(app: app, description: "Synthetic USD Income")
-        let orderedRows = ledgerCorrectionHistoryRows(app: app, expected: 2)
-        let earlier = ledgerCorrectionHistoryParts(orderedRows.element(boundBy: 0))
-        let later = ledgerCorrectionHistoryParts(orderedRows.element(boundBy: 1))
+        let orderedRows = try ledgerCorrectionHistoryRows(app: app, expected: 2)
+        XCTAssertEqual(orderedRows[0].id, firstUSDHistory.id)
+        XCTAssertNotEqual(orderedRows[1].id, firstUSDHistory.id)
+        let earlier = ledgerCorrectionHistoryParts(orderedRows[0])
+        let later = ledgerCorrectionHistoryParts(orderedRows[1])
         XCTAssertTrue(earlier.reason.contains("Synthetic USD amount correction"))
         XCTAssertTrue(later.reason.contains("Synthetic USD follow-up"))
         XCTAssertTrue(later.before.contains("USD 110.00 × 7.25 = CNY 797.50"))
@@ -2553,7 +2558,7 @@ final class AureusUITests: XCTestCase {
         XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["ledger.form.save"], timeout: 5))
         assertLedgerSummary(app: app, ordinaryInflow: "870.00", ordinaryOutflow: "0.00", investmentInflow: "0.00", investmentOutflow: "0.00", net: "870.00", transfers: "1")
         ledgerCorrectionOpenHistory(app: app, description: "Synthetic USD Transfer")
-        let transferParts = ledgerCorrectionHistoryParts(ledgerCorrectionHistoryRows(app: app, expected: 1).element(boundBy: 0))
+        let transferParts = ledgerCorrectionHistoryParts(try ledgerCorrectionHistoryRows(app: app, expected: 1)[0])
         XCTAssertTrue(transferParts.before.contains("transferSource, container "))
         XCTAssertTrue(transferParts.before.contains("transferTarget, container "))
         XCTAssertTrue(transferParts.after.contains("transferSource, container "))
@@ -2574,7 +2579,7 @@ final class AureusUITests: XCTestCase {
         ledgerCorrectionAttachAppScreenshot(app, named: "Synthetic transfer correction history")
         ledgerCorrectionCloseHistory(app: app)
         ledgerCorrectionOpenHistory(app: app, description: "Synthetic USD Transfer")
-        XCTAssertEqual(ledgerCorrectionHistoryRows(app: app, expected: 1).count, 1)
+        XCTAssertEqual(try ledgerCorrectionHistoryRows(app: app, expected: 1).count, 1)
         ledgerCorrectionCloseHistory(app: app)
     }
 
@@ -2940,18 +2945,44 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func ledgerCorrectionAXInspectHistory(app: XCUIApplication, checkpoint: String) {
-        let predicate = NSPredicate(
-            format: "identifier BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@",
-            "ledger.corrections.", "Before: ", "After: ", "Reason: "
+        let sheets = app.sheets.containing(.button, identifier: "ledger.corrections.close")
+        print("LEDGER_CORRECTION_AX_HISTORY checkpoint=\(checkpoint) sheet_count=\(sheets.count)")
+        guard sheets.count == 1 else { return }
+        let lists = sheets.element(boundBy: 0).descendants(matching: .any)
+            .matching(identifier: "ledger.corrections.list")
+        print("LEDGER_CORRECTION_AX_HISTORY checkpoint=\(checkpoint) list_count=\(lists.count)")
+        guard lists.count == 1 else { return }
+        let query = lists.element(boundBy: 0).staticTexts.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "ledger.corrections.row.")
         )
-        let query = app.descendants(matching: .any).matching(predicate)
         let count = query.count
         print("LEDGER_CORRECTION_AX_HISTORY checkpoint=\(checkpoint) count=\(count) truncated=\(count > 50)")
         for index in 0..<min(count, 50) {
             let element = query.element(boundBy: index)
-            func bounded(_ value: String) -> String { String(value.prefix(2_048)) }
-            print("LEDGER_CORRECTION_AX_HISTORY index=\(index) type=\(element.elementType) identifier=\(bounded(element.identifier)) label=\(bounded(element.label)) value=\(bounded(element.value as? String ?? "")) exists=\(element.exists) isHittable=\(element.isHittable)")
+            let value = element.value as? String ?? ""
+            let role = ledgerCorrectionHistoryAXRole(value)
+            print("LEDGER_CORRECTION_AX_HISTORY index=\(index) type=\(element.elementType) identifier=\(element.identifier) role=\(role) label=\(String(element.label.prefix(2_048))) value=\(String(value.prefix(2_048))) value_truncated=\(value.count > 2_048) exists=\(element.exists) isHittable=\(element.isHittable)")
         }
+    }
+
+    private struct LedgerCorrectionHistoryAXRecord {
+        let id: UUID
+        let firstIndex: Int
+        let before: String
+        let after: String
+        let reason: String
+    }
+
+    private enum LedgerCorrectionHistoryAXError: Error {
+        case invalidRecord
+    }
+
+    private func ledgerCorrectionHistoryAXRole(_ value: String) -> String {
+        if value.hasPrefix("Before: ") { return "before" }
+        if value.hasPrefix("After: ") { return "after" }
+        if value.hasPrefix("Reason: ") { return "reason" }
+        if value == "Important correction" || value == "Deletion context" { return "title" }
+        return "time-or-other"
     }
 
     @MainActor
@@ -3034,26 +3065,69 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
-    private func ledgerCorrectionHistoryRows(app: XCUIApplication, expected: Int) -> XCUIElementQuery {
+    private func ledgerCorrectionHistoryRows(app: XCUIApplication, expected: Int) throws -> [LedgerCorrectionHistoryAXRecord] {
         let sheet = ledgerCorrectionHistorySheet(app)
         let lists = sheet.descendants(matching: .any).matching(identifier: "ledger.corrections.list")
         if lists.count != 1 { ledgerCorrectionAXInspectHistory(app: app, checkpoint: "history-list") }
-        XCTAssertEqual(lists.count, 1)
-        let rows = lists.element(boundBy: 0).descendants(matching: .any)
+        guard lists.count == 1 else {
+            XCTFail("Expected one correction-history list")
+            throw LedgerCorrectionHistoryAXError.invalidRecord
+        }
+        let fields = lists.element(boundBy: 0).staticTexts
             .matching(NSPredicate(format: "identifier BEGINSWITH %@", "ledger.corrections.row."))
-        if rows.count != expected { ledgerCorrectionAXInspectHistory(app: app, checkpoint: "rows-expected-\(expected)") }
-        XCTAssertEqual(rows.count, expected)
-        return rows
+        guard fields.count <= 50 else {
+            ledgerCorrectionAXInspectHistory(app: app, checkpoint: "field-limit")
+            XCTFail("History field count exceeds bounded AX evidence")
+            throw LedgerCorrectionHistoryAXError.invalidRecord
+        }
+        var order: [String] = []
+        var grouped: [String: [(index: Int, role: String, value: String)]] = [:]
+        for index in 0..<fields.count {
+            let field = fields.element(boundBy: index)
+            let identifier = field.identifier
+            let rawID = String(identifier.dropFirst("ledger.corrections.row.".count))
+            guard let id = UUID(uuidString: rawID), id.uuidString == rawID,
+                  let value = field.value as? String, value.count <= 2_048 else {
+                ledgerCorrectionAXInspectHistory(app: app, checkpoint: "invalid-field")
+                XCTFail("History field has an invalid UUID or truncated/non-text value at index \(index)")
+                throw LedgerCorrectionHistoryAXError.invalidRecord
+            }
+            if grouped[identifier] == nil { order.append(identifier); grouped[identifier] = [] }
+            let role = ledgerCorrectionHistoryAXRole(value)
+            grouped[identifier, default: []].append((index, role, value))
+            print("LEDGER_CORRECTION_AX_HISTORY_GROUP candidate_index=\(index) uuid=\(id.uuidString) role=\(role) value=\(String(value.prefix(2_048))) value_truncated=false")
+        }
+        if order.count != expected { ledgerCorrectionAXInspectHistory(app: app, checkpoint: "rows-expected-\(expected)") }
+        guard order.count == expected else {
+            XCTFail("Expected \(expected) logical history records, found \(order.count)")
+            throw LedgerCorrectionHistoryAXError.invalidRecord
+        }
+        return try order.map { identifier in
+            let fields = grouped[identifier] ?? []
+            @MainActor func single(_ role: String) throws -> String {
+                let matches = fields.filter { $0.role == role }
+                guard matches.count == 1 else {
+                    ledgerCorrectionAXInspectHistory(app: app, checkpoint: "field-\(role)-count-\(matches.count)")
+                    XCTFail("History \(identifier) must have exactly one \(role) field")
+                    throw LedgerCorrectionHistoryAXError.invalidRecord
+                }
+                return matches[0].value
+            }
+            guard let rawID = identifier.split(separator: ".").last,
+                  let id = UUID(uuidString: String(rawID)),
+                  let firstIndex = fields.first?.index else {
+                throw LedgerCorrectionHistoryAXError.invalidRecord
+            }
+            return LedgerCorrectionHistoryAXRecord(
+                id: id, firstIndex: firstIndex,
+                before: try single("before"), after: try single("after"), reason: try single("reason")
+            )
+        }
     }
 
     @MainActor
-    private func ledgerCorrectionHistoryParts(_ row: XCUIElement) -> (before: String, after: String, reason: String) {
-        func single(_ prefix: String) -> String {
-            let matches = row.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", prefix))
-            XCTAssertEqual(matches.count, 1, "History row should have one \(prefix) field")
-            return matches.element(boundBy: 0).label
-        }
-        return (single("Before: "), single("After: "), single("Reason: "))
+    private func ledgerCorrectionHistoryParts(_ row: LedgerCorrectionHistoryAXRecord) -> (before: String, after: String, reason: String) {
+        (row.before, row.after, row.reason)
     }
 
     private func ledgerCorrectionContainerID(_ projection: String) -> String {
