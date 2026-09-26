@@ -186,9 +186,9 @@ final class AureusUITests: XCTestCase {
     @MainActor
     func testStage11GeneralPreferencesAffectWealthWithoutChangingValuation() throws {
         let app = XCUIApplication()
-        app.launchArguments = uiTestingArguments(demo: true)
+        app.launchArguments = uiTestingArguments(demo: true) + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         launchApp(app)
-        defer { app.terminate() }
+        defer { dismissResidualNativePanels(in: app); app.terminate() }
         app.descendants(matching: .any)["sidebar.settings"].click()
         XCTAssertTrue(waitForPickerSelection(in: app, identifier: "settings.general.currency", containing: "CNY", timeout: 5))
         XCTAssertTrue(waitForPickerSelection(in: app, identifier: "settings.general.grouping", containing: "On", timeout: 5))
@@ -209,12 +209,14 @@ final class AureusUITests: XCTestCase {
         app.descendants(matching: .any)["wealth.form.cancel"].click()
         selectRow(app: app, kind: "bankCash", currency: "cny")
         app.descendants(matching: .any)["wealth.edit"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.form.intent"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["wealth.form.amount"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["wealth.form.fx.rate"].exists)
         XCTAssertTrue(waitForValue(app.descendants(matching: .any)["wealth.form.amount"], containing: "125000", timeout: 5))
         app.descendants(matching: .any)["wealth.form.cancel"].click()
         selectRow(app: app, kind: "bankCash", currency: "usd")
         app.descendants(matching: .any)["wealth.edit"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.form.intent"].waitForExistence(timeout: 5))
         XCTAssertTrue(waitForValue(app.descendants(matching: .any)["wealth.form.fx.rate"], containing: "7.125", timeout: 5))
         XCTAssertTrue(waitForValue(app.descendants(matching: .any)["wealth.form.amount"], containing: "1000", timeout: 5))
         app.descendants(matching: .any)["wealth.form.cancel"].click()
@@ -2227,8 +2229,9 @@ final class AureusUITests: XCTestCase {
     @MainActor
     func testWealthCNYUSDLiabilityCRUDAndDynamicTotals() throws {
         let app = XCUIApplication()
-        app.launchArguments = uiTestingArguments()
+        app.launchArguments = uiTestingArguments() + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         launchApp(app)
+        defer { dismissResidualNativePanels(in: app); app.terminate() }
         app.descendants(matching: .any)["sidebar.wealth"].click()
         XCTAssertTrue(app.descendants(matching: .any)["wealth.empty.add"].waitForExistence(timeout: 10))
         assertSummary(app: app, assets: "0.00", liabilities: "0.00", netWorth: "0.00")
@@ -2268,6 +2271,8 @@ final class AureusUITests: XCTestCase {
 
         selectRow(app: app, kind: "liability", currency: "cny")
         app.descendants(matching: .any)["wealth.edit"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.form.intent"].waitForExistence(timeout: 5))
+        wealthAcceptanceChooseIntent(app: app, title: "Record new current valuation")
         let amountField = app.descendants(matching: .any)["wealth.form.amount"]
         XCTAssertTrue(amountField.waitForExistence(timeout: 5))
         amountField.click()
@@ -2286,6 +2291,183 @@ final class AureusUITests: XCTestCase {
         deleteSelectedContainer(app: app)
         XCTAssertTrue(waitForRowCount(1, in: app, timeout: 5))
         assertSummary(app: app, assets: "100.00", liabilities: "0.00", netWorth: "100.00")
+    }
+
+    @MainActor
+    func testWealthCorrectionReasonCancelAndHistory() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments() + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        launchApp(app)
+        defer { dismissResidualNativePanels(in: app); app.terminate() }
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.empty.add"].waitForExistence(timeout: 10))
+        addContainer(app: app, name: "Synthetic Wealth Correction Cash", kind: "Bank / Cash",
+            amount: "100.00", currency: "CNY", fxRate: nil)
+        XCTAssertTrue(waitForRowCount(1, in: app, timeout: 5))
+        assertSummary(app: app, assets: "100.00", liabilities: "0.00", netWorth: "100.00")
+        wealthAcceptanceOpenHistory(app: app, name: "Synthetic Wealth Correction Cash",
+            kind: "bankCash", currency: "cny")
+        XCTAssertTrue(wealthAcceptanceHistorySheet(app).descendants(matching: .any)
+            .matching(identifier: "wealth.history.empty").element.waitForExistence(timeout: 5))
+        wealthAcceptanceCloseHistory(app: app)
+
+        wealthAcceptanceOpenEdit(app: app, name: "Synthetic Wealth Correction Cash",
+            kind: "bankCash", currency: "cny", amount: "100")
+        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "wealth.form.intent",
+            containing: "Correct existing record", timeout: 5))
+        replaceText(in: app.descendants(matching: .any)["wealth.form.amount"], with: "125.00")
+        let reason = app.descendants(matching: .any)["wealth.form.correctionReason"]
+        XCTAssertTrue(reason.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["wealth.form.save"].isEnabled)
+        wealthAcceptanceScreenshot(app, name: "Synthetic Wealth correction reason required")
+        replaceText(in: reason, with: "Synthetic first correction")
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.form.save"].isEnabled)
+        app.descendants(matching: .any)["wealth.form.cancel"].click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["wealth.form.save"], timeout: 5))
+        assertSummary(app: app, assets: "100.00", liabilities: "0.00", netWorth: "100.00")
+        wealthAcceptanceOpenHistory(app: app, name: "Synthetic Wealth Correction Cash",
+            kind: "bankCash", currency: "cny")
+        XCTAssertTrue(wealthAcceptanceHistorySheet(app).descendants(matching: .any)
+            .matching(identifier: "wealth.history.empty").element.waitForExistence(timeout: 5))
+        wealthAcceptanceCloseHistory(app: app)
+
+        wealthAcceptanceOpenEdit(app: app, name: "Synthetic Wealth Correction Cash",
+            kind: "bankCash", currency: "cny", amount: "100")
+        replaceText(in: app.descendants(matching: .any)["wealth.form.amount"], with: "125.00")
+        replaceText(in: app.descendants(matching: .any)["wealth.form.correctionReason"],
+            with: "Synthetic first correction")
+        wealthAcceptanceSave(app: app)
+        assertSummary(app: app, assets: "125.00", liabilities: "0.00", netWorth: "125.00")
+        wealthAcceptanceOpenHistory(app: app, name: "Synthetic Wealth Correction Cash",
+            kind: "bankCash", currency: "cny")
+        let first = try wealthAcceptanceHistoryRows(app: app, expected: 1)[0]
+        XCTAssertTrue(first.reason.contains("Synthetic first correction"))
+        XCTAssertTrue(first.before.contains("original CNY 100.00"))
+        XCTAssertTrue(first.after.contains("original CNY 125.00"))
+        XCTAssertTrue(first.before.contains("CNY CNY 100.00"))
+        XCTAssertTrue(first.after.contains("CNY CNY 125.00"))
+        wealthAcceptanceCloseHistory(app: app)
+
+        wealthAcceptanceOpenEdit(app: app, name: "Synthetic Wealth Correction Cash",
+            kind: "bankCash", currency: "cny", amount: "125")
+        replaceText(in: app.descendants(matching: .any)["wealth.form.amount"], with: "150.00")
+        replaceText(in: app.descendants(matching: .any)["wealth.form.correctionReason"],
+            with: "Synthetic second correction")
+        wealthAcceptanceSave(app: app)
+        assertSummary(app: app, assets: "150.00", liabilities: "0.00", netWorth: "150.00")
+        wealthAcceptanceOpenHistory(app: app, name: "Synthetic Wealth Correction Cash",
+            kind: "bankCash", currency: "cny")
+        let rows = try wealthAcceptanceHistoryRows(app: app, expected: 2)
+        XCTAssertEqual(rows[0].id, first.id)
+        XCTAssertNotEqual(rows[1].id, first.id)
+        XCTAssertLessThan(rows[0].sequence, rows[1].sequence)
+        XCTAssertEqual(rows[0].before, first.before)
+        XCTAssertEqual(rows[0].after, first.after)
+        XCTAssertTrue(rows[1].reason.contains("Synthetic second correction"))
+        XCTAssertTrue(rows[1].before.contains("original CNY 125.00"))
+        XCTAssertTrue(rows[1].after.contains("original CNY 150.00"))
+        XCTAssertTrue(rows[1].before.contains("CNY CNY 125.00"))
+        XCTAssertTrue(rows[1].after.contains("CNY CNY 150.00"))
+        XCTAssertEqual(wealthAcceptanceHistorySheet(app).buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "Apply", "Edit")).count, 0)
+        wealthAcceptanceScreenshot(app, name: "Synthetic Wealth two correction histories")
+        wealthAcceptanceCloseHistory(app: app)
+        wealthAcceptanceOpenHistory(app: app, name: "Synthetic Wealth Correction Cash",
+            kind: "bankCash", currency: "cny")
+        let reopened = try wealthAcceptanceHistoryRows(app: app, expected: 2)
+        XCTAssertEqual(reopened.map(\.id), rows.map(\.id))
+        XCTAssertEqual(reopened.map(\.before), rows.map(\.before))
+        XCTAssertEqual(reopened.map(\.after), rows.map(\.after))
+        wealthAcceptanceCloseHistory(app: app)
+    }
+
+    @MainActor
+    func testWealthValuationIntentUSDAndHistory() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+            + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        launchApp(app)
+        defer { dismissResidualNativePanels(in: app); app.terminate() }
+        app.descendants(matching: .any)["sidebar.wealth"].click()
+        let name = "Synthetic USD Cash Lab"
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.row.bankCash.usd"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
+            containing: "original USD 1,000.00", timeout: 5))
+        wealthAcceptanceOpenHistory(app: app, name: name, kind: "bankCash", currency: "usd")
+        XCTAssertTrue(wealthAcceptanceHistorySheet(app).descendants(matching: .any)
+            .matching(identifier: "wealth.history.empty").element.waitForExistence(timeout: 5))
+        wealthAcceptanceCloseHistory(app: app)
+        wealthAcceptanceOpenEdit(app: app, name: name, kind: "bankCash", currency: "usd", amount: "1000")
+        wealthAcceptanceChooseIntent(app: app, title: "Record new current valuation")
+        XCTAssertFalse(app.descendants(matching: .any)["wealth.form.name"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["wealth.form.institution"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any)["wealth.form.currency"].isEnabled)
+        replaceText(in: app.descendants(matching: .any)["wealth.form.amount"], with: "1100.00")
+        wealthAcceptanceSave(app: app)
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
+            containing: "converted CNY 7,837.50", timeout: 5))
+        wealthAcceptanceOpenHistory(app: app, name: name, kind: "bankCash", currency: "usd")
+        XCTAssertTrue(wealthAcceptanceHistorySheet(app).descendants(matching: .any)
+            .matching(identifier: "wealth.history.empty").element.waitForExistence(timeout: 5))
+        wealthAcceptanceCloseHistory(app: app)
+
+        wealthAcceptanceOpenEdit(app: app, name: name, kind: "bankCash", currency: "usd", amount: "1100")
+        replaceText(in: app.descendants(matching: .any)["wealth.form.amount"], with: "1200.00")
+        replaceText(in: app.descendants(matching: .any)["wealth.form.correctionReason"],
+            with: "Synthetic USD amount correction")
+        wealthAcceptanceSave(app: app)
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
+            containing: "converted CNY 8,550.00", timeout: 5))
+        wealthAcceptanceOpenHistory(app: app, name: name, kind: "bankCash", currency: "usd")
+        let first = try wealthAcceptanceHistoryRows(app: app, expected: 1)[0]
+        XCTAssertTrue(first.reason.contains("Synthetic USD amount correction"))
+        XCTAssertTrue(first.before.contains("original USD 1,100.00"))
+        XCTAssertTrue(first.after.contains("original USD 1,200.00"))
+        XCTAssertTrue(first.before.contains("CNY CNY 7,837.50"))
+        XCTAssertTrue(first.after.contains("CNY CNY 8,550.00"))
+        for value in [first.before, first.after] {
+            XCTAssertTrue(value.contains("USD→CNY 7.1250000000"))
+            XCTAssertTrue(value.contains("FX source manual.synthetic.stage3"))
+            XCTAssertTrue(value.contains("reference 2026-01-15"))
+            XCTAssertTrue(value.contains("fetched UTC ms 1768435200000"))
+            XCTAssertTrue(value.contains("manual true, stale false"))
+        }
+        wealthAcceptanceCloseHistory(app: app)
+
+        wealthAcceptanceOpenEdit(app: app, name: name, kind: "bankCash", currency: "usd", amount: "1200")
+        replaceText(in: app.descendants(matching: .any)["wealth.form.fx.rate"], with: "7.50")
+        replaceText(in: app.descendants(matching: .any)["wealth.form.correctionReason"],
+            with: "Synthetic USD FX correction")
+        wealthAcceptanceSave(app: app)
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
+            containing: "converted CNY 9,000.00", timeout: 5))
+        wealthAcceptanceOpenHistory(app: app, name: name, kind: "bankCash", currency: "usd")
+        let rows = try wealthAcceptanceHistoryRows(app: app, expected: 2)
+        XCTAssertEqual(rows[0].id, first.id)
+        XCTAssertNotEqual(rows[1].id, first.id)
+        XCTAssertLessThan(rows[0].sequence, rows[1].sequence)
+        XCTAssertEqual(rows[0].before, first.before)
+        XCTAssertEqual(rows[0].after, first.after)
+        XCTAssertTrue(rows[1].reason.contains("Synthetic USD FX correction"))
+        XCTAssertTrue(rows[1].before.contains("original USD 1,200.00"))
+        XCTAssertTrue(rows[1].after.contains("original USD 1,200.00"))
+        XCTAssertTrue(rows[1].before.contains("CNY CNY 8,550.00"))
+        XCTAssertTrue(rows[1].after.contains("CNY CNY 9,000.00"))
+        XCTAssertTrue(rows[1].before.contains("USD→CNY 7.1250000000"))
+        XCTAssertTrue(rows[1].after.contains("USD→CNY 7.5000000000"))
+        XCTAssertTrue(rows[1].before.contains("FX source manual.synthetic.stage3"))
+        XCTAssertTrue(rows[1].after.contains("FX source manual"))
+        XCTAssertTrue(rows[1].after.contains("manual true, stale false"))
+        wealthAcceptanceScreenshot(app, name: "Synthetic Wealth USD valuation and FX history")
+        wealthAcceptanceCloseHistory(app: app)
+        wealthAcceptanceOpenHistory(app: app, name: name, kind: "bankCash", currency: "usd")
+        let reopened = try wealthAcceptanceHistoryRows(app: app, expected: 2)
+        XCTAssertEqual(reopened.map(\.id), rows.map(\.id))
+        XCTAssertEqual(reopened.map(\.before), rows.map(\.before))
+        XCTAssertEqual(reopened.map(\.after), rows.map(\.after))
+        wealthAcceptanceCloseHistory(app: app)
+        XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.summary.netWorth"],
+            containing: "CNY 152,547.06", timeout: 5))
     }
 
     @MainActor
@@ -2847,6 +3029,175 @@ final class AureusUITests: XCTestCase {
             string: "MISSING — isolated UI-test credential store"
         )
         attachment.name = "UI-test Keychain isolation state (Production credential not accessed)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private struct WealthAcceptanceHistoryAXRecord {
+        let id: UUID
+        let firstIndex: Int
+        let sequence: Int
+        let reason: String
+        let before: String
+        let after: String
+    }
+
+    private enum WealthAcceptanceAXError: Error { case invalidHistory }
+
+    @MainActor
+    private func wealthAcceptanceRow(app: XCUIApplication, name: String,
+                                     kind: String, currency: String) -> XCUIElement {
+        let matches = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier == %@ AND label CONTAINS %@",
+            "wealth.row.\(kind).\(currency)", name))
+        XCTAssertEqual(matches.count, 1, "Expected one named synthetic Wealth row")
+        return matches.element(boundBy: 0)
+    }
+
+    @MainActor
+    private func wealthAcceptanceOpenEdit(app: XCUIApplication, name: String,
+                                          kind: String, currency: String, amount: String) {
+        let row = wealthAcceptanceRow(app: app, name: name, kind: kind, currency: currency)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.click()
+        app.descendants(matching: .any)["wealth.edit"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.form.intent"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForValue(app.descendants(matching: .any)["wealth.form.amount"],
+            containing: amount, timeout: 5), "Current edit context must be ready")
+    }
+
+    @MainActor
+    private func wealthAcceptanceChooseIntent(app: XCUIApplication, title: String) {
+        let picker = app.descendants(matching: .any)["wealth.form.intent"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        let choices = picker.descendants(matching: .any).matching(NSPredicate(
+            format: "label == %@", title))
+        XCTAssertEqual(choices.count, 1, "Expected one explicit Wealth edit intent")
+        choices.element(boundBy: 0).click()
+        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "wealth.form.intent",
+            containing: title, timeout: 5))
+    }
+
+    @MainActor
+    private func wealthAcceptanceSave(app: XCUIApplication) {
+        let save = app.descendants(matching: .any)["wealth.form.save"]
+        XCTAssertTrue(save.isEnabled)
+        save.click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["wealth.form.save"], timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["wealth.form.error"].exists)
+    }
+
+    @MainActor
+    private func wealthAcceptanceOpenHistory(app: XCUIApplication, name: String,
+                                             kind: String, currency: String) {
+        let row = wealthAcceptanceRow(app: app, name: name, kind: kind, currency: currency)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.click()
+        let open = app.descendants(matching: .any)["wealth.history.open"]
+        XCTAssertTrue(open.isEnabled)
+        open.click()
+        XCTAssertTrue(app.descendants(matching: .any)["wealth.history.close"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    private func wealthAcceptanceHistorySheet(_ app: XCUIApplication) -> XCUIElement {
+        let sheets = app.sheets.containing(.button, identifier: "wealth.history.close")
+        XCTAssertEqual(sheets.count, 1, "Expected one selected Wealth history sheet")
+        return sheets.element(boundBy: 0)
+    }
+
+    @MainActor
+    private func wealthAcceptanceCloseHistory(app: XCUIApplication) {
+        let buttons = wealthAcceptanceHistorySheet(app).buttons.matching(identifier: "wealth.history.close")
+        XCTAssertEqual(buttons.count, 1)
+        buttons.element(boundBy: 0).click()
+        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["wealth.history.close"], timeout: 5))
+    }
+
+    @MainActor
+    private func wealthAcceptanceHistoryRows(app: XCUIApplication, expected: Int)
+        throws -> [WealthAcceptanceHistoryAXRecord] {
+        let lists = wealthAcceptanceHistorySheet(app).descendants(matching: .any)
+            .matching(identifier: "wealth.history.list")
+        guard lists.count == 1 else {
+            XCTFail("Expected one Wealth history list, found \(lists.count)")
+            throw WealthAcceptanceAXError.invalidHistory
+        }
+        let fields = lists.element(boundBy: 0).staticTexts.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "wealth.history."))
+        guard fields.count <= 50 else {
+            XCTFail("Wealth history AX candidate limit exceeded: \(fields.count)")
+            throw WealthAcceptanceAXError.invalidHistory
+        }
+        var order: [UUID] = []
+        var grouped: [UUID: [(index: Int, role: String, text: String)]] = [:]
+        for index in 0..<fields.count {
+            let field = fields.element(boundBy: index)
+            let parts = field.identifier.split(separator: ".")
+            guard parts.count == 4, parts[0] == "wealth", parts[1] == "history",
+                  let id = UUID(uuidString: String(parts[2])), id.uuidString == String(parts[2]),
+                  ["title", "reason", "before", "after"].contains(String(parts[3])) else {
+                wealthAcceptanceHistoryDiagnostic(fields, checkpoint: "invalid-identifier")
+                XCTFail("History field at candidate \(index) has no unique UUID and role")
+                throw WealthAcceptanceAXError.invalidHistory
+            }
+            let label = field.label
+            let value = field.value as? String ?? ""
+            guard label.count <= 4_096, value.count <= 4_096,
+                  !label.isEmpty || !value.isEmpty,
+                  label.isEmpty || value.isEmpty || label == value else {
+                wealthAcceptanceHistoryDiagnostic(fields, checkpoint: "invalid-text")
+                XCTFail("History field \(id) \(parts[3]) lacks a complete unambiguous value")
+                throw WealthAcceptanceAXError.invalidHistory
+            }
+            if grouped[id] == nil { order.append(id); grouped[id] = [] }
+            let text = value.isEmpty ? label : value
+            grouped[id, default: []].append((index, String(parts[3]), text))
+            print("WEALTH_HISTORY_AX index=\(index) uuid=\(id.uuidString) role=\(parts[3]) text=\(text) truncated=false")
+        }
+        guard order.count == expected else {
+            wealthAcceptanceHistoryDiagnostic(fields, checkpoint: "count-\(expected)")
+            XCTFail("Expected \(expected) logical Wealth histories; found \(order.count)")
+            throw WealthAcceptanceAXError.invalidHistory
+        }
+        return try order.map { id in
+            let candidates = grouped[id] ?? []
+            @MainActor func single(_ role: String) throws -> String {
+                let matches = candidates.filter { $0.role == role }
+                guard matches.count == 1 else {
+                    wealthAcceptanceHistoryDiagnostic(fields, checkpoint: "duplicate-or-missing-\(role)")
+                    XCTFail("History \(id) requires exactly one \(role) field; found \(matches.count)")
+                    throw WealthAcceptanceAXError.invalidHistory
+                }
+                return matches[0].text
+            }
+            let title = try single("title")
+            let titleParts = title.split(separator: " ")
+            guard titleParts.count >= 2, titleParts[0] == "Sequence",
+                  let sequence = Int(titleParts[1]), let firstIndex = candidates.first?.index else {
+                XCTFail("History \(id) has no readable sequence")
+                throw WealthAcceptanceAXError.invalidHistory
+            }
+            return WealthAcceptanceHistoryAXRecord(id: id, firstIndex: firstIndex,
+                sequence: sequence, reason: try single("reason"),
+                before: try single("before"), after: try single("after"))
+        }
+    }
+
+    @MainActor
+    private func wealthAcceptanceHistoryDiagnostic(_ fields: XCUIElementQuery, checkpoint: String) {
+        print("WEALTH_HISTORY_AX_DIAGNOSTIC checkpoint=\(checkpoint) candidates=\(fields.count) truncated=\(fields.count > 50)")
+        for index in 0..<min(fields.count, 50) {
+            let field = fields.element(boundBy: index)
+            let label = field.label, value = field.value as? String ?? ""
+            print("WEALTH_HISTORY_AX_DIAGNOSTIC index=\(index) type=\(field.elementType) identifier=\(field.identifier) label=\(String(label.prefix(4_096))) label_truncated=\(label.count > 4_096) value=\(String(value.prefix(4_096))) value_truncated=\(value.count > 4_096)")
+        }
+    }
+
+    @MainActor
+    private func wealthAcceptanceScreenshot(_ app: XCUIApplication, name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
     }

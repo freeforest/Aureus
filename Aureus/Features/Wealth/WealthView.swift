@@ -47,12 +47,22 @@ struct WealthView: View {
                 .accessibilityIdentifier("wealth.add")
 
                 Button {
-                    model.beginEdit()
+                    Task { await model.beginEdit() }
                 } label: {
                     Label("Edit Container", systemImage: "pencil")
                 }
                 .disabled(model.selectedRecord == nil)
                 .accessibilityIdentifier("wealth.edit")
+
+                Button {
+                    if let id = model.selectedRecord?.id {
+                        Task { await model.showCorrectionHistory(id: id) }
+                    }
+                } label: {
+                    Label("Correction History", systemImage: "clock.arrow.circlepath")
+                }
+                .disabled(model.selectedRecord == nil)
+                .accessibilityIdentifier("wealth.history.open")
 
                 Button(role: .destructive) {
                     Task { await model.requestDelete() }
@@ -65,6 +75,14 @@ struct WealthView: View {
         }
         .sheet(item: $bindable.editor) { presentation in
             WealthEditorSheet(presentation: presentation, model: model)
+                .id(presentation.id)
+                .interactiveDismissDisabled(model.isSaving)
+        }
+        .sheet(isPresented: Binding(
+            get: { model.historyTargetID != nil },
+            set: { if !$0 { model.closeCorrectionHistory() } }
+        )) {
+            WealthCorrectionHistorySheet(model: model)
         }
         .alert(
             "Delete Container?",
@@ -331,7 +349,7 @@ private struct WealthEditorSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(presentation.existing == nil ? "Add Asset Container" : "Edit Asset Container")
+                Text(presentation.targetID == nil ? "Add Asset Container" : "Edit Asset Container")
                     .font(.title2.weight(.semibold))
                 Spacer()
                 Text("CNY / USD · Local only")
@@ -342,10 +360,46 @@ private struct WealthEditorSheet: View {
 
             Divider()
 
+            if presentation.targetID != nil && model.editLoadState != .ready {
+                VStack(spacing: 16) {
+                    if model.editLoadState == .loading {
+                        ProgressView("Loading current Container and edit token…")
+                            .accessibilityIdentifier("wealth.form.loading")
+                    } else {
+                        Text(model.editFeedback ?? "This Container cannot be edited now.")
+                            .accessibilityIdentifier("wealth.form.loadFailed")
+                        Button("Discard Draft and Reload") { Task { await model.reloadEdit() } }
+                            .accessibilityIdentifier("wealth.form.reload")
+                    }
+                    Button("Cancel") { model.cancelEditor() }
+                        .accessibilityIdentifier("wealth.form.cancel")
+                }
+                .frame(minWidth: 620, minHeight: 520)
+            } else {
             Form {
+                if presentation.targetID != nil {
+                    Section("Edit intent") {
+                        Picker("Operation", selection: $model.editIntent) {
+                            Text("Correct existing record").tag(WealthEditIntent.correction)
+                            Text("Record new current valuation").tag(WealthEditIntent.currentValuation)
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("wealth.form.intent")
+                        if model.editIntent == .correction && model.needsCorrectionReason(draft) {
+                            TextField("Correction reason", text: $model.correctionReason, axis: .vertical)
+                                .lineLimit(2...4)
+                                .accessibilityIdentifier("wealth.form.correctionReason")
+                        }
+                        if model.editIntent == .currentValuation {
+                            Text("Only the current value/price and explicitly changed FX inputs can be updated. No correction history is created.")
+                                .font(.caption)
+                        }
+                    }
+                }
                 Section("Container") {
                     TextField("Name", text: $draft.name)
                         .accessibilityIdentifier("wealth.form.name")
+                        .disabled(isValuationEdit)
                     Picker("Type", selection: $draft.kind) {
                         ForEach(AssetContainerKind.allCases, id: \.self) { kind in
                             Text(kind.title).tag(kind)
@@ -353,8 +407,10 @@ private struct WealthEditorSheet: View {
                     }
                     .pickerStyle(.menu)
                     .accessibilityIdentifier("wealth.form.type")
+                    .disabled(isValuationEdit)
                     TextField("Institution (optional)", text: $draft.institution)
                         .accessibilityIdentifier("wealth.form.institution")
+                        .disabled(isValuationEdit)
                     Picker("Primary Currency", selection: $draft.currency) {
                         Text("CNY")
                             .tag(CurrencyCode.cny)
@@ -365,9 +421,11 @@ private struct WealthEditorSheet: View {
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("wealth.form.currency")
+                    .disabled(isValuationEdit)
                     TextField("Notes (optional)", text: $draft.notes, axis: .vertical)
                         .lineLimit(2...4)
                         .accessibilityIdentifier("wealth.form.notes")
+                        .disabled(isValuationEdit)
                 }
 
                 valuationSection
@@ -393,6 +451,13 @@ private struct WealthEditorSheet: View {
                             .accessibilityIdentifier("wealth.form.error")
                     }
                 }
+                if let message = model.editFeedback {
+                    Section {
+                        Label(message, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("wealth.form.feedback")
+                    }
+                }
             }
             .formStyle(.grouped)
             .frame(minWidth: 620, minHeight: 520)
@@ -402,19 +467,35 @@ private struct WealthEditorSheet: View {
             HStack {
                 Spacer()
                 Button("Cancel") {
-                    model.editor = nil
-                    model.editorErrorMessage = nil
+                    model.cancelEditor()
                 }
                 .keyboardShortcut(.cancelAction)
                 .accessibilityIdentifier("wealth.form.cancel")
+                .disabled(model.isSaving)
+                if model.requiresEditReload {
+                    Button("Discard Draft and Reload") { Task { await model.reloadEdit() } }
+                        .accessibilityIdentifier("wealth.form.reload")
+                        .disabled(model.isSaving)
+                }
                 Button("Save") {
                     Task { await model.save(draft) }
                 }
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("wealth.form.save")
+                .disabled(!model.canSaveEditor || invalidRequiredReason)
             }
             .padding(16)
+            }
         }
+    }
+
+    private var isValuationEdit: Bool {
+        presentation.targetID != nil && model.editIntent == .currentValuation
+    }
+
+    private var invalidRequiredReason: Bool {
+        model.needsCorrectionReason(draft)
+            && (try? WealthCorrectionEncoding.reason(model.correctionReason)) == nil
     }
 
     @ViewBuilder
@@ -426,6 +507,7 @@ private struct WealthEditorSheet: View {
                     .accessibilityIdentifier("wealth.form.amount")
                 TextField("Interest Rate % (optional)", text: $draft.interestRatePercent)
                     .accessibilityIdentifier("wealth.form.interest")
+                    .disabled(isValuationEdit)
             }
         case .stock, .etf, .fund:
             Section("Manual Valuation") {
@@ -435,10 +517,13 @@ private struct WealthEditorSheet: View {
                     .accessibilityIdentifier("wealth.form.manualValuation")
                 TextField("Ticker / Code", text: $draft.ticker)
                     .accessibilityIdentifier("wealth.form.ticker")
+                    .disabled(isValuationEdit)
                 TextField("MIC (optional)", text: $draft.mic)
                     .accessibilityIdentifier("wealth.form.mic")
+                    .disabled(isValuationEdit)
                 TextField("Quantity", text: $draft.quantity)
                     .accessibilityIdentifier("wealth.form.quantity")
+                    .disabled(isValuationEdit)
                 TextField("Manual Current Price", text: $draft.manualPrice)
                     .accessibilityIdentifier("wealth.form.price")
             }
@@ -446,29 +531,37 @@ private struct WealthEditorSheet: View {
             Section("Insurance") {
                 TextField("Insurance Company", text: $draft.insuranceCompany)
                     .accessibilityIdentifier("wealth.form.insurance.company")
+                    .disabled(isValuationEdit)
                 TextField("Product Name", text: $draft.insuranceProductName)
                     .accessibilityIdentifier("wealth.form.insurance.product")
+                    .disabled(isValuationEdit)
                 TextField("Premium", text: $draft.premium)
                     .accessibilityIdentifier("wealth.form.insurance.premium")
+                    .disabled(isValuationEdit)
                 Picker("Payment Frequency", selection: $draft.paymentFrequency) {
                     ForEach(InsurancePaymentFrequency.allCases, id: \.self) { frequency in
                         Text(frequency.title).tag(frequency)
                     }
                 }
                 .accessibilityIdentifier("wealth.form.insurance.frequency")
+                .disabled(isValuationEdit)
                 TextField("Coverage", text: $draft.coverage)
                     .accessibilityIdentifier("wealth.form.insurance.coverage")
+                    .disabled(isValuationEdit)
                 TextField("Current Cash Value", text: $draft.amount)
                     .accessibilityIdentifier("wealth.form.amount")
                 TextField("Start Date (YYYY-MM-DD)", text: $draft.startDate)
                     .accessibilityIdentifier("wealth.form.insurance.start")
+                    .disabled(isValuationEdit)
                 TextField("Maturity Date (optional)", text: $draft.maturityDate)
                     .accessibilityIdentifier("wealth.form.insurance.maturity")
+                    .disabled(isValuationEdit)
             }
         case .otherAsset:
             Section("Other Asset") {
                 TextField("Category / Description", text: $draft.categoryDescription)
                     .accessibilityIdentifier("wealth.form.category")
+                    .disabled(isValuationEdit)
                 TextField("Current Value", text: $draft.amount)
                     .accessibilityIdentifier("wealth.form.amount")
             }
@@ -481,8 +574,89 @@ private struct WealthEditorSheet: View {
                     .accessibilityIdentifier("wealth.form.amount")
                 TextField("Interest Rate % (optional)", text: $draft.interestRatePercent)
                     .accessibilityIdentifier("wealth.form.interest")
+                    .disabled(isValuationEdit)
             }
         }
+    }
+}
+
+private struct WealthCorrectionHistorySheet: View {
+    @Bindable var model: WealthFeatureModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Correction History")
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                Button("Close") { model.closeCorrectionHistory() }
+                    .accessibilityIdentifier("wealth.history.close")
+            }
+            Text("Historical snapshots explain earlier facts. Current Wealth totals use only the live record.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            switch model.historyLoadState {
+            case .idle, .loading:
+                ProgressView("Loading history…")
+                    .accessibilityIdentifier("wealth.history.loading")
+            case .failed:
+                ContentUnavailableView("History unavailable", systemImage: "exclamationmark.triangle")
+                    .accessibilityIdentifier("wealth.history.failed")
+            case .ready where model.correctionHistory.isEmpty:
+                ContentUnavailableView("No corrections", systemImage: "clock")
+                    .accessibilityIdentifier("wealth.history.empty")
+            case .ready:
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(model.correctionHistory, id: \.id) { row in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Sequence \(row.sequence) · UTC ms \(row.occurredAt.millisecondsSince1970)")
+                                    .font(.headline)
+                                    .accessibilityIdentifier("wealth.history.\(row.id.uuidString).title")
+                                if let reason = row.reason {
+                                    Text("Reason: \(reason)")
+                                        .accessibilityIdentifier("wealth.history.\(row.id.uuidString).reason")
+                                }
+                                Text("Before: \(WealthView.historyProjection(row.payload.before))")
+                                    .accessibilityIdentifier("wealth.history.\(row.id.uuidString).before")
+                                if let after = row.payload.after {
+                                    Text("After: \(WealthView.historyProjection(after))")
+                                        .accessibilityIdentifier("wealth.history.\(row.id.uuidString).after")
+                                } else {
+                                    Text("Deletion context · \(row.payload.deletion?.links.count ?? 0) prior document link(s)")
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
+                            .accessibilityIdentifier("wealth.history.row.\(row.id.uuidString)")
+                        }
+                    }
+                }
+                .accessibilityIdentifier("wealth.history.list")
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 700, minHeight: 450)
+        .accessibilityIdentifier("wealth.history.sheet")
+    }
+}
+
+extension WealthView {
+    static func historyProjection(_ value: WealthCorrectionProjection) -> String {
+        let fx = value.valuation
+        let detail: String
+        switch value.details {
+        case let .bankCash(_, interest), let .liability(_, interest):
+            detail = "interest \(interest.map { NSDecimalNumber(decimal: $0.decimal).stringValue } ?? "none")"
+        case let .security(ticker, mic, quantity, price):
+            detail = "ticker \(ticker), MIC \(mic ?? "none"), quantity \(NSDecimalNumber(decimal: quantity.decimal).stringValue), price \(WealthDisplay.number(price.decimal, fractionDigits: 8)) \(price.quoteCurrency.rawValue)"
+        case let .insurance(company, product, premium, frequency, coverage, _, start, maturity):
+            detail = "company \(company), product \(product), premium \(WealthDisplay.money(premium)), frequency \(frequency.rawValue), coverage \(WealthDisplay.money(coverage)), start \(start), maturity \(maturity?.description ?? "none")"
+        case let .otherAsset(description, _):
+            detail = "category \(description)"
+        }
+        return "\(value.kind.title), container \(value.id.uuidString), institution \(value.institution ?? "none"), \(detail); original \(WealthDisplay.money(fx.original)), rate \(WealthDisplay.rate(fx.rate)), CNY \(WealthDisplay.money(fx.convertedCNY)), FX source \(fx.providerIdentifier), reference \(fx.referenceDate), fetched UTC ms \(fx.fetchedAt.millisecondsSince1970), manual \(fx.isManualOverride), stale \(fx.isStale)"
     }
 }
 

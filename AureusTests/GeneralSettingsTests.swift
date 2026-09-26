@@ -340,7 +340,7 @@ struct GeneralSettingsTests {
             .convertedCNYValue == Money(minorUnits: 123456, currency: .cny))
         for record in before {
             wealth.selection = record.id
-            wealth.beginEdit()
+            await wealth.beginEdit()
             #expect(wealth.editor?.initialDraft == WealthEditorDraft(existing: record))
             #expect(wealth.editor?.initialDraft.currency == record.container.primaryCurrency)
         }

@@ -7,8 +7,16 @@ enum WealthLoadState: Equatable {
     case failed
 }
 
+enum WealthEditLoadState: Equatable { case idle, loading, ready, failed }
+enum WealthHistoryLoadState: Equatable { case idle, loading, ready, failed }
+enum WealthEditIntent: Equatable {
+    case correction
+    case currentValuation
+}
+
 struct WealthEditorPresentation: Identifiable, Equatable {
     let id = UUID()
+    var targetID: UUID?
     let existing: WealthContainer?
     var initialCurrency: CurrencyCode = .cny
 
@@ -31,6 +39,7 @@ enum WealthEditorError: LocalizedError, Equatable {
     case invalidNumber(String)
     case invalidDate(String)
     case invalidFX
+    case invalidReason
 
     var errorDescription: String? {
         switch self {
@@ -38,6 +47,7 @@ enum WealthEditorError: LocalizedError, Equatable {
         case let .invalidNumber(field): "\(field) must be a valid non-negative decimal value."
         case let .invalidDate(field): "\(field) must use YYYY-MM-DD and be a valid Gregorian date."
         case .invalidFX: "USD records require a positive manual USD → CNY rate."
+        case .invalidReason: "An important correction requires a reason of 1–500 characters without NUL."
         }
     }
 }
@@ -213,6 +223,33 @@ struct WealthEditorDraft: Equatable {
         )
     }
 
+    // The draft's semantic FX inputs decide whether an edit preserves provenance.
+    // The submission clock is sampled once by the caller and is only used for new FX.
+    func makeEditCandidate(
+        from before: WealthContainer, today: CivilDate, commandTime: UTCInstant
+    ) throws -> (WealthContainer, WealthFXIntent) {
+        let rebuilt = try makeRecord(existing: before, today: today, now: commandTime)
+        let old = before.valuation
+        let sameCurrency = currency == before.container.primaryCurrency
+        let sameInput: Bool
+        if currency == .usd && sameCurrency {
+            let enteredRate = try decimal(from: fxRate, field: "USD → CNY rate")
+            let enteredDate = try civilDate(from: fxReferenceDate, field: "FX reference date")
+            sameInput = enteredRate == old.rate.decimal
+                && enteredDate == old.referenceDate
+                && fxIsStale == old.isStale
+        } else {
+            sameInput = sameCurrency
+        }
+        guard sameInput else { return (rebuilt, .newInput) }
+        let valuation = try FXValuation(original: rebuilt.originalValue, rate: old.rate,
+            referenceDate: old.referenceDate, fetchedAt: old.fetchedAt,
+            providerIdentifier: old.providerIdentifier,
+            isManualOverride: old.isManualOverride, isStale: old.isStale)
+        return (try WealthContainer(container: rebuilt.container, details: rebuilt.details,
+            valuation: valuation), .preserve)
+    }
+
     private func money(from text: String, field: String) throws -> Money {
         let value = try decimal(from: text, field: field)
         guard value >= 0 else { throw WealthEditorError.invalidNumber(field) }
@@ -274,18 +311,45 @@ final class WealthFeatureModel {
     var editorErrorMessage: String?
     var persistenceErrorMessage: String?
     var deletionProtectionMessage: String?
+    private(set) var editLoadState: WealthEditLoadState = .idle
+    private(set) var isSaving = false
+    private(set) var requiresEditReload = false
+    private(set) var editFeedback: String?
+    var editIntent: WealthEditIntent = .correction
+    var correctionReason = ""
+    private(set) var historyTargetID: UUID?
+    private(set) var correctionHistory: [WealthCorrectionHistory] = []
+    private(set) var historyLoadState: WealthHistoryLoadState = .idle
 
     @ObservationIgnored private let store: WealthStore
     @ObservationIgnored private let clock: any Clock
     @ObservationIgnored private let timeZone: TimeZone
     @ObservationIgnored private var hasLoaded = false
+    @ObservationIgnored private let contextLoader: @Sendable (UUID) async throws -> WealthEditContext
+    @ObservationIgnored private let historyLoader: @Sendable (UUID) async throws -> [WealthCorrectionHistory]
+    @ObservationIgnored private let correctionWriter: @Sendable (WealthCorrectionRequest) async throws -> WealthCorrectionResult
+    @ObservationIgnored private let valuationWriter: @Sendable (WealthCurrentValuationRequest) async throws -> WealthCurrentValuationResult
+    @ObservationIgnored private var editContext: WealthEditContext?
+    @ObservationIgnored private var editSessionID = UUID()
+    @ObservationIgnored private var historySessionID = UUID()
+    @ObservationIgnored private var pendingCorrection: WealthCorrectionRequest?
+    @ObservationIgnored private var pendingDraft: WealthEditorDraft?
+    @ObservationIgnored private var pendingIntent: WealthEditIntent?
 
     init(store: WealthStore, clock: any Clock, timeZone: TimeZone = .current,
-         generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore()) {
+         generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore(),
+         contextLoader: (@Sendable (UUID) async throws -> WealthEditContext)? = nil,
+         historyLoader: (@Sendable (UUID) async throws -> [WealthCorrectionHistory])? = nil,
+         correctionWriter: (@Sendable (WealthCorrectionRequest) async throws -> WealthCorrectionResult)? = nil,
+         valuationWriter: (@Sendable (WealthCurrentValuationRequest) async throws -> WealthCurrentValuationResult)? = nil) {
         self.store = store
         self.clock = clock
         self.timeZone = timeZone
         self.generalPreferences = generalPreferences
+        self.contextLoader = contextLoader ?? { try await store.readWealthEditContext(id: $0) }
+        self.historyLoader = historyLoader ?? { try await store.wealthCorrectionHistory(id: $0) }
+        self.correctionWriter = correctionWriter ?? { try await store.correctWealthContainer($0) }
+        self.valuationWriter = valuationWriter ?? { try await store.recordCurrentValuation($0) }
     }
 
     var selectedRecord: WealthContainer? {
@@ -316,47 +380,233 @@ final class WealthFeatureModel {
     }
 
     func beginAdd() {
+        guard !isSaving else { return }
+        clearEditSession()
         editorErrorMessage = nil
-        editor = WealthEditorPresentation(existing: nil,
+        editor = WealthEditorPresentation(targetID: nil, existing: nil,
             initialCurrency: generalPreferences.snapshot.newWealthCurrency)
     }
 
-    func beginEdit() {
+    func beginEdit() async {
         guard let selectedRecord else { return }
+        await beginEdit(id: selectedRecord.id)
+    }
+
+    func beginEdit(id: UUID) async {
+        guard !isSaving else { return }
+        clearEditSession()
+        let session = editSessionID
+        editLoadState = .loading
         editorErrorMessage = nil
-        editor = WealthEditorPresentation(existing: selectedRecord)
+        editor = WealthEditorPresentation(targetID: id, existing: nil)
+        do {
+            let context = try await contextLoader(id)
+            guard editSessionID == session, editor?.targetID == id else { return }
+            editContext = context
+            editor = WealthEditorPresentation(targetID: id, existing: context.record)
+            editLoadState = .ready
+        } catch {
+            guard editSessionID == session, editor?.targetID == id else { return }
+            editLoadState = .failed
+            editFeedback = "This Container could not be loaded for editing. Close or reload it."
+        }
+    }
+
+    func reloadEdit() async {
+        guard let id = editor?.targetID, !isSaving else { return }
+        await beginEdit(id: id)
+    }
+
+    func cancelEditor() {
+        guard !isSaving else { return }
+        clearEditSession()
+        editor = nil
+    }
+
+    private func clearEditSession() {
+        editSessionID = UUID()
+        editContext = nil
+        pendingCorrection = nil
+        pendingDraft = nil
+        pendingIntent = nil
+        correctionReason = ""
+        editIntent = .correction
+        editFeedback = nil
+        editLoadState = .idle
+        requiresEditReload = false
+        editorErrorMessage = nil
+    }
+
+    var canSaveEditor: Bool {
+        guard !isSaving, editor != nil, !requiresEditReload else { return false }
+        if editor?.targetID == nil { return true }
+        return editLoadState == .ready
+    }
+
+    func needsCorrectionReason(_ draft: WealthEditorDraft) -> Bool {
+        guard editIntent == .correction, let before = editContext?.record,
+              let candidate = try? draft.makeEditCandidate(from: before,
+                  today: before.container.updatedDate, commandTime: before.valuation.fetchedAt).0 else {
+            return false
+        }
+        return !WealthCorrectionProjection(before)
+            .hasSameImportantValues(as: WealthCorrectionProjection(candidate))
     }
 
     func save(_ draft: WealthEditorDraft) async {
-        guard let editor else { return }
+        guard !isSaving, let editor, canSaveEditor else { return }
         do {
-            let now = clock.now()
-            let today = try civilDate(for: now)
-            let record = try draft.makeRecord(
-                existing: editor.existing,
-                today: today,
-                now: now
-            )
-            if editor.existing == nil {
+            let session = editSessionID
+            if editor.targetID == nil {
+                isSaving = true
+                defer { isSaving = false }
+                let now = clock.now()
+                let record = try draft.makeRecord(existing: nil, today: civilDate(for: now), now: now)
                 try await store.createWealthContainer(record)
+                guard editSessionID == session else { return }
+                await finishSuccessfulSave(selecting: record.id)
             } else {
-                try await store.updateWealthContainer(record)
+                guard let context = editContext, editor.targetID == context.record.id else { return }
+                if let pendingCorrection {
+                    let effectiveReason = pendingCorrection.reason.isEmpty ? "" :
+                        correctionReason.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard pendingDraft == draft, pendingIntent == editIntent,
+                          effectiveReason == pendingCorrection.reason else {
+                        requiresEditReload = true
+                        editFeedback = "This draft differs from the pending request. Discard it and reload current data before a new request."
+                        return
+                    }
+                    try await submitCorrection(pendingCorrection, session: session)
+                } else {
+                    let now = clock.now()
+                    let today = try civilDate(for: now)
+                    let (candidate, fxIntent) = try draft.makeEditCandidate(
+                        from: context.record, today: today, commandTime: now)
+                    switch editIntent {
+                    case .correction:
+                        let important = !WealthCorrectionProjection(context.record)
+                            .hasSameImportantValues(as: WealthCorrectionProjection(candidate))
+                        let reason = important ? try WealthCorrectionEncoding.reason(correctionReason) : ""
+                        let request = WealthCorrectionRequest(candidate: candidate, expected: context.token,
+                            operationID: UUID(), reason: reason, occurredAt: now, fxIntent: fxIntent)
+                        if important {
+                            pendingCorrection = request
+                            pendingDraft = draft
+                            pendingIntent = editIntent
+                        }
+                        try await submitCorrection(request, session: session, durable: important)
+                    case .currentValuation:
+                        let request = WealthCurrentValuationRequest(candidate: candidate,
+                            expected: context.token, occurredAt: now, fxIntent: fxIntent)
+                        isSaving = true
+                        do {
+                            _ = try await valuationWriter(request)
+                            isSaving = false
+                            guard editSessionID == session else { return }
+                            await finishSuccessfulSave(selecting: candidate.id)
+                        } catch {
+                            isSaving = false
+                            requiresEditReload = true
+                            if let known = error as? WealthCorrectionError, known == .invalidRequest {
+                                editorErrorMessage = "This valuation changes fields outside the current-value whitelist."
+                            } else if error is WealthCorrectionError || error is WealthPersistenceError {
+                                requiresEditReload = true
+                                editFeedback = "Valuation was rejected or the object changed. Reload current data before retrying."
+                            } else {
+                                requiresEditReload = true
+                                editFeedback = "Valuation status is unknown. Reload current data before another valuation; it has no durable retry receipt."
+                            }
+                        }
+                    }
+                }
             }
-            self.editor = nil
-            editorErrorMessage = nil
-            selection = record.id
-            await reload()
         } catch let error as WealthEditorError {
             editorErrorMessage = error.localizedDescription
-        } catch let error as LocalizedError where error.errorDescription != nil {
-            editorErrorMessage = error.errorDescription
         } catch is FinancialValueError {
             editorErrorMessage = "Validation failed: check amount, quantity, price, currency, and manual FX direction."
         } catch is WealthDomainError {
             editorErrorMessage = "Validation failed: the selected type and financial fields are inconsistent."
         } catch {
-            editorErrorMessage = "Persistence failed. No partial Container was saved."
+            editorErrorMessage = "The request was not prepared. Check its values and retry."
         }
+    }
+
+    private func submitCorrection(_ request: WealthCorrectionRequest, session: UUID,
+                                  durable: Bool = true) async throws {
+        isSaving = true
+        editFeedback = nil
+        do {
+            let result = try await correctionWriter(request)
+            isSaving = false
+            guard editSessionID == session else { return }
+            switch result {
+            case .applied, .noChange, .minorUpdate, .alreadyApplied(_, .unchanged):
+                await finishSuccessfulSave(selecting: request.candidate.id)
+            case .alreadyApplied(_, .changed):
+                requiresEditReload = true
+                editFeedback = "The correction was saved, but this Container changed afterward. Reload current data."
+            case .alreadyApplied(_, .deleted):
+                requiresEditReload = true
+                editFeedback = "The correction was saved, but this Container was later deleted. Reload current data."
+            }
+        } catch {
+            isSaving = false
+            switch error {
+            case WealthCorrectionError.staleDraft, WealthPersistenceError.containerNotFound:
+                requiresEditReload = true
+                editFeedback = "This Container changed or was deleted. Your draft remains; discard it and reload current data."
+            case WealthCorrectionError.operationConflict:
+                requiresEditReload = true
+                editFeedback = "This operation ID belongs to another request. Reload current data."
+            case WealthCorrectionError.invalidRequest:
+                editorErrorMessage = "This edit intent or its financial inputs are invalid. No new request was sent."
+                pendingCorrection = nil
+                pendingDraft = nil
+                pendingIntent = nil
+            case WealthCorrectionError.maintenanceUnavailable:
+                editFeedback = durable ? "Maintenance is in progress. Retry the same request afterward."
+                    : "Maintenance is in progress. Reload current data before retrying this non-durable edit."
+                if !durable { requiresEditReload = true }
+            default:
+                if durable {
+                    editFeedback = "Save status is unknown. Retry the same unchanged request, or explicitly discard and reload."
+                } else {
+                    requiresEditReload = true
+                    editFeedback = "Save status is unknown. Reload current data before another minor edit; it has no durable retry receipt."
+                }
+            }
+        }
+    }
+
+    private func finishSuccessfulSave(selecting id: UUID) async {
+        clearEditSession()
+        editor = nil
+        selection = id
+        await reload()
+    }
+
+    func showCorrectionHistory(id: UUID) async {
+        historySessionID = UUID()
+        let session = historySessionID
+        historyTargetID = id
+        correctionHistory = []
+        historyLoadState = .loading
+        do {
+            let rows = try await historyLoader(id)
+            guard historySessionID == session, historyTargetID == id else { return }
+            correctionHistory = rows
+            historyLoadState = .ready
+        } catch {
+            guard historySessionID == session, historyTargetID == id else { return }
+            historyLoadState = .failed
+        }
+    }
+
+    func closeCorrectionHistory() {
+        historySessionID = UUID()
+        historyTargetID = nil
+        correctionHistory = []
+        historyLoadState = .idle
     }
 
     func requestDelete() async {
