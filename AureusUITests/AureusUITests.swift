@@ -2264,7 +2264,8 @@ final class AureusUITests: XCTestCase {
             kind: "Liability",
             amount: "30.00",
             currency: "CNY",
-            fxRate: nil
+            fxRate: nil,
+            diagnoseType: true
         )
         XCTAssertTrue(waitForRowCount(3, in: app, timeout: 5))
         assertSummary(app: app, assets: "170.00", liabilities: "30.00", netWorth: "140.00")
@@ -2437,7 +2438,7 @@ final class AureusUITests: XCTestCase {
         replaceText(in: app.descendants(matching: .any)["wealth.form.fx.rate"], with: "7.50")
         replaceText(in: app.descendants(matching: .any)["wealth.form.correctionReason"],
             with: "Synthetic USD FX correction")
-        wealthAcceptanceSave(app: app)
+        wealthAcceptanceSave(app: app, diagnoseUSDSecondFX: true)
         XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
             containing: "converted CNY 9,000.00", timeout: 5))
         wealthAcceptanceOpenHistory(app: app, name: name, kind: "bankCash", currency: "usd")
@@ -3131,12 +3132,127 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
-    private func wealthAcceptanceSave(app: XCUIApplication) {
+    private func wealthAcceptanceSave(app: XCUIApplication, diagnoseUSDSecondFX: Bool = false) {
         let save = app.descendants(matching: .any)["wealth.form.save"]
+        if diagnoseUSDSecondFX {
+            wealthAcceptanceObserveUSDSecondFX(app: app, stage: "before-save")
+        }
         XCTAssertTrue(save.isEnabled)
         save.click()
-        XCTAssertTrue(waitForNonexistence(app.descendants(matching: .any)["wealth.form.save"], timeout: 5))
+        let disappeared = waitForNonexistence(app.descendants(matching: .any)["wealth.form.save"], timeout: 5)
+        if diagnoseUSDSecondFX {
+            wealthAcceptanceObserveUSDSecondFX(app: app, stage: "after-wait", saveDisappeared: disappeared)
+        }
+        XCTAssertTrue(disappeared)
         XCTAssertFalse(app.descendants(matching: .any)["wealth.form.error"].exists)
+    }
+
+    @MainActor
+    private func wealthAcceptanceObservedText(_ raw: String) -> String {
+        let escaped = raw.replacingOccurrences(of: "\n", with: "\\n")
+        return "\(String(escaped.prefix(4096))) truncated=\(escaped.count > 4096)"
+    }
+
+    @MainActor
+    private func wealthAcceptanceObserveElement(_ element: XCUIElement, role: String, index: Int) {
+        guard element.exists else {
+            print("WEALTH_ACCEPTANCE_OBSERVATION role=\(role) index=\(index) missing")
+            return
+        }
+        let value = element.value.map { String(describing: $0) } ?? "<nil>"
+        print("WEALTH_ACCEPTANCE_OBSERVATION role=\(role) index=\(index) type=\(element.elementType) id=\(element.identifier) label=\(wealthAcceptanceObservedText(element.label)) value=\(wealthAcceptanceObservedText(value)) enabled=\(element.isEnabled) hittable=\(element.isHittable) focus=NOT_VERIFIED(macOS_XCUIElement_unavailable)")
+    }
+
+    @MainActor
+    private func wealthAcceptanceObserveTypeBeforePicker(app: XCUIApplication) {
+        let sheets = app.sheets.containing(.textField, identifier: "wealth.form.name")
+        let dialogs = app.dialogs
+        let popovers = app.popovers
+        print("WEALTH_ACCEPTANCE_TYPE stage=before-picker utc=\(ISO8601DateFormatter().string(from: Date())) formSheets=\(sheets.count) appSheets=\(app.sheets.count) dialogs=\(dialogs.count) popovers=\(popovers.count)")
+        guard sheets.count == 1 else {
+            print("WEALTH_ACCEPTANCE_TYPE form-scope-unavailable")
+            return
+        }
+        let form = sheets.element(boundBy: 0)
+        var inspected = 0
+        for (role, identifier) in [("name", "wealth.form.name"), ("type", "wealth.form.type")] {
+            let candidates = form.descendants(matching: .any).matching(identifier: identifier)
+            print("WEALTH_ACCEPTANCE_TYPE role=\(role) matches=\(candidates.count)")
+            for index in 0..<min(candidates.count, 30 - inspected) {
+                wealthAcceptanceObserveElement(candidates.element(boundBy: index), role: role, index: index)
+                inspected += 1
+            }
+        }
+        if dialogs.count == 1, inspected < 30 {
+            let dialog = dialogs.element(boundBy: 0)
+            let children = dialog.children(matching: .any)
+            print("WEALTH_ACCEPTANCE_TYPE dialogDirectChildren=\(children.count)")
+            for index in 0..<min(children.count, 30 - inspected) {
+                wealthAcceptanceObserveElement(children.element(boundBy: index), role: "dialog-child", index: index)
+                inspected += 1
+            }
+        } else if dialogs.count > 1 {
+            print("WEALTH_ACCEPTANCE_TYPE dialog-ambiguous count=\(dialogs.count)")
+        }
+        print("WEALTH_ACCEPTANCE_TYPE inspected=\(inspected) candidateLimit=30")
+    }
+
+    @MainActor
+    private func wealthAcceptanceObserveTypeAfterPicker(app: XCUIApplication) {
+        let sheets = app.sheets.containing(.textField, identifier: "wealth.form.name")
+        print("WEALTH_ACCEPTANCE_TYPE stage=after-picker utc=\(ISO8601DateFormatter().string(from: Date())) formSheets=\(sheets.count)")
+        guard sheets.count == 1 else { return }
+        let candidates = sheets.element(boundBy: 0).descendants(matching: .any)
+            .matching(identifier: "wealth.form.type")
+        print("WEALTH_ACCEPTANCE_TYPE selectedTypeMatches=\(candidates.count)")
+        for index in 0..<min(candidates.count, 30) {
+            wealthAcceptanceObserveElement(candidates.element(boundBy: index), role: "selected-type", index: index)
+        }
+    }
+
+    @MainActor
+    private func wealthAcceptanceObserveUSDSecondFX(app: XCUIApplication, stage: String,
+                                                     saveDisappeared: Bool? = nil) {
+        let sheets = app.sheets.containing(.button, identifier: "wealth.form.save")
+        let saveState = saveDisappeared.map { String(describing: $0) } ?? "unknown"
+        print("WEALTH_ACCEPTANCE_USD_FX stage=\(stage) utc=\(ISO8601DateFormatter().string(from: Date())) formSheets=\(sheets.count) appSheets=\(app.sheets.count) saveDisappeared=\(saveState)")
+        if sheets.count == 0 {
+            let rows = app.descendants(matching: .any).matching(identifier: "wealth.row.bankCash.usd")
+            print("WEALTH_ACCEPTANCE_USD_FX currentUSDRowMatches=\(rows.count)")
+            for index in 0..<min(rows.count, 30) {
+                wealthAcceptanceObserveElement(rows.element(boundBy: index), role: "current-usd-row", index: index)
+            }
+            return
+        }
+        guard sheets.count == 1 else {
+            print("WEALTH_ACCEPTANCE_USD_FX form-scope-ambiguous")
+            return
+        }
+        let form = sheets.element(boundBy: 0)
+        let roles = [
+            ("intent", "wealth.form.intent"), ("amount", "wealth.form.amount"),
+            ("fx-rate", "wealth.form.fx.rate"), ("fx-reference-date", "wealth.form.fx.date"),
+            ("fx-stale", "wealth.form.fx.stale"), ("reason", "wealth.form.correctionReason"),
+            ("save", "wealth.form.save"), ("error", "wealth.form.error"),
+            ("feedback", "wealth.form.feedback"), ("reload", "wealth.form.reload")
+        ]
+        var inspected = 0
+        for (role, identifier) in roles {
+            let candidates = form.descendants(matching: .any).matching(identifier: identifier)
+            print("WEALTH_ACCEPTANCE_USD_FX role=\(role) matches=\(candidates.count)")
+            for index in 0..<min(candidates.count, 30 - inspected) {
+                wealthAcceptanceObserveElement(candidates.element(boundBy: index), role: role, index: index)
+                inspected += 1
+            }
+        }
+        let intents = form.radioButtons.matching(NSPredicate(format: "label == %@ OR label == %@",
+            "Correct existing record", "Record new current valuation"))
+        print("WEALTH_ACCEPTANCE_USD_FX intentChoices=\(intents.count)")
+        for index in 0..<min(intents.count, 30 - inspected) {
+            wealthAcceptanceObserveElement(intents.element(boundBy: index), role: "intent-choice", index: index)
+            inspected += 1
+        }
+        print("WEALTH_ACCEPTANCE_USD_FX inspected=\(inspected) candidateLimit=30")
     }
 
     @MainActor
@@ -3261,7 +3377,8 @@ final class AureusUITests: XCTestCase {
         kind: String,
         amount: String,
         currency: String,
-        fxRate: String?
+        fxRate: String?,
+        diagnoseType: Bool = false
     ) {
         app.descendants(matching: .any)["wealth.add"].click()
         let nameField = app.descendants(matching: .any)["wealth.form.name"]
@@ -3269,7 +3386,9 @@ final class AureusUITests: XCTestCase {
         nameField.click()
         nameField.typeText(name)
         if kind != "Bank / Cash" {
+            if diagnoseType { wealthAcceptanceObserveTypeBeforePicker(app: app) }
             selectPicker(app: app, identifier: "wealth.form.type", title: kind)
+            if diagnoseType { wealthAcceptanceObserveTypeAfterPicker(app: app) }
         }
         if currency == "USD" {
             let usd = app.descendants(matching: .any)["wealth.form.currency.usd"]
