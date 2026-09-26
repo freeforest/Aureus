@@ -150,6 +150,30 @@ struct WealthCorrectionProjection: Codable, Equatable, Sendable {
               valuation.original.minorUnits >= 0, valuation.convertedCNY.minorUnits >= 0 else {
             throw WealthCorrectionError.invalidHistory
         }
+        switch valuation.original.currency {
+        case .cny:
+            guard valuation.rate == .cnyIdentity,
+                  valuation.convertedCNY == valuation.original,
+                  valuation.providerIdentifier == "identity",
+                  !valuation.isManualOverride else {
+                throw WealthCorrectionError.invalidHistory
+            }
+        case .usd:
+            guard valuation.rate.sourceCurrency == .usd,
+                  valuation.rate.targetCurrency == .cny,
+                  valuation.isManualOverride,
+                  valuation.providerIdentifier.localizedCaseInsensitiveContains("manual") else {
+                throw WealthCorrectionError.invalidHistory
+            }
+        }
+        switch details {
+        case let .security(_, _, _, price):
+            _ = try MarketPrice(coefficient: price.coefficient, quoteCurrency: price.quoteCurrency)
+        case let .insurance(_, _, _, _, _, _, start, maturity):
+            _ = try CivilDate(canonical: start.description)
+            if let maturity { _ = try CivilDate(canonical: maturity.description) }
+        default: break
+        }
         let container = AssetContainer(id: id, accountID: accountID, name: "Historical projection",
             kind: kind, institution: institution, primaryCurrency: primaryCurrency,
             notes: nil, createdDate: createdDate, updatedDate: createdDate)
