@@ -629,15 +629,18 @@ private struct WealthCorrectionHistorySheet: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
                             .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
+                            .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("wealth.history.row.\(row.id.uuidString)")
                         }
                     }
                 }
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("wealth.history.list")
             }
         }
         .padding(20)
         .frame(minWidth: 700, minHeight: 450)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("wealth.history.sheet")
     }
 }

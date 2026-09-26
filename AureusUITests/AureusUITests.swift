@@ -2313,8 +2313,7 @@ final class AureusUITests: XCTestCase {
 
         wealthAcceptanceOpenEdit(app: app, name: "Synthetic Wealth Correction Cash",
             kind: "bankCash", currency: "cny", amount: "100")
-        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "wealth.form.intent",
-            containing: "Correct existing record", timeout: 5))
+        wealthAcceptanceAssertIntent(app: app, title: "Correct existing record", select: false)
         replaceText(in: app.descendants(matching: .any)["wealth.form.amount"], with: "125.00")
         let reason = app.descendants(matching: .any)["wealth.form.correctionReason"]
         XCTAssertTrue(reason.waitForExistence(timeout: 5))
@@ -3047,11 +3046,27 @@ final class AureusUITests: XCTestCase {
     @MainActor
     private func wealthAcceptanceRow(app: XCUIApplication, name: String,
                                      kind: String, currency: String) -> XCUIElement {
-        let matches = app.descendants(matching: .any).matching(NSPredicate(
-            format: "identifier == %@ AND label CONTAINS %@",
-            "wealth.row.\(kind).\(currency)", name))
+        let identifier = "wealth.row.\(kind).\(currency)"
+        let candidates = app.descendants(matching: .any).matching(identifier: identifier)
+            .allElementsBoundByIndex
+        XCTAssertLessThanOrEqual(candidates.count, 50, "Wealth row lookup exceeded bounded AX scope")
+        let matches = candidates.prefix(50).filter { candidate in
+            if candidate.label.contains(name) || (candidate.value as? String)?.contains(name) == true {
+                return true
+            }
+            return candidate.descendants(matching: .any).allElementsBoundByIndex.prefix(50)
+                .contains { child in
+                    child.label.contains(name) || (child.value as? String)?.contains(name) == true
+                }
+        }
+        if matches.count != 1 {
+            for (index, candidate) in candidates.prefix(50).enumerated() {
+                let value = candidate.value as? String ?? ""
+                print("WEALTH_ACCEPTANCE_AX_ROW index=\(index) id=\(candidate.identifier) type=\(candidate.elementType) label=\(String(candidate.label.prefix(4096))) value=\(String(value.prefix(4096))) labelTruncated=\(candidate.label.count > 4096) valueTruncated=\(value.count > 4096)")
+            }
+        }
         XCTAssertEqual(matches.count, 1, "Expected one named synthetic Wealth row")
-        return matches.element(boundBy: 0)
+        return matches.first ?? app.descendants(matching: .any)["wealth.acceptance.unmatched.row"]
     }
 
     @MainActor
@@ -3068,14 +3083,51 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func wealthAcceptanceChooseIntent(app: XCUIApplication, title: String) {
-        let picker = app.descendants(matching: .any)["wealth.form.intent"]
+        wealthAcceptanceAssertIntent(app: app, title: title, select: true)
+    }
+
+    @MainActor
+    private func wealthAcceptanceAssertIntent(app: XCUIApplication, title: String, select: Bool) {
+        let pickers = app.descendants(matching: .any).matching(identifier: "wealth.form.intent")
+        XCTAssertEqual(pickers.count, 1, "Expected one Wealth intent container")
+        let picker = pickers.element(boundBy: 0)
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
-        let choices = picker.descendants(matching: .any).matching(NSPredicate(
-            format: "label == %@", title))
-        XCTAssertEqual(choices.count, 1, "Expected one explicit Wealth edit intent")
-        choices.element(boundBy: 0).click()
-        XCTAssertTrue(waitForPickerSelection(in: app, identifier: "wealth.form.intent",
-            containing: title, timeout: 5))
+        let otherTitle = title == "Correct existing record"
+            ? "Record new current valuation" : "Correct existing record"
+        let choices = picker.radioButtons.matching(NSPredicate(format: "label == %@", title))
+        let otherChoices = picker.radioButtons.matching(NSPredicate(format: "label == %@", otherTitle))
+        XCTAssertEqual(choices.count, 1, "Expected one specified Wealth edit intent")
+        XCTAssertEqual(otherChoices.count, 1, "Expected one alternative Wealth edit intent")
+        if select { choices.element(boundBy: 0).click() }
+        let selected = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 1 OR value == '1'"),
+            object: choices.element(boundBy: 0))
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed,
+            "Wealth intent must expose the selected AX value")
+        // Re-query after the bounded wait; the AX snapshot before the click is not authoritative.
+        let currentChoices = picker.radioButtons.matching(NSPredicate(format: "label == %@", title))
+        let currentOther = picker.radioButtons.matching(NSPredicate(format: "label == %@", otherTitle))
+        XCTAssertEqual(currentChoices.count, 1)
+        XCTAssertEqual(currentOther.count, 1)
+        XCTAssertEqual(wealthAcceptanceIntentValue(currentChoices.element(boundBy: 0)), true)
+        XCTAssertEqual(wealthAcceptanceIntentValue(currentOther.element(boundBy: 0)), false)
+        let valuation = title == "Record new current valuation"
+        XCTAssertEqual(app.descendants(matching: .any)["wealth.form.name"].isEnabled, !valuation)
+        XCTAssertEqual(app.descendants(matching: .any)["wealth.form.institution"].isEnabled, !valuation)
+        XCTAssertEqual(app.descendants(matching: .any)["wealth.form.currency"].isEnabled, !valuation)
+    }
+
+    @MainActor
+    private func wealthAcceptanceIntentValue(_ element: XCUIElement) -> Bool? {
+        if let number = element.value as? NSNumber {
+            if number.intValue == 1 { return true }
+            if number.intValue == 0 { return false }
+        }
+        if let text = element.value as? String {
+            if text == "1" { return true }
+            if text == "0" { return false }
+        }
+        return nil
     }
 
     @MainActor
