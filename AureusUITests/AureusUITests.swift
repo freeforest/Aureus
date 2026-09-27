@@ -2435,9 +2435,7 @@ final class AureusUITests: XCTestCase {
         wealthAcceptanceCloseHistory(app: app)
 
         wealthAcceptanceOpenEdit(app: app, name: name, kind: "bankCash", currency: "usd", amount: "1200")
-        replaceText(in: app.descendants(matching: .any)["wealth.form.fx.rate"], with: "7.50")
-        replaceText(in: app.descendants(matching: .any)["wealth.form.correctionReason"],
-            with: "Synthetic USD FX correction")
+        try wealthAcceptanceUSDPrepareSecondFX(app: app)
         wealthAcceptanceSave(app: app, diagnoseUSDSecondFX: true)
         XCTAssertTrue(waitForValueOrLabel(app.descendants(matching: .any)["wealth.row.bankCash.usd"],
             containing: "converted CNY 9,000.00", timeout: 5))
@@ -3253,6 +3251,214 @@ final class AureusUITests: XCTestCase {
             inspected += 1
         }
         print("WEALTH_ACCEPTANCE_USD_FX inspected=\(inspected) candidateLimit=30")
+    }
+
+    private enum WealthAcceptanceUSDInputError: Error { case invalidFormState }
+
+    private struct WealthAcceptanceUSDUnchangedFields {
+        let amount: String
+        let referenceDate: String
+        let stale: String
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDRequire(_ condition: @autoclosure () throws -> Bool,
+                                            _ message: String) throws {
+        guard try condition() else {
+            XCTFail(message)
+            throw WealthAcceptanceUSDInputError.invalidFormState
+        }
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDForm(_ app: XCUIApplication) throws -> XCUIElement {
+        let sheets = app.sheets.containing(.button, identifier: "wealth.form.save")
+        try wealthAcceptanceUSDRequire(sheets.count == 1,
+            "USD FX input requires exactly one current edit sheet; found \(sheets.count)")
+        return sheets.element(boundBy: 0)
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDElement(_ app: XCUIApplication, _ identifier: String,
+                                             forInput: Bool = false) throws -> XCUIElement {
+        var form = try wealthAcceptanceUSDForm(app)
+        var matches = form.descendants(matching: .any).matching(identifier: identifier)
+        if matches.count == 0 {
+            let pending = matches.element(boundBy: 0)
+            _ = pending.waitForExistence(timeout: 5)
+            form = try wealthAcceptanceUSDForm(app)
+            matches = form.descendants(matching: .any).matching(identifier: identifier)
+        }
+        try wealthAcceptanceUSDRequire(matches.count == 1,
+            "USD FX input requires one \(identifier); found \(matches.count)")
+        var element = matches.element(boundBy: 0)
+        if forInput {
+            try wealthAcceptanceUSDRequire(element.isEnabled, "\(identifier) is disabled")
+            if !element.isHittable {
+                let scrolls = form.scrollViews
+                try wealthAcceptanceUSDRequire(scrolls.count == 1,
+                    "USD FX input needs one native form scroll region; found \(scrolls.count)")
+                for _ in 0..<3 {
+                    scrolls.element(boundBy: 0).scroll(byDeltaX: 0, deltaY: -100)
+                    form = try wealthAcceptanceUSDForm(app)
+                    matches = form.descendants(matching: .any).matching(identifier: identifier)
+                    try wealthAcceptanceUSDRequire(matches.count == 1,
+                        "\(identifier) changed identity during bounded form scroll")
+                    element = matches.element(boundBy: 0)
+                    if element.isHittable { break }
+                }
+            }
+            try wealthAcceptanceUSDRequire(element.isEnabled && element.isHittable,
+                "\(identifier) is not input-ready after bounded form scroll")
+        }
+        return element
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDValue(_ app: XCUIApplication, _ identifier: String) throws -> String {
+        let element = try wealthAcceptanceUSDElement(app, identifier)
+        guard let raw = element.value else {
+            XCTFail("\(identifier) has no readable AX value")
+            throw WealthAcceptanceUSDInputError.invalidFormState
+        }
+        return String(describing: raw)
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDObserve(_ app: XCUIApplication, stage: String) throws {
+        let form = try wealthAcceptanceUSDForm(app)
+        print("WEALTH_ACCEPTANCE_USD_INPUT stage=\(stage) utc=\(ISO8601DateFormatter().string(from: Date())) formSheets=1 focus=NOT_VERIFIED")
+        let fields = ["wealth.form.intent", "wealth.form.amount", "wealth.form.fx.rate",
+            "wealth.form.fx.date", "wealth.form.fx.stale", "wealth.form.correctionReason",
+            "wealth.form.save", "wealth.form.error", "wealth.form.feedback", "wealth.form.reload"]
+        var inspected = 0
+        for identifier in fields {
+            let matches = form.descendants(matching: .any).matching(identifier: identifier)
+            print("WEALTH_ACCEPTANCE_USD_INPUT stage=\(stage) id=\(identifier) matches=\(matches.count)")
+            for index in 0..<min(matches.count, max(0, 30 - inspected)) {
+                let element = matches.element(boundBy: index)
+                let raw = element.value.map { String(describing: $0) } ?? "<nil>"
+                let label = element.label
+                print("WEALTH_ACCEPTANCE_USD_INPUT stage=\(stage) index=\(index) id=\(identifier) type=\(element.elementType) label=\(String(label.prefix(4096))) labelTruncated=\(label.count > 4096) value=\(String(raw.prefix(4096))) valueTruncated=\(raw.count > 4096) enabled=\(element.isEnabled) hittable=\(element.isHittable)")
+                inspected += 1
+            }
+        }
+        let intent = form.descendants(matching: .any).matching(identifier: "wealth.form.intent")
+        if intent.count == 1 {
+            let buttons = intent.element(boundBy: 0).radioButtons
+            for index in 0..<min(buttons.count, max(0, 30 - inspected)) {
+                let button = buttons.element(boundBy: index)
+                let raw = button.value.map { String(describing: $0) } ?? "<nil>"
+                print("WEALTH_ACCEPTANCE_USD_INPUT stage=\(stage) intentIndex=\(index) label=\(String(button.label.prefix(4096))) labelTruncated=\(button.label.count > 4096) value=\(String(raw.prefix(4096))) valueTruncated=\(raw.count > 4096)")
+                inspected += 1
+            }
+        }
+        print("WEALTH_ACCEPTANCE_USD_INPUT stage=\(stage) inspected=\(inspected) candidateLimit=30")
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDCheckUnchanged(_ app: XCUIApplication,
+                                                    _ original: WealthAcceptanceUSDUnchangedFields) throws {
+        try wealthAcceptanceUSDRequire(try wealthAcceptanceUSDValue(app, "wealth.form.amount") == original.amount,
+            "USD FX input changed amount")
+        try wealthAcceptanceUSDRequire(try wealthAcceptanceUSDValue(app, "wealth.form.fx.date") == original.referenceDate,
+            "USD FX input changed reference date")
+        try wealthAcceptanceUSDRequire(try wealthAcceptanceUSDValue(app, "wealth.form.fx.stale") == original.stale,
+            "USD FX input changed stale flag")
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDCheckCorrectionIntent(_ app: XCUIApplication) throws {
+        let form = try wealthAcceptanceUSDForm(app)
+        let intents = form.descendants(matching: .any).matching(identifier: "wealth.form.intent")
+        try wealthAcceptanceUSDRequire(intents.count == 1, "USD FX edit intent is not unique")
+        let buttons = intents.element(boundBy: 0).radioButtons
+        let correction = buttons.matching(NSPredicate(format: "label == %@", "Correct existing record"))
+        let valuation = buttons.matching(NSPredicate(format: "label == %@", "Record new current valuation"))
+        try wealthAcceptanceUSDRequire(correction.count == 1 && valuation.count == 1,
+            "USD FX edit intent options are not unique")
+        try wealthAcceptanceUSDRequire(wealthAcceptanceIntentValue(correction.element(boundBy: 0)) == true
+            && wealthAcceptanceIntentValue(valuation.element(boundBy: 0)) == false,
+            "USD FX edit is not in correction intent")
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDReplace(_ app: XCUIApplication, identifier: String,
+                                             with text: String) throws {
+        let field = try wealthAcceptanceUSDElement(app, identifier, forInput: true)
+        field.click()
+        _ = try wealthAcceptanceUSDElement(app, identifier, forInput: true)
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText(text)
+        let updated = try wealthAcceptanceUSDElement(app, identifier)
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", text), object: updated)
+        try wealthAcceptanceUSDRequire(XCTWaiter.wait(for: [expectation], timeout: 5) == .completed,
+            "\(identifier) did not expose the complete expected value after one replacement")
+        try wealthAcceptanceUSDRequire(try wealthAcceptanceUSDValue(app, identifier) == text,
+            "\(identifier) changed after the bounded input wait")
+    }
+
+    @MainActor
+    private func wealthAcceptanceUSDPrepareSecondFX(app: XCUIApplication) throws {
+        try wealthAcceptanceUSDObserve(app, stage: "A-open")
+        try wealthAcceptanceUSDCheckCorrectionIntent(app)
+        let original = WealthAcceptanceUSDUnchangedFields(
+            amount: try wealthAcceptanceUSDValue(app, "wealth.form.amount"),
+            referenceDate: try wealthAcceptanceUSDValue(app, "wealth.form.fx.date"),
+            stale: try wealthAcceptanceUSDValue(app, "wealth.form.fx.stale"))
+        try wealthAcceptanceUSDRequire(original.amount == "1200" && original.referenceDate == "2026-01-15"
+            && original.stale == "0", "USD FX edit context does not match the synthetic fixture")
+        let originalRate = try wealthAcceptanceUSDValue(app, "wealth.form.fx.rate")
+        try wealthAcceptanceUSDRequire(Decimal(string: originalRate) == Decimal(string: "7.125"),
+            "USD FX edit context did not preserve the original rate")
+
+        try wealthAcceptanceUSDReplace(app, identifier: "wealth.form.fx.rate", with: "7.50")
+        try wealthAcceptanceUSDObserve(app, stage: "B-rate-entered")
+        try wealthAcceptanceUSDCheckUnchanged(app, original)
+        try wealthAcceptanceUSDCheckCorrectionIntent(app)
+        _ = try wealthAcceptanceUSDElement(app, "wealth.form.correctionReason", forInput: true)
+        try wealthAcceptanceUSDObserve(app, stage: "C-before-reason-click")
+        let reason = try wealthAcceptanceUSDElement(app, "wealth.form.correctionReason", forInput: true)
+        reason.click()
+        try wealthAcceptanceUSDObserve(app, stage: "C-after-reason-click")
+        try wealthAcceptanceUSDRequire(try wealthAcceptanceUSDValue(app, "wealth.form.fx.rate") == "7.50",
+            "Clicking correction reason changed the USD FX rate")
+        try wealthAcceptanceUSDCheckUnchanged(app, original)
+        try wealthAcceptanceUSDCheckCorrectionIntent(app)
+        _ = try wealthAcceptanceUSDElement(app, "wealth.form.correctionReason", forInput: true)
+        try wealthAcceptanceUSDObserve(app, stage: "C-before-reason-input")
+        reason.typeKey("a", modifierFlags: .command)
+        reason.typeText("Synthetic USD FX correction")
+        let currentReason = try wealthAcceptanceUSDElement(app, "wealth.form.correctionReason")
+        let reasonReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "Synthetic USD FX correction"),
+            object: currentReason)
+        try wealthAcceptanceUSDRequire(XCTWaiter.wait(for: [reasonReady], timeout: 5) == .completed,
+            "Correction reason did not expose the complete synthetic value")
+        try wealthAcceptanceUSDObserve(app, stage: "D-reason-entered")
+        try wealthAcceptanceUSDRequire(try wealthAcceptanceUSDValue(app, "wealth.form.correctionReason")
+            == "Synthetic USD FX correction", "Correction reason changed after input")
+        try wealthAcceptanceUSDRequire(try wealthAcceptanceUSDValue(app, "wealth.form.fx.rate") == "7.50",
+            "Reason input changed the USD FX rate")
+        try wealthAcceptanceUSDCheckUnchanged(app, original)
+        try wealthAcceptanceUSDCheckCorrectionIntent(app)
+
+        try wealthAcceptanceUSDObserve(app, stage: "E-before-save")
+        try wealthAcceptanceUSDRequire(try wealthAcceptanceUSDValue(app, "wealth.form.correctionReason")
+            == "Synthetic USD FX correction" &&
+            (try wealthAcceptanceUSDValue(app, "wealth.form.fx.rate")) == "7.50",
+            "USD FX or reason changed before Save")
+        try wealthAcceptanceUSDCheckUnchanged(app, original)
+        try wealthAcceptanceUSDCheckCorrectionIntent(app)
+        let form = try wealthAcceptanceUSDForm(app)
+        for identifier in ["wealth.form.error", "wealth.form.feedback", "wealth.form.reload"] {
+            try wealthAcceptanceUSDRequire(form.descendants(matching: .any).matching(identifier: identifier).count == 0,
+                "Unexpected \(identifier) before USD FX Save")
+        }
+        let saves = form.buttons.matching(identifier: "wealth.form.save")
+        try wealthAcceptanceUSDRequire(saves.count == 1 && saves.element(boundBy: 0).isEnabled
+            && saves.element(boundBy: 0).isHittable, "USD FX Save is not uniquely available")
     }
 
     @MainActor
