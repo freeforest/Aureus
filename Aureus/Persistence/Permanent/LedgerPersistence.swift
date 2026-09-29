@@ -183,8 +183,10 @@ extension WealthStore {
     func deleteLedgerEntry(id: UUID) throws {
         try queue.write { db in
             try LedgerCorrectionSQL.deletionContext(db, id: id)
+            let detached = try PortfolioCorrectionSQL.ledgerDetachContexts(db, ledgerID: id)
             try db.execute(sql: "DELETE FROM ledger_transactions WHERE id = ?", arguments: [id.uuidString])
             guard db.changesCount == 1 else { throw LedgerPersistenceError.transactionNotFound }
+            try PortfolioCorrectionSQL.verifyLedgerDetach(db, expected: detached)
         }
     }
 

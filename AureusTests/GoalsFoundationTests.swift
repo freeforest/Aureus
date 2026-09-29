@@ -568,7 +568,7 @@ struct GoalPersistenceTests {
         let root = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try WealthStore(databaseURL: root.appendingPathComponent("aureus.sqlite"))
-        #expect(try await store.schemaVersion() == 9)
+        #expect(try await store.schemaVersion() == 10)
         let queue = await store.queue
         let declarations = try await queue.read { db in
             try Row.fetchAll(db, sql: "PRAGMA table_info(goals)").map { row -> (String, String) in

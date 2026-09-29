@@ -100,12 +100,12 @@ struct PortfolioTerminalTests {
         }
     }
 
-    @Test("Fresh and v1 through v8 databases migrate to active v9 without REAL authority")
+    @Test("Fresh and v1 through v9 databases migrate to active v10 without REAL authority")
     func migrationForward() async throws {
         for (index, start) in [nil, DatabaseMigrations.permanentV1, DatabaseMigrations.permanentV2,
                                DatabaseMigrations.permanentV3, DatabaseMigrations.permanentV4,
                                DatabaseMigrations.permanentV5, DatabaseMigrations.permanentV6, DatabaseMigrations.permanentV7,
-                               DatabaseMigrations.permanentV8].enumerated() {
+                               DatabaseMigrations.permanentV8, DatabaseMigrations.permanentV9].enumerated() {
             let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
             let url = root.appendingPathComponent("portfolio-\(start ?? "fresh").sqlite")
             if let start {
@@ -127,7 +127,7 @@ struct PortfolioTerminalTests {
                     }
                 )
             )
-            #expect(try await store.schemaVersion() == 9)
+            #expect(try await store.schemaVersion() == 10)
             let queue = try DatabaseQueueFactory.open(at: url)
             let realColumns = try await queue.read { db in
                 try Int.fetchOne(db, sql: """

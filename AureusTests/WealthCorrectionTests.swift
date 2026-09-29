@@ -235,7 +235,7 @@ struct WealthCorrectionTests {
         #expect(try await store.resumeEvidence(operationID: imported.operation.id).operation.state == .committed)
     }
 
-    @Test("Actual schema prefixes preserve their own safety generation", arguments: [1, 2, 3, 4, 5, 6, 7, 8])
+    @Test("Actual schema prefixes preserve their own safety generation", arguments: [1, 2, 3, 4, 5, 6, 7, 8, 9])
     func migrationPrefixes(_ version: Int) async throws {
         let f = try WealthCorrectionFixture(); defer { f.remove() }
         let q = try DatabaseQueueFactory.open(at: f.database)
@@ -246,7 +246,7 @@ struct WealthCorrectionTests {
         }
         try q.close()
         let store = try f.open()
-        #expect(try await store.schemaVersion() == 9)
+        #expect(try await store.schemaVersion() == 10)
         #expect(try f.count("wealth_correction_history") == 0)
         let safety = try #require(PermanentBackupService.inventory(in: f.backups).validGenerations.first)
         #expect(safety.manifest.schemaVersion == version)
@@ -460,7 +460,7 @@ struct WealthCorrectionTests {
         }
     }
 
-    @Test("Actual v8 Ledger history survives schema9 safety migration and reopen")
+    @Test("Actual v8 Ledger history survives schema10 safety migration and reopen")
     func realV8LedgerHistoryMigrates() async throws {
         let f = try WealthCorrectionFixture(); defer { f.remove() }
         let context = try LedgerTestContext.make()
@@ -498,7 +498,7 @@ struct WealthCorrectionTests {
             #require(try Row.fetchOne(db, sql: "SELECT * FROM ledger_correction_history"))) } == history)
         try q.close()
         let store = try f.open()
-        #expect(try await store.schemaVersion() == 9)
+        #expect(try await store.schemaVersion() == 10)
         #expect(try await store.fetchLedgerEntries().contains(updated))
         #expect(try await store.ledgerCorrectionHistory(id: original.id) == [history])
         #expect(try f.count("wealth_correction_history") == 0)
@@ -745,7 +745,7 @@ struct WealthCorrectionTests {
         try q.close()
         let digest = try PermanentBackupService.streamingDigest(of: dbURL)
         let manifest = PermanentBackupManifest(backupFormatVersion: 1,
-            appVersion: first.manifest.appVersion, schemaVersion: 9,
+            appVersion: first.manifest.appVersion, schemaVersion: 10,
             createdAt: first.manifest.createdAt,
             databaseByteCount: digest.byteCount, databaseSHA256: digest.sha256)
         try JSONEncoder().encode(manifest).write(to: forged.appendingPathComponent("manifest.json"))
@@ -981,7 +981,7 @@ private final class WealthCorrectionRestoreOperations: PermanentRestoreFileOpera
         replacements += 1
         if fail && replacements == 1 {
             let q = try DatabaseQueueFactory.open(at: databaseURL); defer { try? q.close() }
-            try q.write { try $0.execute(sql: "UPDATE schema_metadata SET version=10 WHERE store_kind='permanent'") }
+            try q.write { try $0.execute(sql: "UPDATE schema_metadata SET version=11 WHERE store_kind='permanent'") }
         }
     }
 }

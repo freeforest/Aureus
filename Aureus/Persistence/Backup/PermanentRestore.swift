@@ -448,6 +448,7 @@ extension WealthStore {
         maintenanceState = .restoring
         invalidateLedgerEditTokens()
         invalidateWealthEditTokens()
+        invalidatePortfolioEditTokens()
 
         var candidateStageURL: URL?
         defer {

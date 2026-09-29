@@ -86,6 +86,12 @@ extension WealthStore {
 
     func deletePortfolio(id: UUID) throws {
         try queue.write { db in
+            let activityIDs = try String.fetchAll(db, sql: "SELECT id FROM portfolio_activities WHERE portfolio_id = ? ORDER BY id",
+                arguments: [id.uuidString])
+            for raw in activityIDs {
+                guard let activityID = UUID(uuidString: raw) else { throw PortfolioPersistenceError.corruptRecord }
+                try PortfolioCorrectionSQL.deletionContext(db, id: activityID, origin: "existingDeletePortfolioAPI")
+            }
             try db.execute(sql: "DELETE FROM portfolio_definitions WHERE id = ?", arguments: [id.uuidString])
             guard db.changesCount == 1 else { throw PortfolioPersistenceError.notFound }
         }
@@ -125,6 +131,12 @@ extension WealthStore {
 
     func unlinkPortfolioSecurity(id: UUID) throws {
         try queue.write { db in
+            let activityIDs = try String.fetchAll(db, sql: "SELECT id FROM portfolio_activities WHERE security_link_id = ? ORDER BY id",
+                arguments: [id.uuidString])
+            for raw in activityIDs {
+                guard let activityID = UUID(uuidString: raw) else { throw PortfolioPersistenceError.corruptRecord }
+                try PortfolioCorrectionSQL.deletionContext(db, id: activityID, origin: "existingUnlinkSecurityAPI")
+            }
             try db.execute(sql: "DELETE FROM portfolio_security_links WHERE id = ?", arguments: [id.uuidString])
             guard db.changesCount == 1 else { throw PortfolioPersistenceError.notFound }
         }
@@ -157,6 +169,7 @@ extension WealthStore {
             guard let portfolioID = try String.fetchOne(
                 db, sql: "SELECT portfolio_id FROM portfolio_activities WHERE id = ?", arguments: [id.uuidString]
             ), let parsed = UUID(uuidString: portfolioID) else { throw PortfolioPersistenceError.notFound }
+            try PortfolioCorrectionSQL.deletionContext(db, id: id, origin: "existingDeleteActivityAPI")
             try db.execute(sql: "DELETE FROM portfolio_activities WHERE id = ?", arguments: [id.uuidString])
             do { try Self.validatePortfolioReplay(parsed, in: db) }
             catch { throw PortfolioPersistenceError.invalidHistoricalMutation }
@@ -367,7 +380,7 @@ extension WealthStore {
             updatedAt: UTCInstant(millisecondsSince1970: row["updated_at_ms"]), sortOrder: row["sort_order"])
     }
 
-    private nonisolated static func securityLinkDomain(_ row: Row) throws -> PortfolioSecurityLink {
+    nonisolated static func securityLinkDomain(_ row: Row) throws -> PortfolioSecurityLink {
         guard let id = UUID(uuidString: row["id"]), let portfolioID = UUID(uuidString: row["portfolio_id"]),
               let wealthID = UUID(uuidString: row["wealth_container_id"]),
               let currency = CurrencyCode(rawValue: row["currency_code"]),
@@ -376,7 +389,7 @@ extension WealthStore {
             symbol: row["symbol"], rawMIC: row["raw_mic"], currency: currency, assetKind: kind, sortOrder: row["sort_order"])
     }
 
-    private nonisolated static func wealthSecurityMatches(_ link: PortfolioSecurityLink, in db: Database) throws -> Bool {
+    nonisolated static func wealthSecurityMatches(_ link: PortfolioSecurityLink, in db: Database) throws -> Bool {
         guard let row = try Row.fetchOne(db, sql: """
             SELECT c.kind, c.primary_currency_code, w.ticker, w.mic
             FROM asset_containers c JOIN wealth_records w ON w.container_id = c.id
@@ -388,7 +401,7 @@ extension WealthStore {
             && (row["mic"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == link.rawMIC
     }
 
-    private nonisolated static func insert(_ activity: PortfolioActivity, in db: Database, updating: Bool = false) throws {
+    nonisolated static func insert(_ activity: PortfolioActivity, in db: Database, updating: Bool = false) throws {
         var quantity: Int64?, price: Int64?, fee: Int64?, total: Int64?, currency: String?
         var converted: Int64?, fxCoefficient: Int64?, fxSource: String?, fxDate: String?, fxRecorded: Int64?
         var fxManual: Bool?, fxStale: Bool?, splitFrom: Int64?, splitTo: Int64?, note: String?
@@ -438,7 +451,7 @@ extension WealthStore {
         try Row.fetchAll(db, sql: "SELECT * FROM portfolio_activities WHERE portfolio_id = ? ORDER BY civil_date, recorded_at_ms, id", arguments: [portfolioID.uuidString]).map(Self.activityDomain)
     }
 
-    private nonisolated static func activityDomain(_ row: Row) throws -> PortfolioActivity {
+    nonisolated static func activityDomain(_ row: Row) throws -> PortfolioActivity {
         guard let id = UUID(uuidString: row["id"]), let portfolioID = UUID(uuidString: row["portfolio_id"]),
               let linkID = UUID(uuidString: row["security_link_id"]),
               let date = try? CivilDate(canonical: row["civil_date"]),
@@ -471,7 +484,7 @@ extension WealthStore {
             recordedAt: UTCInstant(millisecondsSince1970: row["recorded_at_ms"]), exchangeTimeZoneIdentifier: row["exchange_time_zone_id"], ledgerEntryID: ledgerID, payload: payload)
     }
 
-    private nonisolated static func validatePortfolioReplay(_ portfolioID: UUID, in db: Database) throws {
+    nonisolated static func validatePortfolioReplay(_ portfolioID: UUID, in db: Database) throws {
         _ = try PortfolioFIFOEngine.replay(activities(portfolioID, in: db))
     }
 

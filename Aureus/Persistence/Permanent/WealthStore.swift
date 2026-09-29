@@ -16,9 +16,12 @@ actor WealthStore {
     var ledgerEditEpoch = UUID()
     let wealthEditStoreID = UUID()
     var wealthEditEpoch = UUID()
+    let portfolioEditStoreID = UUID()
+    var portfolioEditEpoch = UUID()
 
     func invalidateLedgerEditTokens() { ledgerEditEpoch = UUID() }
     func invalidateWealthEditTokens() { wealthEditEpoch = UUID() }
+    func invalidatePortfolioEditTokens() { portfolioEditEpoch = UUID() }
 
     init(
         databaseURL: URL,
