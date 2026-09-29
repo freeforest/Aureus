@@ -185,7 +185,9 @@ inspect_app = lambda do |label, root|
   forbidden = manifest.select { |r| r['path'].match?(/(?:\.xctest|\.dSYM|XCTest|XCTAutomation|Testing\.framework|libTesting|\.swiftmodule|\.profraw|\.sqlite(?:-|\z)|\.xcresult|\.DS_Store)/i) }
   raise "development/private artifact in #{label}" unless forbidden.empty?
   info = plist.call(label+'Info', root+'/Contents/Info.plist')
-  expected = {'CFBundleIdentifier'=>'com.aureus.wealthterminal','CFBundleShortVersionString'=>'1.0.0','CFBundleVersion'=>'1','LSMinimumSystemVersion'=>'14.0','CFBundleExecutable'=>'Aureus'}
+  expected = {'CFBundleIdentifier'=>'com.aureus.wealthterminal','CFBundleDisplayName'=>'Aureus',
+    'CFBundleShortVersionString'=>'1.0.0',
+    'CFBundleVersion'=>'1','LSMinimumSystemVersion'=>'14.0','CFBundleExecutable'=>'Aureus'}
   raise "unexpected App identity: #{label}" unless expected.all? { |k,v| info[k] == v }
   macho = manifest.select do |r|
     next false unless r['type'] == 'file'

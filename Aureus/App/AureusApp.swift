@@ -11,7 +11,7 @@ struct AureusApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Aureus") {
+        WindowGroup(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Aureus") {
             AppRootView(model: model)
                 .frame(minWidth: 900, minHeight: 600)
         }

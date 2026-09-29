@@ -42,6 +42,8 @@ If macOS reports malware, damage, or suspected tampering, stop. Do not disable G
 
 Aureus does not independently encrypt backups. Store important copies separately under protections you manage; do not rely on the App's only internal copy. Never attach a private backup or database to a public issue.
 
+The current repository's Debug build is a separate Aureus Dev application. It does not upgrade or replace the published 1.0.0 App. For current-source development and the limits of a future upgrade, see [development environments](development-environments.md). A newer development database cannot be assumed to open in the older released App.
+
 ## Build and package
 
 Use the release's clean source ZIP and the [public guide](../PUBLIC_README.md#build-from-source). The published archive's root README comes from that guide. This presentation update does not modify the archive, script, version, signing, or existing release.

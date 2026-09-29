@@ -108,6 +108,8 @@ Start with the [documentation index](docs/README.md) for user guidance and separ
 
 Use the clean [release source ZIP](https://github.com/freeforest/Aureus/releases/download/v1.0.0/Aureus-1.0.0-source.zip) and the [Release build & packaging guide](PUBLIC_README.md#build-from-source). It documents the Xcode / Swift baseline, pinned dependencies, and packaging workflow.
 
+For work in this repository, ordinary Debug builds now produce **Aureus Dev**, with separate persistent data, preferences and credentials. See [development environments](docs/development-environments.md) before launching or testing. This development change does not replace the published 1.0.0 App.
+
 The release source archive uses that public guide as its root README. This repository presentation page is separate; it does not replace the packaging input or alter the already-published archive.
 
 ## Verification & Known Limitations

@@ -7,6 +7,8 @@ struct PermanentMigrationSafetyInputs: Sendable {
 }
 
 struct AppDependencies: Sendable {
+    let runtimeEnvironment: RuntimeEnvironment
+    let runtimePaths: RuntimePaths
     let wealthStore: WealthStore
     let marketCacheStore: MarketCacheStore
     let marketSessionStore: TransientMarketSessionStore
@@ -49,11 +51,42 @@ struct AppDependencies: Sendable {
         configuration: LaunchConfiguration,
         migrationSafetyInputs: PermanentMigrationSafetyInputs? = nil
     ) async throws -> AppDependencies {
+        let environment = try configuration.resolvedEnvironment()
         let paths: RuntimePaths
-        if let temporaryRoot = configuration.temporaryRoot {
+        switch environment {
+        case .temporary:
+            guard let temporaryRoot = configuration.temporaryRoot else {
+                throw RuntimeEnvironmentError.invalidLaunchConfiguration
+            }
             paths = .temporary(root: temporaryRoot)
-        } else {
+        case .production:
             paths = try .production()
+        case .development:
+            paths = try .development()
+        }
+        try paths.validateSelected(for: environment)
+
+        let generalPreferencesStore: GeneralPreferencesStore
+        let marketPreferencesStore: MarketPreferencesStore
+        let portfolioPreferencesStore: PortfolioPreferencesStore
+        switch environment {
+        case .temporary:
+            generalPreferencesStore = await MainActor.run { GeneralPreferencesStore() }
+            marketPreferencesStore = MarketPreferencesStore(suiteName: nil, memoryOnly: true)
+            portfolioPreferencesStore = PortfolioPreferencesStore(suiteName: nil, memoryOnly: true)
+        case .production:
+            generalPreferencesStore = await MainActor.run { .production() }
+            marketPreferencesStore = MarketPreferencesStore(suiteName: nil)
+            portfolioPreferencesStore = PortfolioPreferencesStore(suiteName: nil, memoryOnly: false)
+        case .development:
+            guard let suiteName = environment.preferenceSuiteName else {
+                throw RuntimeEnvironmentError.invalidPreferenceSuite
+            }
+            generalPreferencesStore = try await MainActor.run {
+                try GeneralPreferencesStore(suiteName: suiteName)
+            }
+            marketPreferencesStore = try MarketPreferencesStore(requiredSuiteName: suiteName)
+            portfolioPreferencesStore = try PortfolioPreferencesStore(requiredSuiteName: suiteName)
         }
 
         let fixedClock = FixedClock(
@@ -90,18 +123,6 @@ struct AppDependencies: Sendable {
         )
         let marketCacheStore = try MarketCacheStore(databaseURL: paths.marketCacheDatabaseURL)
         let marketSessionStore = TransientMarketSessionStore()
-        let generalPreferencesStore = await MainActor.run {
-            configuration.usesTemporaryStores ? GeneralPreferencesStore() : .production()
-        }
-        let marketPreferencesStore = MarketPreferencesStore(
-            suiteName: nil,
-            memoryOnly: configuration.usesTemporaryStores
-        )
-        let portfolioPreferencesStore = PortfolioPreferencesStore(
-            suiteName: nil,
-            memoryOnly: configuration.usesTemporaryStores
-        )
-
         if configuration.dataMode == .syntheticDemo {
             try await wealthStore.seedSyntheticWealth()
             try await SyntheticLedgerSeeder.seed(in: wealthStore)
@@ -114,7 +135,7 @@ struct AppDependencies: Sendable {
         let credentialStore: any CredentialStore
         let marketDataProvider: any MarketDataProvider
         let fxRateProvider: any FXRateProvider
-        if configuration.usesTemporaryStores {
+        if environment == .temporary {
             credentialStore = InMemoryCredentialStore()
             marketDataProvider = SyntheticMarketDataProvider(
                 scenario: .success, clock: clock,
@@ -123,7 +144,10 @@ struct AppDependencies: Sendable {
             )
             fxRateProvider = SyntheticFXRateProvider(clock: clock)
         } else {
-            let keychain = KeychainCredentialStore()
+            guard let service = environment.keychainService else {
+                throw RuntimeEnvironmentError.invalidLaunchConfiguration
+            }
+            let keychain = KeychainCredentialStore(service: service)
             let marketSleeper = TaskProviderSleeper()
             let marketGate = ProviderRequestGate(
                 maximumConcurrentRequests: 2,
@@ -207,6 +231,8 @@ struct AppDependencies: Sendable {
         }
 
         return AppDependencies(
+            runtimeEnvironment: environment,
+            runtimePaths: paths,
             wealthStore: wealthStore,
             marketCacheStore: marketCacheStore,
             marketSessionStore: marketSessionStore,

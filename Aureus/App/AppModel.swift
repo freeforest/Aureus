@@ -81,6 +81,10 @@ final class AppModel {
             let dependencies = try await AppDependencies.make(configuration: launchConfiguration)
             self.dependencies = dependencies
             startupState = .ready(launchConfiguration.dataMode)
+        } catch is RuntimeEnvironmentError {
+            startupState = .failed(
+                "The App identity or storage environment is invalid. No local store was opened."
+            )
         } catch {
             startupState = .failed(
                 "Persistence initialization failed. No success state is available; existing data was not intentionally changed."

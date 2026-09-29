@@ -12,6 +12,8 @@
 		A10000000000000000000050 /* PortfolioCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000050 /* PortfolioCorrection.swift */; };
 		A10000000000000000000051 /* PortfolioCorrectionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000051 /* PortfolioCorrectionPersistence.swift */; };
 		A20000000000000000000025 /* PortfolioCorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000024 /* PortfolioCorrectionTests.swift */; };
+		A20000000000000000000026 /* RuntimeEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000025 /* RuntimeEnvironmentTests.swift */; };
+		A20000000000000000000027 /* EnvironmentIsolationIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000026 /* EnvironmentIsolationIntegrationTests.swift */; };
 		A20000000000000000000023 /* WealthCorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000022 /* WealthCorrectionTests.swift */; };
 		A20000000000000000000024 /* WealthCorrectionFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000023 /* WealthCorrectionFeatureTests.swift */; };
 		A1000000000000000000004C /* LedgerCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004C /* LedgerCorrection.swift */; };
@@ -31,6 +33,7 @@
 		A10000000000000000000002 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* AppModel.swift */; };
 		A10000000000000000000003 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* AppDependencies.swift */; };
 		A10000000000000000000004 /* RuntimePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* RuntimePaths.swift */; };
+		A10000000000000000000052 /* RuntimeEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000052 /* RuntimeEnvironment.swift */; };
 		A10000000000000000000005 /* AppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* AppShellView.swift */; };
 		A10000000000000000000006 /* FinancialValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* FinancialValues.swift */; };
 		A10000000000000000000007 /* TimeValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* TimeValues.swift */; };
@@ -147,6 +150,8 @@
 		B10000000000000000000050 /* PortfolioCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCorrection.swift; sourceTree = "<group>"; };
 		B10000000000000000000051 /* PortfolioCorrectionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCorrectionPersistence.swift; sourceTree = "<group>"; };
 		B20000000000000000000024 /* PortfolioCorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCorrectionTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000025 /* RuntimeEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeEnvironmentTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000026 /* EnvironmentIsolationIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentIsolationIntegrationTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000022 /* WealthCorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthCorrectionTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000023 /* WealthCorrectionFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthCorrectionFeatureTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000004C /* LedgerCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCorrection.swift; sourceTree = "<group>"; };
@@ -166,6 +171,7 @@
 		B10000000000000000000002 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000003 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		B10000000000000000000004 /* RuntimePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePaths.swift; sourceTree = "<group>"; };
+		B10000000000000000000052 /* RuntimeEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeEnvironment.swift; sourceTree = "<group>"; };
 		B10000000000000000000005 /* AppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellView.swift; sourceTree = "<group>"; };
 		B10000000000000000000006 /* FinancialValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialValues.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* TimeValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeValues.swift; sourceTree = "<group>"; };
@@ -253,7 +259,7 @@
 		B20000000000000000000019 /* PermanentBackupExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentBackupExportTests.swift; sourceTree = "<group>"; };
 		B2000000000000000000001A /* PermanentExternalRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermanentExternalRestoreTests.swift; sourceTree = "<group>"; };
 		B30000000000000000000001 /* AureusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AureusUITests.swift; sourceTree = "<group>"; };
-		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aureus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000001 /* Aureus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "$(FULL_PRODUCT_NAME)"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000002 /* AureusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000003 /* AureusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AureusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000044 /* GeneralPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralPreferences.swift; sourceTree = "<group>"; };
@@ -337,6 +343,7 @@
 				B10000000000000000000002 /* AppModel.swift */,
 				B10000000000000000000003 /* AppDependencies.swift */,
 				B10000000000000000000004 /* RuntimePaths.swift */,
+				B10000000000000000000052 /* RuntimeEnvironment.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -628,6 +635,8 @@
 				B20000000000000000000022 /* WealthCorrectionTests.swift */,
 				B20000000000000000000023 /* WealthCorrectionFeatureTests.swift */,
 				B20000000000000000000024 /* PortfolioCorrectionTests.swift */,
+				B20000000000000000000025 /* RuntimeEnvironmentTests.swift */,
+				B20000000000000000000026 /* EnvironmentIsolationIntegrationTests.swift */,
 				B20000000000000000000021 /* LedgerCorrectionFeatureTests.swift */,
 				B2000000000000000000001F /* PermanentDatasetAccessTests.swift */,
 				B20000000000000000000001 /* FinancialValueTests.swift */,
@@ -779,6 +788,7 @@
 				A10000000000000000000002 /* AppModel.swift in Sources */,
 				A10000000000000000000003 /* AppDependencies.swift in Sources */,
 				A10000000000000000000004 /* RuntimePaths.swift in Sources */,
+				A10000000000000000000052 /* RuntimeEnvironment.swift in Sources */,
 				A10000000000000000000005 /* AppShellView.swift in Sources */,
 				A10000000000000000000006 /* FinancialValues.swift in Sources */,
 				A10000000000000000000007 /* TimeValues.swift in Sources */,
@@ -852,6 +862,8 @@
 				A20000000000000000000023 /* WealthCorrectionTests.swift in Sources */,
 				A20000000000000000000024 /* WealthCorrectionFeatureTests.swift in Sources */,
 				A20000000000000000000025 /* PortfolioCorrectionTests.swift in Sources */,
+				A20000000000000000000026 /* RuntimeEnvironmentTests.swift in Sources */,
+				A20000000000000000000027 /* EnvironmentIsolationIntegrationTests.swift in Sources */,
 				A20000000000000000000022 /* LedgerCorrectionFeatureTests.swift in Sources */,
 				A2000000000000000000001F /* PermanentDatasetAccessTests.swift in Sources */,
 				A20000000000000000000001 /* FinancialValueTests.swift in Sources */,
@@ -947,16 +959,18 @@
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Aureus;
+				INFOPLIST_KEY_CFBundleDisplayName = "Aureus Dev";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal.dev;
+				PRODUCT_MODULE_NAME = Aureus;
+				PRODUCT_NAME = AureusDev;
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
@@ -980,6 +994,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aureus.wealthterminal;
+				PRODUCT_MODULE_NAME = Aureus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
@@ -1003,7 +1018,7 @@
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Aureus.app/Contents/MacOS/Aureus";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AureusDev.app/Contents/MacOS/AureusDev";
 			};
 			name = Debug;
 		};

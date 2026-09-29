@@ -18,6 +18,13 @@ This workflow was reviewed against [OpenAI's GPT-6 Astra guidance](https://devel
 - The product is visualization-first; it is not a conventional expense tracker.
 - Do not copy another product's source code or UI. External products may inform principles, not implementation duplication.
 
+### Runtime environments
+
+- Release `Aureus` retains the production bundle identity, storage namespace, preferences and Keychain service. Never use a Debug or test launch to inspect or migrate a user's production data.
+- Ordinary Debug builds are `Aureus Dev` with a distinct bundle identity and persistent development namespace. Unit, UI and Demo runs use their controlled temporary stores and synthetic or in-memory dependencies; they must not fall back to either persistent namespace.
+- Treat build identity, launch arguments and selected paths as a single pre-store decision. A missing or contradictory test configuration fails closed; do not repair it by switching to a production path or credential service.
+- Backups, restores, cache cleanup and managed-file roots belong to the selected environment. A database backup does not include preferences, Keychain credentials or every managed attachment.
+
 ## Product Hard Constraints
 
 - Prioritize macOS and Apple Silicon.

@@ -9,6 +9,7 @@
 
 ## Building and understanding the code
 
+- [Development environments](development-environments.md): Debug Dev, Release Production and synthetic test boundaries, plus upgrade precautions.
 - [Release build & packaging guide](../PUBLIC_README.md#build-from-source): use the clean release source archive; this is not a second product homepage.
 - [Architecture](V1_ARCHITECTURE.md): platform, state ownership, persistence, money, and service boundaries.
 - [V1 scope](V1_SCOPE.md): requirements and explicit exclusions; required scope is not proof of complete runtime verification.

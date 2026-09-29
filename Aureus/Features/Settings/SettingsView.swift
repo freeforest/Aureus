@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var showExternalRestoreConfirmation = false
     @State private var externalRestoreLease: SettingsExternalRestoreSecurityLease?
     let mode: AppDataMode
+    let runtimeEnvironment: RuntimeEnvironment
+    let runtimePaths: RuntimePaths?
 
     init(
         provider: any MarketDataProvider,
@@ -29,6 +31,8 @@ struct SettingsView: View {
         clock: any Clock,
         mode: AppDataMode,
         generalPreferences: GeneralPreferencesStore = GeneralPreferencesStore(),
+        runtimeEnvironment: RuntimeEnvironment = .temporary,
+        runtimePaths: RuntimePaths? = nil,
         diagnostics: DataLifecycleDiagnostics = .disabled
     ) {
         _model = State(initialValue: SettingsFeatureModel(
@@ -55,6 +59,8 @@ struct SettingsView: View {
             diagnostics: diagnostics
         ))
         self.mode = mode
+        self.runtimeEnvironment = runtimeEnvironment
+        self.runtimePaths = runtimePaths
     }
 
     var body: some View {
@@ -62,6 +68,7 @@ struct SettingsView: View {
             settingsBanner
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    environmentSection
                     generalPreferencesSection
                     dataLifecycleSection
                     providerSection
@@ -137,7 +144,8 @@ struct SettingsView: View {
     private var settingsBanner: some View {
         HStack {
             Image(systemName: mode == .syntheticDemo ? "testtube.2" : "gearshape.2")
-            Text(mode == .syntheticDemo ? "Synthetic Demo Settings" : "Local Provider Settings")
+            Text(runtimeEnvironment == .development ? "Aureus Dev Settings" :
+                (mode == .syntheticDemo ? "Synthetic Demo Settings" : "Local Provider Settings"))
                 .font(.subheadline.weight(.medium))
             Spacer()
             Text("Stage 6MA Session Lifecycle Repair Candidate")
@@ -148,6 +156,22 @@ struct SettingsView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    private var environmentSection: some View {
+        GroupBox("Application environment") {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Identity: \(runtimeEnvironment.displayName)")
+                    .accessibilityIdentifier("settings.environment.name")
+                if let runtimePaths {
+                    Text("Permanent namespace: \(runtimePaths.permanentDatabaseURL.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent)")
+                    Text("Market namespace: \(runtimePaths.marketCacheDatabaseURL.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent)")
+                    Text("Backup namespace: \(runtimePaths.internalBackupDirectoryURL.deletingLastPathComponent().lastPathComponent)")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityIdentifier("settings.environment")
     }
 
     private var providerSection: some View {

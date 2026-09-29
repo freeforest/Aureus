@@ -15,6 +15,14 @@ actor PortfolioPreferencesStore {
         defaults = memoryOnly ? nil : (suiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard)
     }
 
+    init(requiredSuiteName: String) throws {
+        guard !requiredSuiteName.isEmpty,
+              let defaults = UserDefaults(suiteName: requiredSuiteName) else {
+            throw RuntimeEnvironmentError.invalidPreferenceSuite
+        }
+        self.defaults = defaults
+    }
+
     func preference(for portfolioID: UUID) throws -> PortfolioBenchmarkPreference? {
         if defaults == nil { return memory[portfolioID] }
         guard let data = defaults?.data(forKey: key) else { return nil }

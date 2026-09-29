@@ -45,7 +45,7 @@ struct AppShellView: View {
                     .accessibilityLabel(destination.title)
                     .accessibilityIdentifier("sidebar.\(destination.rawValue)")
             }
-            .navigationTitle("Aureus")
+            .navigationTitle(model.dependencies?.runtimeEnvironment == .development ? "Aureus Dev" : "Aureus")
             .accessibilityLabel("Aureus primary navigation")
         } detail: {
             if model.selection == .dashboard, let dependencies = model.dependencies {
@@ -113,6 +113,8 @@ struct AppShellView: View {
                     clock: dependencies.clock,
                     mode: mode,
                     generalPreferences: dependencies.generalPreferencesStore,
+                    runtimeEnvironment: dependencies.runtimeEnvironment,
+                    runtimePaths: dependencies.runtimePaths,
                     diagnostics: dependencies.diagnostics
                 )
             } else {

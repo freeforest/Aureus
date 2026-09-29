@@ -1,0 +1,17 @@
+# Development environments and existing Aureus data
+
+This page describes the current source workspace. It does not change the already-published Aureus 1.0.0 / build 1 package or certify a new formal release.
+
+| Launch | App identity | Permanent database | Market cache | Internal backups | Preferences | Credential service |
+| --- | --- | --- | --- | --- | --- | --- |
+| Release / Production | Aureus; `com.aureus.wealthterminal` | Application Support/Aureus/Permanent/aureus.sqlite | Caches/Aureus/Market/market-cache.sqlite | Application Support/Aureus/Backups | Existing standard application preferences | `com.aureus.wealthterminal.provider-credentials` |
+| Ordinary Debug / Development | Aureus Dev; `com.aureus.wealthterminal.dev` | Application Support/AureusDev/Permanent/aureus.sqlite | Caches/AureusDev/Market/market-cache.sqlite | Application Support/AureusDev/Backups | `com.aureus.wealthterminal.dev` suite | `com.aureus.wealthterminal.dev.provider-credentials` |
+| Unit, UI, Demo / Temporary | Build App identity, controlled test arguments | Unique temporary root/Permanent/aureus.sqlite | Same root/MarketCache/market-cache.sqlite | Same root/Backups | In memory | In-memory credentials |
+
+These are relative rules resolved by macOS directory APIs, not fixed user-home paths. The existing production account rule remains `providerIdentifier:accountIdentifier`; the Dev service is distinct and never falls back to Production. Ordinary Debug data survives an App restart. Test/Demo roots are per-run and synthetic. An invalid build identity or temporary configuration must fail before a database, preferences or credentials are opened.
+
+For daily development, build and run the shared `Aureus` scheme in Debug and check that the built product is **Aureus Dev** before using it. Do not run a Release build as a development shortcut, use `open -a Aureus` when choosing a test product, or add test/Demo flags to a personal-data App. Unit testing uses the scheme's temporary-store argument from process startup. UI tests must launch their target with the existing UI-testing argument; a test method cannot retroactively isolate an already initialized host. Do not manually clean `Aureus`, `AureusDev`, or Keychain namespaces to troubleshoot tests.
+
+Before any future formal upgrade, quit the old installed Aureus and retain an independent private backup and a recovery copy of the older App. The published 1.0.0 source archive declares permanent schema **6**; the current development source declares schema **10**. A forward migration is one-way for the old App: do not assume 1.0.0 can reopen a database after newer code migrates it. Verify the target App identity and the selected database before restore. Recovery should use the product's supported backup/restore flow and an independently retained source generation; do not copy a live SQLite main file without its consistency protocol or direct a restore at an unrelated environment.
+
+The existing format-1 internal backup and external backup export contain a validated SQLite dataset and manifest. They do **not** include Keychain credentials, preference domains, all managed evidence files, or a complete application installation. Material-containing datasets retain their existing fail-closed restrictions. Neither a development build nor a successful synthetic migration proves a real user's installed-App upgrade. This repository change does not authorize installing, replacing or publishing a new formal Aureus package.

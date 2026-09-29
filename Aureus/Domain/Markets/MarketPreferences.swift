@@ -168,6 +168,14 @@ actor MarketPreferencesStore {
         }
     }
 
+    init(requiredSuiteName: String) throws {
+        guard !requiredSuiteName.isEmpty,
+              let defaults = UserDefaults(suiteName: requiredSuiteName) else {
+            throw RuntimeEnvironmentError.invalidPreferenceSuite
+        }
+        self.defaults = defaults
+    }
+
     func load() throws -> MarketPreferencesSnapshot {
         guard let defaults else { return memorySnapshot ?? .empty }
         guard let data = defaults.data(forKey: Self.storageKey) else { return .empty }
