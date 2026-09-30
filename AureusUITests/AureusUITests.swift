@@ -465,7 +465,9 @@ final class AureusUITests: XCTestCase {
     func testStage8PortfolioSyntheticCRUDHoldingsSnapshotAndIsolation() throws {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
+            + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         launchApp(app)
+        defer { app.terminate() }
 
         app.descendants(matching: .any)["sidebar.portfolio"].click()
         XCTAssertTrue(app.descendants(matching: .any)["portfolio.page"].waitForExistence(timeout: 8))
@@ -563,7 +565,9 @@ final class AureusUITests: XCTestCase {
         app.terminate()
         let production = XCUIApplication()
         production.launchArguments = uiTestingArguments()
+            + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         launchApp(production)
+        defer { production.terminate() }
         production.descendants(matching: .any)["sidebar.portfolio"].click()
         XCTAssertTrue(production.descendants(matching: .any)["portfolio.empty"].waitForExistence(timeout: 5))
         XCTAssertFalse(production.descendants(matching: .any)[createdPortfolioIdentifier].exists)
@@ -571,6 +575,304 @@ final class AureusUITests: XCTestCase {
         XCTAssertFalse(production.descendants(matching: .any)["portfolio.holding.SYNX|XSYN"].exists)
         XCTAssertTrue(waitForPortfolioRowCount(0, in: production, timeout: 5))
         XCTAssertFalse(production.descendants(matching: .any)["portfolio.benchmark.chart"].exists)
+    }
+
+    @MainActor
+    func testPortfolioCorrectionOpeningReasonCancelAndHistory() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+            + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        launchApp(app)
+        defer { app.terminate() }
+        try portfolioCorrectionNativeNavigate(app, destination: "portfolio")
+        let id = "00000000-0000-4000-8000-000000008003"
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeCheckFields(app, ["date": "2025-12-15", "quantity": "10",
+            "totalCost": "300", "note": "Synthetic opening lot", "reason": ""])
+        let metadata = try portfolioCorrectionNativeText(app, "portfolio.edit.metadata", scope: "portfolio.edit.sheet")
+        let fx = try portfolioCorrectionNativeText(app, "portfolio.edit.fx.original", scope: "portfolio.edit.sheet")
+        try portfolioCorrectionNativeRequire(metadata.replacingOccurrences(of: ",", with: "")
+            == "Recorded UTC ms 1768435200000 · America/New_York · Ledger none", "N1 initial metadata")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        _ = try portfolioCorrectionNativeHistory(app, expected: 0)
+        try portfolioCorrectionNativeCloseHistory(app)
+
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.note", text: "Synthetic native opening note")
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app,
+            "portfolio.edit.reasonRequirement", scope: "portfolio.edit.sheet")
+            == "No-change and opening-note-only edits do not create correction history.", "N1 note-only classification")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        _ = try portfolioCorrectionNativeHistory(app, expected: 0)
+        try portfolioCorrectionNativeCloseHistory(app)
+
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.totalCost", text: "320")
+        try portfolioCorrectionNativeRequire(!(try portfolioCorrectionNativeElement(app,
+            "portfolio.edit.save", scope: "portfolio.edit.sheet")).isEnabled, "N1 empty reason must block Save")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic opening cost correction")
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeCheckFields(app, ["totalCost": "300", "quantity": "10",
+            "note": "Synthetic native opening note", "date": "2025-12-15", "reason": ""])
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        _ = try portfolioCorrectionNativeHistory(app, expected: 0)
+        try portfolioCorrectionNativeCloseHistory(app)
+
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.totalCost", text: "320")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic opening cost correction")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeCheckFields(app, ["totalCost": "320", "quantity": "10",
+            "note": "Synthetic native opening note", "date": "2025-12-15"])
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app, "portfolio.edit.metadata", scope: "portfolio.edit.sheet") == metadata,
+            "N1 immutable Activity metadata")
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app, "portfolio.edit.fx.original", scope: "portfolio.edit.sheet") == fx,
+            "N1 FX provenance unchanged")
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        let rows = try portfolioCorrectionNativeHistory(app, expected: 1)
+        try portfolioCorrectionNativeRequire(rows[0].reason == "Synthetic opening cost correction", "N1 exact reason")
+        for (text, cost, cny) in [(rows[0].before, "300", "2137.50"), (rows[0].after, "320", "2280.00")] {
+            try portfolioCorrectionNativeAssertProjection(text, id: id, portfolio: "00000000-0000-4000-8000-000000008001",
+                date: "2025-12-15", time: "1768435200000", zone: "America/New_York", symbol: "SYNX/XSYN", currency: "USD",
+                payload: "openingLot · quantity 10 · cost \(cost) · note Synthetic native opening note",
+                original: cost, rate: "7.125", cny: cny, source: "manual.synthetic.stage8", reference: "2026-01-15", fxTime: "1768435200000", manual: true)
+        }
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeLink(rows[0].before) == portfolioCorrectionNativeLink(rows[0].after), "N1 link unchanged")
+        try portfolioCorrectionNativeReopenHistory(app, id: id, expected: rows)
+        print("PORTFOLIO_NATIVE_CHECKPOINT N1 COMPLETE")
+    }
+
+    @MainActor
+    func testPortfolioCorrectionUSDInputAndFXHistory() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+            + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        launchApp(app)
+        defer { app.terminate() }
+        try portfolioCorrectionNativeNavigate(app, destination: "portfolio")
+        let id = "00000000-0000-4000-8000-000000008004"
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeCheckFields(app, ["date": "2026-01-15", "quantity": "2.5", "unitPrice": "40", "fee": "1"])
+        let metadata = try portfolioCorrectionNativeText(app, "portfolio.edit.metadata", scope: "portfolio.edit.sheet")
+        let fx = try portfolioCorrectionNativeText(app, "portfolio.edit.fx.original", scope: "portfolio.edit.sheet")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.unitPrice", text: "44")
+        try portfolioCorrectionNativeRequire(!(try portfolioCorrectionNativeElement(app, "portfolio.edit.save", scope: "portfolio.edit.sheet")).isEnabled,
+            "N2 price correction needs a reason")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic buy price correction")
+        try portfolioCorrectionNativeCheckFields(app, ["quantity": "2.5", "unitPrice": "44", "fee": "1", "date": "2026-01-15"])
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app, "portfolio.edit.fx.original", scope: "portfolio.edit.sheet") == fx,
+            "N2 preserve original FX instruction")
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        let first = try portfolioCorrectionNativeHistory(app, expected: 1)[0]
+        try portfolioCorrectionNativeRequire(first.reason == "Synthetic buy price correction", "N2 first exact reason")
+        for (text, price, original, cny) in [(first.before, "40", "101", "719.62"), (first.after, "44", "111", "790.88")] {
+            try portfolioCorrectionNativeAssertProjection(text, id: id, portfolio: "00000000-0000-4000-8000-000000008001",
+                date: "2026-01-15", time: "1768435200001", zone: "America/New_York", symbol: "SYNX/XSYN", currency: "USD",
+                payload: "buy · quantity 2.5 · price \(price) · fee 1", original: original, rate: "7.125", cny: cny,
+                source: "manual.synthetic.stage8", reference: "2026-01-15", fxTime: "1768435200000", manual: true)
+        }
+        try portfolioCorrectionNativeCloseHistory(app)
+
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativePicker(app, "portfolio.edit.fx.intent", title: "Set explicit manual FX / CNY identity")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.fx.rate", text: "7.50")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.fx.referenceDate", text: "2026-01-16")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic buy manual FX correction")
+        try portfolioCorrectionNativeCheckFields(app, ["quantity": "2.5", "unitPrice": "44", "fee": "1", "date": "2026-01-15",
+            "fx.rate": "7.50", "fx.referenceDate": "2026-01-16", "fx.stale": "0", "reason": "Synthetic buy manual FX correction"])
+        try portfolioCorrectionNativeAssertPicker(app, "portfolio.edit.fx.intent", title: "Set explicit manual FX / CNY identity")
+        try portfolioCorrectionNativeObserve(app, scope: "portfolio.edit.sheet", stage: "N2-before-manual-FX-save")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeCheckFields(app, ["quantity": "2.5", "unitPrice": "44", "fee": "1", "date": "2026-01-15"])
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app, "portfolio.edit.metadata", scope: "portfolio.edit.sheet") == metadata,
+            "N2 metadata retained after manual FX")
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        let rows = try portfolioCorrectionNativeHistory(app, expected: 2)
+        try portfolioCorrectionNativeRequire(rows[0] == first, "N2 first history immutable")
+        try portfolioCorrectionNativeRequire(rows[1].before == first.after.replacingOccurrences(of: "After\n", with: "Before\n"),
+            "N2 second before equals previously committed after")
+        try portfolioCorrectionNativeRequire(rows[1].reason == "Synthetic buy manual FX correction", "N2 second exact reason")
+        try portfolioCorrectionNativeAssertProjection(rows[1].after, id: id, portfolio: "00000000-0000-4000-8000-000000008001",
+            date: "2026-01-15", time: "1768435200001", zone: "America/New_York", symbol: "SYNX/XSYN", currency: "USD",
+            payload: "buy · quantity 2.5 · price 44 · fee 1", original: "111", rate: "7.50", cny: "832.50",
+            source: "manual", reference: "2026-01-16", fxTime: "1768435200000", manual: true)
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeLink(rows[1].before) == portfolioCorrectionNativeLink(rows[1].after), "N2 link unchanged")
+        try portfolioCorrectionNativeReopenHistory(app, id: id, expected: rows)
+        print("PORTFOLIO_NATIVE_CHECKPOINT N2 COMPLETE")
+    }
+
+    @MainActor
+    func testPortfolioCorrectionSellSplitAndFIFORejection() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments(demo: true)
+            + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        launchApp(app)
+        defer { app.terminate() }
+        try portfolioCorrectionNativeNavigate(app, destination: "portfolio")
+        try portfolioCorrectionNativeHolding(app, symbol: "SYNX", quantity: "20.5")
+        let id = try portfolioCorrectionNativeCreateActivity(app, kind: "sell", security: "SYNX/XSYN",
+            date: "2026-01-16", quantity: "1", price: "50", fee: "0", fx: "7.125")
+        try portfolioCorrectionNativeHolding(app, symbol: "SYNX", quantity: "19.5")
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeCheckFields(app, ["quantity": "1", "unitPrice": "50", "fee": "0", "date": "2026-01-16"])
+        try portfolioCorrectionNativeAssertPicker(app, "portfolio.edit.kind", title: "sell")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.quantity", text: "1000")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic FIFO rejection")
+        try portfolioCorrectionNativeClick(app, "portfolio.edit.save", scope: "portfolio.edit.sheet")
+        try portfolioCorrectionNativeWait("N3 actual FIFO feedback") {
+            let q = app.descendants(matching: .any).matching(identifier: "portfolio.edit.feedback")
+            return q.count == 1 && self.portfolioCorrectionNativeRawText(q.element(boundBy: 0))
+                == "Correction rejected. Check the payload, link and subsequent FIFO activities; no edit was committed."
+        }
+        try portfolioCorrectionNativeCheckFields(app, ["quantity": "1000"])
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeCheckFields(app, ["quantity": "1", "unitPrice": "50", "fee": "0", "date": "2026-01-16"])
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        _ = try portfolioCorrectionNativeHistory(app, expected: 0)
+        try portfolioCorrectionNativeCloseHistory(app)
+        try portfolioCorrectionNativeHolding(app, symbol: "SYNX", quantity: "19.5")
+        print("PORTFOLIO_NATIVE_CHECKPOINT N3 FIFO-ROLLBACK-VERIFIED")
+
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.quantity", text: "2")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic sell quantity correction")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeHolding(app, symbol: "SYNX", quantity: "18.5")
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        let first = try portfolioCorrectionNativeHistory(app, expected: 1)[0]
+        for (text, quantity, amount, cny) in [(first.before, "1", "50", "356.25"), (first.after, "2", "100", "712.50")] {
+            try portfolioCorrectionNativeAssertProjection(text, id: id, portfolio: "00000000-0000-4000-8000-000000008001",
+                date: "2026-01-16", time: "1768435200000", zone: "UTC", symbol: "SYNX/XSYN", currency: "USD",
+                payload: "sell · quantity \(quantity) · price 50 · fee 0", original: amount, rate: "7.125", cny: cny,
+                source: "manual", reference: "2026-01-16", fxTime: "0", manual: true)
+        }
+        try portfolioCorrectionNativeCloseHistory(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativePicker(app, "portfolio.edit.kind", title: "manualSplit")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.split.from", text: "2")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.split.to", text: "3")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic sell to split correction")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeHolding(app, symbol: "SYNX", quantity: "30.75")
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        let second = try portfolioCorrectionNativeHistory(app, expected: 2)
+        try portfolioCorrectionNativeRequire(second[0] == first, "N3 earlier sell history preserved")
+        try portfolioCorrectionNativeAssertSplit(second[1].after, id: id, from: "2", to: "3")
+        try portfolioCorrectionNativeRequire(second[1].before == first.after.replacingOccurrences(of: "After\n", with: "Before\n"), "N3 kind switch before")
+        try portfolioCorrectionNativeCloseHistory(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeAssertPicker(app, "portfolio.edit.kind", title: "manualSplit")
+        try portfolioCorrectionNativeCheckFields(app, ["split.from": "2", "split.to": "3"])
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.split.to", text: "4")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic split ratio correction")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeHolding(app, symbol: "SYNX", quantity: "41")
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        let third = try portfolioCorrectionNativeHistory(app, expected: 3)
+        try portfolioCorrectionNativeRequire(Array(third.prefix(2)) == second, "N3 prior histories unchanged")
+        try portfolioCorrectionNativeAssertSplit(third[2].before, id: id, from: "2", to: "3")
+        try portfolioCorrectionNativeAssertSplit(third[2].after, id: id, from: "2", to: "4")
+        try portfolioCorrectionNativeReopenHistory(app, id: id, expected: third)
+        print("PORTFOLIO_NATIVE_CHECKPOINT N3 COMPLETE")
+    }
+
+    @MainActor
+    func testPortfolioCorrectionCNYLinkAndKindHistory() throws {
+        let app = XCUIApplication()
+        app.launchArguments = uiTestingArguments()
+            + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        launchApp(app)
+        defer { app.terminate() }
+        try portfolioCorrectionNativeNavigate(app, destination: "wealth")
+        try portfolioCorrectionNativeCreateSecurity(app, name: "Synthetic Native Stock A", symbol: "SYNRA", quantity: "20", price: "3")
+        try portfolioCorrectionNativeCreateSecurity(app, name: "Synthetic Native Stock B", symbol: "SYNRB", quantity: "30", price: "4")
+        let wealthSummary = try portfolioCorrectionNativeText(app, "wealth.summary.netWorth")
+        try portfolioCorrectionNativeRequire(wealthSummary.contains("180.00"), "N4 initial synthetic Wealth total180")
+        try portfolioCorrectionNativeNavigate(app, destination: "portfolio")
+        let portfolio = try portfolioCorrectionNativeCreatePortfolio(app, name: "Synthetic Native CNY Portfolio")
+        for (name, symbol) in [("Synthetic Native Stock A", "SYNRA"), ("Synthetic Native Stock B", "SYNRB")] {
+            try portfolioCorrectionNativeMenu(app, "portfolio.security.link", title: name)
+            _ = try portfolioCorrectionNativeElement(app, "portfolio.security.\(symbol)|XSYN")
+        }
+        let id = try portfolioCorrectionNativeCreateActivity(app, kind: "openingLot", security: "SYNRA/XSYN",
+            date: "2026-01-15", quantity: "10", price: "100", fee: "0", fx: "1")
+        try portfolioCorrectionNativeClick(app, "portfolio.snapshot.capture")
+        try portfolioCorrectionNativeWait("N4 initial snapshot capture") {
+            let table = app.descendants(matching: .any).matching(identifier: "portfolio.nav.table")
+            return table.count == 1 && table.element(boundBy: 0).staticTexts.matching(NSPredicate(format: "value == %@ OR label == %@", "CNY 30", "CNY 30")).count == 1
+        }
+        let snapshots = try portfolioCorrectionNativeNAVTexts(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        let metadata = try portfolioCorrectionNativeText(app, "portfolio.edit.metadata", scope: "portfolio.edit.sheet")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.date", text: "2026-01-16")
+        try portfolioCorrectionNativePicker(app, "portfolio.edit.security", title: "SYNRB/XSYN")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic CNY date and link correction")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        let first = try portfolioCorrectionNativeHistory(app, expected: 1)[0]
+        for (text, date, symbol) in [(first.before, "2026-01-15", "SYNRA/XSYN"), (first.after, "2026-01-16", "SYNRB/XSYN")] {
+            try portfolioCorrectionNativeAssertProjection(text, id: id, portfolio: portfolio,
+                date: date, time: "1768435200000", zone: "UTC", symbol: symbol, currency: "CNY",
+                payload: "openingLot · quantity 10 · cost 100 · note Manual opening lot", original: "100", rate: "1", cny: "100",
+                source: "identity", reference: "2026-01-15", fxTime: "0", manual: false)
+        }
+        let oldLink = portfolioCorrectionNativeLink(first.before), newLink = portfolioCorrectionNativeLink(first.after)
+        try portfolioCorrectionNativeRequire(oldLink != newLink && oldLink.count == 4 && newLink.count == 4,
+            "N4 old/new link identities must differ")
+        try portfolioCorrectionNativeRequire(oldLink[0] != newLink[0] && oldLink[3] != newLink[3], "N4 distinct link and Wealth UUIDs")
+        try portfolioCorrectionNativeCloseHistory(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeAssertPicker(app, "portfolio.edit.security", title: "SYNRB/XSYN")
+        try portfolioCorrectionNativePicker(app, "portfolio.edit.kind", title: "buy")
+        try portfolioCorrectionNativeRequire(!(try portfolioCorrectionNativeElement(app, "portfolio.edit.save", scope: "portfolio.edit.sheet")).isEnabled,
+            "N4 new buy payload cannot use hidden defaults")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.quantity", text: "10")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.unitPrice", text: "10")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.fee", text: "0")
+        try portfolioCorrectionNativeInput(app, "portfolio.edit.reason", text: "Synthetic CNY opening to buy correction")
+        try portfolioCorrectionNativeSave(app)
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeCheckFields(app, ["quantity": "10", "unitPrice": "10", "fee": "0", "date": "2026-01-16"])
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app, "portfolio.edit.metadata", scope: "portfolio.edit.sheet") == metadata,
+            "N4 Activity metadata not reset")
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        let rows = try portfolioCorrectionNativeHistory(app, expected: 2)
+        try portfolioCorrectionNativeRequire(rows[0] == first, "N4 first history immutable")
+        try portfolioCorrectionNativeAssertProjection(rows[1].after, id: id, portfolio: portfolio,
+            date: "2026-01-16", time: "1768435200000", zone: "UTC", symbol: "SYNRB/XSYN", currency: "CNY",
+            payload: "buy · quantity 10 · price 10 · fee 0", original: "100", rate: "1", cny: "100",
+            source: "identity", reference: "2026-01-15", fxTime: "0", manual: false)
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeLink(rows[1].before) == newLink && portfolioCorrectionNativeLink(rows[1].after) == newLink, "N4 second history preserves link")
+        try portfolioCorrectionNativeReopenHistory(app, id: id, expected: rows)
+        try portfolioCorrectionNativeCloseHistory(app)
+        _ = try portfolioCorrectionNativeCreatePortfolio(app, name: "Synthetic Native Other Portfolio")
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeActivityIDs(app).isEmpty, "N4 other Portfolio has no Activity")
+        try portfolioCorrectionNativeClick(app, "portfolio.row.\(portfolio)")
+        try portfolioCorrectionNativeOpenEdit(app, id: id)
+        try portfolioCorrectionNativeAssertPicker(app, "portfolio.edit.security", title: "SYNRB/XSYN")
+        try portfolioCorrectionNativeAssertPicker(app, "portfolio.edit.kind", title: "buy")
+        try portfolioCorrectionNativeCancel(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeHistory(app, expected: 2) == rows, "N4 selection returns exact history")
+        try portfolioCorrectionNativeCloseHistory(app)
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeNAVTexts(app) == snapshots, "N4 NAV snapshots unchanged by correction")
+        try portfolioCorrectionNativeNavigate(app, destination: "wealth")
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app, "wealth.summary.netWorth") == wealthSummary, "N4 Wealth valuations unchanged")
+        print("PORTFOLIO_NATIVE_CHECKPOINT N4 COMPLETE")
     }
 
     @MainActor
@@ -5077,6 +5379,478 @@ final class AureusUITests: XCTestCase {
         return Data("\(encoded(header))\r\n\(encoded(row))\r\n".utf8)
     }
 
+
+    private enum portfolioCorrectionNativeError: Error { case invalidState }
+
+    private struct portfolioCorrectionNativeHistoryRecord: Equatable {
+        let id: UUID
+        let sequence: Int
+        let title: String
+        let reason: String
+        let before: String
+        let after: String
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeRequire(_ condition: @autoclosure () throws -> Bool,
+                                                   _ message: String) throws {
+        guard try condition() else {
+            XCTFail(message)
+            throw portfolioCorrectionNativeError.invalidState
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeWait(_ message: String,
+                                                _ condition: @escaping @MainActor () -> Bool) throws {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            MainActor.assumeIsolated { condition() }
+        }, object: nil)
+        try portfolioCorrectionNativeRequire(XCTWaiter.wait(for: [expectation], timeout: 5) == .completed, message)
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeScope(_ app: XCUIApplication, _ identifier: String?) throws -> XCUIElement {
+        guard let identifier else { return app }
+        let query = app.descendants(matching: .any).matching(identifier: identifier)
+        try portfolioCorrectionNativeRequire(query.count == 1, "Expected unique scope \(identifier), actual \(query.count)")
+        return query.element(boundBy: 0)
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeElement(_ app: XCUIApplication, _ identifier: String,
+                                                   scope: String? = nil) throws -> XCUIElement {
+        try portfolioCorrectionNativeWait("Missing/ambiguous \(identifier)") {
+            guard let container = try? self.portfolioCorrectionNativeScope(app, scope) else { return false }
+            return container.descendants(matching: .any).matching(identifier: identifier).count == 1
+        }
+        let matches = try portfolioCorrectionNativeScope(app, scope).descendants(matching: .any).matching(identifier: identifier)
+        try portfolioCorrectionNativeRequire(matches.count == 1, "Changed identity: \(identifier)")
+        return matches.element(boundBy: 0)
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeRawText(_ element: XCUIElement) -> String {
+        if let value = element.value as? String, !value.isEmpty { return value }
+        return element.label
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeText(_ app: XCUIApplication, _ identifier: String,
+                                                scope: String? = nil) throws -> String {
+        let element = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
+        let text = portfolioCorrectionNativeRawText(element)
+        try portfolioCorrectionNativeRequire(!text.isEmpty && text.count <= 4096, "Incomplete text \(identifier)")
+        return text
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeReady(_ app: XCUIApplication, _ identifier: String,
+                                                 scope: String? = nil) throws -> XCUIElement {
+        var element = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
+        try portfolioCorrectionNativeRequire(element.isEnabled, "Disabled control \(identifier)")
+        for _ in 0..<8 where !element.isHittable {
+            let scrolls: XCUIElementQuery
+            if scope == "portfolio.edit.sheet" {
+                scrolls = try portfolioCorrectionNativeScope(app, scope).scrollViews.matching(identifier: "portfolio.edit.scroll")
+            } else if identifier.hasPrefix("wealth.form.") {
+                let sheets = app.sheets.containing(.button, identifier: "wealth.form.save")
+                try portfolioCorrectionNativeRequire(sheets.count == 1, "Unique synthetic Wealth creation sheet required")
+                scrolls = sheets.element(boundBy: 0).scrollViews
+            } else {
+                scrolls = app.scrollViews.containing(.button, identifier: "portfolio.activity.add")
+            }
+            try portfolioCorrectionNativeRequire(scrolls.count == 1, "Cannot uniquely determine owned scroll region for \(identifier)")
+            let scroll = scrolls.element(boundBy: 0)
+            let delta: CGFloat = element.frame.midY < scroll.frame.minY ? 140 : -140
+            scroll.scroll(byDeltaX: 0, deltaY: delta)
+            element = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
+        }
+        try portfolioCorrectionNativeRequire(element.isEnabled && element.isHittable, "Control not ready after bounded scrolling: \(identifier)")
+        return element
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeClick(_ app: XCUIApplication, _ identifier: String,
+                                                 scope: String? = nil) throws {
+        try portfolioCorrectionNativeReady(app, identifier, scope: scope).click()
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeNavigate(_ app: XCUIApplication, destination: String) throws {
+        try portfolioCorrectionNativeClick(app, "sidebar.\(destination)")
+        _ = try portfolioCorrectionNativeElement(app, destination == "portfolio" ? "portfolio.page" : "wealth.add")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeEditValues(_ app: XCUIApplication) throws -> [String: String] {
+        let sheet = try portfolioCorrectionNativeScope(app, "portfolio.edit.sheet")
+        var result: [String: String] = [:]
+        for suffix in ["identity", "metadata", "date", "quantity", "totalCost", "note", "unitPrice", "fee",
+                       "split.from", "split.to", "fx.rate", "fx.referenceDate", "fx.stale", "reason"] {
+            let id = "portfolio.edit.\(suffix)"
+            let matches = sheet.descendants(matching: .any).matching(identifier: id)
+            try portfolioCorrectionNativeRequire(matches.count <= 1, "Duplicate edit field \(id)")
+            if matches.count == 1 {
+                let element = matches.element(boundBy: 0)
+                if suffix == "identity" || suffix == "metadata" { result[id] = portfolioCorrectionNativeRawText(element) }
+                else {
+                    guard let value = element.value else {
+                        XCTFail("Missing actual value \(id)"); throw portfolioCorrectionNativeError.invalidState
+                    }
+                    result[id] = String(describing: value)
+                }
+                try portfolioCorrectionNativeRequire(result[id]!.count <= 4096, "Truncated field \(id)")
+            }
+        }
+        return result
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeInput(_ app: XCUIApplication, _ identifier: String, text: String) throws {
+        let isEdit = identifier.hasPrefix("portfolio.edit.")
+        let scope = isEdit ? "portfolio.edit.sheet" : nil
+        let before = isEdit ? try portfolioCorrectionNativeEditValues(app) : [:]
+        let field = try portfolioCorrectionNativeReady(app, identifier, scope: scope)
+        field.click()
+        if isEdit {
+            try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeEditValues(app) == before,
+                "Click changed form values before input: \(identifier)")
+        }
+        // One replacement only. Hittability/click do not prove keyboard focus.
+        let current = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
+        current.typeKey("a", modifierFlags: .command)
+        current.typeText(text)
+        try portfolioCorrectionNativeWait("Input readback mismatch for \(identifier); no retry") {
+            guard let container = try? self.portfolioCorrectionNativeScope(app, scope) else { return false }
+            let q = container.descendants(matching: .any).matching(identifier: identifier)
+            return q.count == 1 && (q.element(boundBy: 0).value as? String) == text
+        }
+        if isEdit {
+            var expected = before
+            expected[identifier] = text
+            try portfolioCorrectionNativeObserve(app, scope: "portfolio.edit.sheet", stage: "input-\(identifier)")
+            try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeEditValues(app) == expected,
+                "Input changed adjacent fields: \(identifier)")
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeCheckFields(_ app: XCUIApplication, _ expected: [String: String]) throws {
+        let current = try portfolioCorrectionNativeEditValues(app)
+        for (suffix, value) in expected {
+            try portfolioCorrectionNativeRequire(current["portfolio.edit.\(suffix)"] == value, "Complete field mismatch \(suffix)")
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeMenu(_ app: XCUIApplication, _ identifier: String, title: String) throws {
+        let scope = identifier.hasPrefix("portfolio.edit.") ? "portfolio.edit.sheet" : nil
+        try portfolioCorrectionNativeClick(app, identifier, scope: scope)
+        try portfolioCorrectionNativeWait("Missing/ambiguous menu option \(title)") {
+            app.menuItems.matching(NSPredicate(format: "label == %@", title)).count == 1
+        }
+        let options = app.menuItems.matching(NSPredicate(format: "label == %@", title))
+        try portfolioCorrectionNativeRequire(options.count == 1 && options.element(boundBy: 0).isEnabled, "Menu option unique and enabled")
+        options.element(boundBy: 0).click()
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeAssertPicker(_ app: XCUIApplication, _ identifier: String, title: String) throws {
+        let scope = identifier.hasPrefix("portfolio.edit.") ? "portfolio.edit.sheet" : nil
+        try portfolioCorrectionNativeWait("Picker selection mismatch \(identifier): \(title)") {
+            guard let container = try? self.portfolioCorrectionNativeScope(app, scope) else { return false }
+            let q = container.descendants(matching: .any).matching(identifier: identifier)
+            guard q.count == 1 else { return false }
+            let e = q.element(boundBy: 0)
+            return (e.value as? String) == title || e.label == title
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativePicker(_ app: XCUIApplication, _ identifier: String, title: String) throws {
+        let scope = identifier.hasPrefix("portfolio.edit.") ? "portfolio.edit.sheet" : nil
+        let current = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
+        if (current.value as? String) != title && current.label != title {
+            try portfolioCorrectionNativeMenu(app, identifier, title: title)
+        }
+        try portfolioCorrectionNativeAssertPicker(app, identifier, title: title)
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeOpenEdit(_ app: XCUIApplication, id: String) throws {
+        try portfolioCorrectionNativeClick(app, "portfolio.activity.edit.\(id)")
+        _ = try portfolioCorrectionNativeElement(app, "portfolio.edit.sheet")
+        _ = try portfolioCorrectionNativeElement(app, "portfolio.edit.identity", scope: "portfolio.edit.sheet")
+        let identity = try portfolioCorrectionNativeText(app, "portfolio.edit.identity", scope: "portfolio.edit.sheet")
+        try portfolioCorrectionNativeRequire(identity == "Activity \(id) · USD" || identity == "Activity \(id) · CNY", "Exact target Activity identity")
+        try portfolioCorrectionNativeObserve(app, scope: "portfolio.edit.sheet", stage: "open-\(id)")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeCancel(_ app: XCUIApplication) throws {
+        try portfolioCorrectionNativeClick(app, "portfolio.edit.cancel", scope: "portfolio.edit.sheet")
+        try portfolioCorrectionNativeWait("Cancel must close current editor") {
+            app.descendants(matching: .any).matching(identifier: "portfolio.edit.sheet").count == 0
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeSave(_ app: XCUIApplication) throws {
+        try portfolioCorrectionNativeObserve(app, scope: "portfolio.edit.sheet", stage: "before-save")
+        try portfolioCorrectionNativeClick(app, "portfolio.edit.save", scope: "portfolio.edit.sheet")
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.descendants(matching: .any).matching(identifier: "portfolio.edit.sheet").count == 0
+        }, object: app)
+        let result = XCTWaiter.wait(for: [closed], timeout: 5)
+        if result != .completed {
+            try portfolioCorrectionNativeObserve(app, scope: "portfolio.edit.sheet", stage: "save-did-not-close")
+        }
+        try portfolioCorrectionNativeRequire(result == .completed, "Save did not close editor after original five-second bound; no second Save")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeObserve(_ app: XCUIApplication, scope: String, stage: String) throws {
+        let container = try portfolioCorrectionNativeScope(app, scope)
+        let prefix = scope == "portfolio.edit.sheet" ? "portfolio.edit." : "portfolio.history."
+        let query = container.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+        print("PORTFOLIO_NATIVE_AX stage=\(stage) utc=\(ISO8601DateFormatter().string(from: Date())) count=\(query.count) truncated=\(query.count > 40) focus=NOT_VERIFIED")
+        for i in 0..<min(query.count, 40) {
+            let e = query.element(boundBy: i), label = query.element(boundBy: i).label
+            let value = e.value.map { String(describing: $0) } ?? "<nil>"
+            print("PORTFOLIO_NATIVE_AX index=\(i) id=\(e.identifier) type=\(e.elementType) label=\(String(label.prefix(4096))) labelTruncated=\(label.count > 4096) value=\(String(value.prefix(4096))) valueTruncated=\(value.count > 4096) enabled=\(e.isEnabled) hittable=\(e.isHittable)")
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeOpenHistory(_ app: XCUIApplication, id: String) throws {
+        try portfolioCorrectionNativeClick(app, "portfolio.activity.history.\(id)")
+        _ = try portfolioCorrectionNativeElement(app, "portfolio.history.sheet")
+        try portfolioCorrectionNativeWait("History ready or failed state") {
+            let sheet = app.descendants(matching: .any).matching(identifier: "portfolio.history.sheet")
+            guard sheet.count == 1 else { return false }
+            let nodes = sheet.element(boundBy: 0).descendants(matching: .any)
+            return nodes.matching(identifier: "portfolio.history.empty").count == 1
+                || nodes.matching(identifier: "portfolio.history.list").count == 1
+                || nodes.matching(identifier: "portfolio.history.failed").count == 1
+        }
+        try portfolioCorrectionNativeObserve(app, scope: "portfolio.history.sheet", stage: "history-\(id)")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeCloseHistory(_ app: XCUIApplication) throws {
+        try portfolioCorrectionNativeClick(app, "portfolio.history.close", scope: "portfolio.history.sheet")
+        try portfolioCorrectionNativeWait("History close") {
+            app.descendants(matching: .any).matching(identifier: "portfolio.history.sheet").count == 0
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeHistory(_ app: XCUIApplication, expected: Int) throws -> [portfolioCorrectionNativeHistoryRecord] {
+        let sheet = try portfolioCorrectionNativeScope(app, "portfolio.history.sheet")
+        try portfolioCorrectionNativeRequire(sheet.descendants(matching: .any).matching(identifier: "portfolio.history.failed").count == 0, "History failure is not empty")
+        try portfolioCorrectionNativeRequire(sheet.textFields.count == 0 && sheet.textViews.count == 0,
+            "History contains no editable fields")
+        let buttons = sheet.buttons
+        try portfolioCorrectionNativeRequire(buttons.count == 1 && buttons.element(boundBy: 0).identifier == "portfolio.history.close",
+            "History has only its read-only Close action")
+        if expected == 0 {
+            try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app, "portfolio.history.empty", scope: "portfolio.history.sheet") == "No correction history",
+                "Explicit empty history state")
+            try portfolioCorrectionNativeRequire(sheet.descendants(matching: .any).matching(identifier: "portfolio.history.list").count == 0, "Empty history has no records")
+            return []
+        }
+        let list = try portfolioCorrectionNativeElement(app, "portfolio.history.list", scope: "portfolio.history.sheet")
+        let fields = list.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "portfolio.history.row."))
+        try portfolioCorrectionNativeRequire(fields.count == expected * 4 && fields.count <= 40, "Four independent fields per history; actual \(fields.count)")
+        var order: [UUID] = []
+        var grouped: [UUID: [String: String]] = [:]
+        for i in 0..<fields.count {
+            let e = fields.element(boundBy: i)
+            let parts = e.identifier.components(separatedBy: ".")
+            try portfolioCorrectionNativeRequire(parts.count == 5 && parts[0...2].joined(separator: ".") == "portfolio.history.row", "History field identifier shape")
+            guard let id = UUID(uuidString: parts[3]), id.uuidString == parts[3] else { throw portfolioCorrectionNativeError.invalidState }
+            let role = parts[4], label = e.label, value = e.value as? String ?? ""
+            print("PORTFOLIO_NATIVE_HISTORY index=\(i) uuid=\(id) role=\(role) label=\(String(label.prefix(4096))) value=\(String(value.prefix(4096))) truncated=\(label.count > 4096 || value.count > 4096)")
+            try portfolioCorrectionNativeRequire(["title", "reason", "before", "after"].contains(role), "Known history role")
+            try portfolioCorrectionNativeRequire(label.count <= 4096 && value.count <= 4096
+                && (!label.isEmpty || !value.isEmpty) && (label.isEmpty || value.isEmpty || label == value), "Complete, unambiguous observed label/value")
+            if grouped[id] == nil { order.append(id); grouped[id] = [:] }
+            try portfolioCorrectionNativeRequire(grouped[id]?[role] == nil, "Unique history role \(role)")
+            grouped[id]?[role] = value.isEmpty ? label : value
+        }
+        try portfolioCorrectionNativeRequire(order.count == expected, "Logical UUID record count")
+        var result: [portfolioCorrectionNativeHistoryRecord] = []
+        for id in order {
+            let rowID = "portfolio.history.row.\(id.uuidString)"
+            try portfolioCorrectionNativeRequire(list.descendants(matching: .any).matching(identifier: rowID).count == 1, "Unique logical row container")
+            guard let values = grouped[id], let title = values["title"], let reason = values["reason"],
+                  let before = values["before"], let after = values["after"] else { throw portfolioCorrectionNativeError.invalidState }
+            let components = title.components(separatedBy: " · ")
+            try portfolioCorrectionNativeRequire(components.count == 3 && components[0] == "correction"
+                && components[1].hasPrefix("sequence ") && components[2] == "UTC ms 1768435200000", "Correction sequence/time title")
+            guard let sequence = Int(components[1].dropFirst("sequence ".count)) else { throw portfolioCorrectionNativeError.invalidState }
+            if let previous = result.last { try portfolioCorrectionNativeRequire(sequence > previous.sequence, "Presented sequence order; never sorted by test") }
+            result.append(.init(id: id, sequence: sequence, title: title, reason: reason, before: before, after: after))
+        }
+        return result
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeReopenHistory(_ app: XCUIApplication, id: String,
+                                                        expected: [portfolioCorrectionNativeHistoryRecord]) throws {
+        try portfolioCorrectionNativeCloseHistory(app)
+        try portfolioCorrectionNativeOpenHistory(app, id: id)
+        try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeHistory(app, expected: expected.count) == expected,
+            "Reopened history exact UUID/order/field stability")
+    }
+
+    private func portfolioCorrectionNativeLink(_ text: String) -> [String] {
+        let lines = text.components(separatedBy: "\n")
+        return lines.count > 3 ? lines[3].components(separatedBy: " · ") : []
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeNumber(_ actual: String, equals expected: String) throws {
+        try portfolioCorrectionNativeRequire(actual.range(of: #"^-?[0-9]+(?:\.[0-9]+)?$"#, options: .regularExpression) != nil,
+            "Complete decimal representation required")
+        let locale = Locale(identifier: "en_US_POSIX")
+        try portfolioCorrectionNativeRequire(Decimal(string: actual, locale: locale) == Decimal(string: expected, locale: locale),
+            "Financial value \(actual) != predetermined \(expected)")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeAssertProjection(_ text: String, id: String, portfolio: String,
+        date: String, time: String, zone: String, symbol: String, currency: String, payload: String,
+        original: String, rate: String, cny: String, source: String, reference: String, fxTime: String, manual: Bool) throws {
+        let lines = text.components(separatedBy: "\n")
+        try portfolioCorrectionNativeRequire(lines.count == 8 && ["Before", "After"].contains(lines[0]), "Complete financial projection")
+        try portfolioCorrectionNativeRequire(lines[1] == "Activity \(id) · Portfolio \(portfolio)", "Activity and Portfolio IDs")
+        try portfolioCorrectionNativeRequire(lines[2] == "\(date) · UTC ms \(time) · \(zone)", "Exact date/time/timezone")
+        let link = portfolioCorrectionNativeLink(text)
+        try portfolioCorrectionNativeRequire(link.count == 4 && link[0].hasPrefix("Link ") && link[1] == symbol
+            && link[2] == currency && link[3].hasPrefix("Wealth "), "Independent security identity")
+        try portfolioCorrectionNativeRequire(UUID(uuidString: String(link[0].dropFirst(5))) != nil
+            && UUID(uuidString: String(link[3].dropFirst(7))) != nil, "Real link and Wealth UUIDs")
+        try portfolioCorrectionNativeRequire(lines[4] == "Ledger none" && lines[5] == payload, "Payload and unmodified Ledger relation")
+        let values = lines[6].components(separatedBy: " · ")
+        try portfolioCorrectionNativeRequire(values.count == 3 && values[0].hasPrefix(currency + " ")
+            && values[1].hasPrefix("FX ") && values[2].hasPrefix("CNY "), "Original/FX/CNY complete group")
+        try portfolioCorrectionNativeNumber(String(values[0].dropFirst(currency.count + 1)), equals: original)
+        try portfolioCorrectionNativeNumber(String(values[1].dropFirst(3)), equals: rate)
+        try portfolioCorrectionNativeNumber(String(values[2].dropFirst(4)), equals: cny)
+        try portfolioCorrectionNativeRequire(lines[7] == "Source \(source) · reference \(reference) · FX UTC ms \(fxTime) · manual \(manual) · stale false",
+            "Exact FX provenance, time and flags")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeAssertSplit(_ text: String, id: String, from: String, to: String) throws {
+        let lines = text.components(separatedBy: "\n")
+        try portfolioCorrectionNativeRequire(lines.count == 6 && lines[1] == "Activity \(id) · Portfolio 00000000-0000-4000-8000-000000008001"
+            && lines[2] == "2026-01-16 · UTC ms 1768435200000 · UTC" && lines[4] == "Ledger none"
+            && lines[5] == "manualSplit · \(from) → \(to)", "Split identity, metadata and exact non-default ratio")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeActivityIDs(_ app: XCUIApplication) throws -> Set<String> {
+        let prefix = "portfolio.activity.edit."
+        let entries = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+        try portfolioCorrectionNativeRequire(entries.count <= 40, "Activity entry bound")
+        var ids = Set<String>()
+        for i in 0..<entries.count {
+            let raw = String(entries.element(boundBy: i).identifier.dropFirst(prefix.count))
+            try portfolioCorrectionNativeRequire(UUID(uuidString: raw)?.uuidString == raw && ids.insert(raw).inserted,
+                "Unique canonical Activity UUID")
+        }
+        return ids
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeCreateActivity(_ app: XCUIApplication, kind: String, security: String,
+        date: String, quantity: String, price: String, fee: String, fx: String) throws -> String {
+        let before = try portfolioCorrectionNativeActivityIDs(app)
+        try portfolioCorrectionNativePicker(app, "portfolio.activity.security", title: security)
+        try portfolioCorrectionNativePicker(app, "portfolio.activity.kind", title: kind)
+        var fields = [("date", date), ("quantity", quantity), ("priceOrCost", price), ("fx", fx)]
+        if kind != "openingLot" { fields.append(("fee", fee)) }
+        for (suffix, text) in fields { try portfolioCorrectionNativeInput(app, "portfolio.activity.\(suffix)", text: text) }
+        for (suffix, text) in fields {
+            try portfolioCorrectionNativeRequire((try portfolioCorrectionNativeElement(app, "portfolio.activity.\(suffix)")).value as? String == text,
+                "Creation field readback \(suffix)")
+        }
+        try portfolioCorrectionNativeAssertPicker(app, "portfolio.activity.security", title: security)
+        try portfolioCorrectionNativeClick(app, "portfolio.activity.add")
+        try portfolioCorrectionNativeWait("Exactly one added Activity") {
+            guard let ids = try? self.portfolioCorrectionNativeActivityIDs(app) else { return false }
+            return ids.isSuperset(of: before) && ids.count == before.count + 1
+        }
+        let added = try portfolioCorrectionNativeActivityIDs(app).subtracting(before)
+        try portfolioCorrectionNativeRequire(added.count == 1, "Created Activity UUID set difference")
+        return Array(added)[0]
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeHolding(_ app: XCUIApplication, symbol: String, quantity: String) throws {
+        let element = try portfolioCorrectionNativeElement(app, "portfolio.holding.\(symbol)|XSYN")
+        let text = portfolioCorrectionNativeRawText(element)
+        let regex = try NSRegularExpression(pattern: #"Portfolio ([0-9]+(?:\.[0-9]+)?)"#)
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        try portfolioCorrectionNativeRequire(matches.count == 1, "One readable Portfolio quantity in holding")
+        guard let range = Range(matches[0].range(at: 1), in: text) else { throw portfolioCorrectionNativeError.invalidState }
+        try portfolioCorrectionNativeNumber(String(text[range]), equals: quantity)
+        print("PORTFOLIO_NATIVE_HOLDING symbol=\(symbol) quantity=\(String(text[range])) expected=\(quantity)")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeCreatePortfolio(_ app: XCUIApplication, name: String) throws -> String {
+        let prefix = "portfolio.row."
+        let before = Set(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).allElementsBoundByIndex.map(\.identifier))
+        try portfolioCorrectionNativeInput(app, "portfolio.create.name", text: name)
+        try portfolioCorrectionNativeClick(app, "portfolio.create")
+        try portfolioCorrectionNativeWait("Created Portfolio selection") {
+            let q = app.descendants(matching: .any).matching(identifier: "portfolio.summary.name")
+            return q.count == 1 && q.element(boundBy: 0).label == "Portfolio name: \(name)"
+        }
+        let after = Set(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).allElementsBoundByIndex.map(\.identifier))
+        let added = after.subtracting(before)
+        try portfolioCorrectionNativeRequire(added.count == 1 && after.isSuperset(of: before), "Unique new Portfolio")
+        let id = String(Array(added)[0].dropFirst(prefix.count))
+        try portfolioCorrectionNativeRequire(UUID(uuidString: id)?.uuidString == id, "Canonical Portfolio UUID")
+        return id
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeCreateSecurity(_ app: XCUIApplication, name: String, symbol: String,
+                                                          quantity: String, price: String) throws {
+        try portfolioCorrectionNativeClick(app, "wealth.add")
+        try portfolioCorrectionNativeInput(app, "wealth.form.name", text: name)
+        try portfolioCorrectionNativePicker(app, "wealth.form.type", title: "Stock")
+        for (suffix, value) in [("ticker", symbol), ("mic", "XSYN"), ("quantity", quantity), ("price", price)] {
+            try portfolioCorrectionNativeInput(app, "wealth.form.\(suffix)", text: value)
+        }
+        let currency = try portfolioCorrectionNativeElement(app, "wealth.form.currency")
+        let cny = currency.radioButtons.matching(NSPredicate(format: "label == %@", "CNY"))
+        try portfolioCorrectionNativeRequire(cny.count == 1 && String(describing: cny.element(boundBy: 0).value ?? "") == "1", "CNY creation currency")
+        for (suffix, value) in [("name", name), ("ticker", symbol), ("mic", "XSYN"), ("quantity", quantity), ("price", price)] {
+            try portfolioCorrectionNativeRequire((try portfolioCorrectionNativeElement(app, "wealth.form.\(suffix)")).value as? String == value,
+                "Wealth synthetic security readback \(suffix)")
+        }
+        try portfolioCorrectionNativeClick(app, "wealth.form.save")
+        try portfolioCorrectionNativeWait("Synthetic security creation closes") {
+            app.descendants(matching: .any).matching(identifier: "wealth.form.save").count == 0
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeNAVTexts(_ app: XCUIApplication) throws -> [String] {
+        let table = try portfolioCorrectionNativeElement(app, "portfolio.nav.table")
+        let texts = table.staticTexts
+        try portfolioCorrectionNativeRequire(texts.count <= 40, "Finite synthetic NAV table")
+        let values = texts.allElementsBoundByIndex.map { portfolioCorrectionNativeRawText($0) }
+        try portfolioCorrectionNativeRequire(values.contains("2026-01-15") && values.contains("CNY 30") && values.contains("Complete"),
+            "Existing synthetic complete NAV30 must remain")
+        return values
+    }
 
     private func uiTestingArguments(demo: Bool = false) -> [String] {
         var arguments = [
