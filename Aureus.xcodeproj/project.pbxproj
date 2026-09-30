@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A20000000000000000000028 /* PortfolioCorrectionFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000027 /* PortfolioCorrectionFeatureTests.swift */; };
 		A1000000000000000000004E /* WealthCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004E /* WealthCorrection.swift */; };
 		A1000000000000000000004F /* WealthCorrectionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000004F /* WealthCorrectionPersistence.swift */; };
 		A10000000000000000000050 /* PortfolioCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000050 /* PortfolioCorrection.swift */; };
@@ -145,6 +146,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B20000000000000000000027 /* PortfolioCorrectionFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCorrectionFeatureTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000004E /* WealthCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthCorrection.swift; sourceTree = "<group>"; };
 		B1000000000000000000004F /* WealthCorrectionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WealthCorrectionPersistence.swift; sourceTree = "<group>"; };
 		B10000000000000000000050 /* PortfolioCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCorrection.swift; sourceTree = "<group>"; };
@@ -630,6 +632,7 @@
 		D20000000000000000000001 /* AureusTests */ = {
 			isa = PBXGroup;
 			children = (
+				B20000000000000000000027 /* PortfolioCorrectionFeatureTests.swift */,
 				B2000000000000000000001E /* EvidencePersistenceTests.swift */,
 				B20000000000000000000020 /* LedgerCorrectionTests.swift */,
 				B20000000000000000000022 /* WealthCorrectionTests.swift */,
@@ -857,6 +860,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000000000000000000028 /* PortfolioCorrectionFeatureTests.swift in Sources */,
 				A2000000000000000000001E /* EvidencePersistenceTests.swift in Sources */,
 				A20000000000000000000021 /* LedgerCorrectionTests.swift in Sources */,
 				A20000000000000000000023 /* WealthCorrectionTests.swift in Sources */,

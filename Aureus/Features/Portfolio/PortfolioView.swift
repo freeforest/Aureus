@@ -48,11 +48,20 @@ struct PortfolioView: View {
                 detail
                     .frame(minWidth: 620)
             }
+            .disabled(model.isSavingActivity)
         }
         .navigationTitle("Portfolio")
         .task { await model.start() }
         .onChange(of: model.selectedPortfolioID) { _, id in
             Task { await model.select(id) }
+        }
+        .sheet(isPresented: Binding(get: { model.activityEditID != nil },
+                                   set: { if !$0 { model.cancelActivityEdit() } })) {
+            PortfolioActivityEditor(model: model)
+        }
+        .sheet(isPresented: Binding(get: { model.activityHistoryID != nil },
+                                   set: { if !$0 { model.closeActivityHistory() } })) {
+            PortfolioActivityHistorySheet(model: model)
         }
         .alert(
             "Delete Portfolio?",
@@ -248,6 +257,10 @@ struct PortfolioView: View {
                     HStack {
                         Text("\(activity.civilDate) · \(activity.kind.rawValue) · Manual local record")
                         Spacer()
+                        Button("Edit") { Task { await model.beginActivityEdit(id: activity.id) } }
+                            .accessibilityIdentifier("portfolio.activity.edit.\(activity.id.uuidString)")
+                        Button("History") { Task { await model.showActivityHistory(id: activity.id) } }
+                            .accessibilityIdentifier("portfolio.activity.history.\(activity.id.uuidString)")
                         Button("Delete", role: .destructive) { Task { await model.deleteActivity(activity.id) } }
                             .accessibilityIdentifier("portfolio.activity.delete.\(activity.id.uuidString)")
                     }
@@ -434,5 +447,148 @@ struct PortfolioView: View {
                   let total = try? values.reduce(Money(minorUnits: 0, currency: .cny), { try $0.adding($1) }) else { return nil }
             return (currency.rawValue, NSDecimalNumber(decimal: total.decimal).doubleValue)
         }
+    }
+}
+
+private struct PortfolioActivityEditor: View {
+    @Bindable var model: PortfolioFeatureModel
+    @State private var confirmsReload = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Correct Portfolio Activity").font(.headline)
+            switch model.activityEditState {
+            case .loading:
+                ProgressView("Loading current Activity…").accessibilityIdentifier("portfolio.edit.loading")
+            case .ready:
+                ScrollView {
+                    Form {
+                        if let context = model.activityEditContext {
+                            Text("Activity \(context.activity.id.uuidString) · \(context.link.currency.rawValue)")
+                                .accessibilityIdentifier("portfolio.edit.identity")
+                            Text("Recorded UTC ms \(context.activity.recordedAt.millisecondsSince1970) · \(context.activity.exchangeTimeZoneIdentifier) · Ledger \(context.activity.ledgerEntryID?.uuidString ?? "none")")
+                                .font(.caption).textSelection(.enabled)
+                                .accessibilityIdentifier("portfolio.edit.metadata")
+                        }
+                        Picker("Security (same Portfolio and currency)", selection: $model.activityDraft.securityLinkID) {
+                            ForEach(model.activityEditLinks) { link in
+                                Text("\(link.symbol)/\(link.rawMIC)").tag(Optional(link.id))
+                            }
+                        }.accessibilityIdentifier("portfolio.edit.security")
+                        Picker("Kind", selection: $model.activityDraft.kind) {
+                            ForEach(PortfolioActivity.Kind.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }.accessibilityIdentifier("portfolio.edit.kind")
+                        field("Civil date YYYY-MM-DD", $model.activityDraft.civilDate, "date")
+                        if model.activityDraft.kind == .manualSplit {
+                            field("Split from", $model.activityDraft.splitFrom, "split.from")
+                            field("Split to", $model.activityDraft.splitTo, "split.to")
+                        } else {
+                            field("Quantity", $model.activityDraft.quantity, "quantity")
+                            if model.activityDraft.kind == .openingLot {
+                                field("Total cost", $model.activityDraft.totalCost, "totalCost")
+                                field("Opening lot note", $model.activityDraft.note, "note")
+                            } else {
+                                field("Unit price", $model.activityDraft.unitPrice, "unitPrice")
+                                field("Fee", $model.activityDraft.fee, "fee")
+                            }
+                            Picker("FX instruction", selection: $model.activityDraft.fxIntent) {
+                                Text("Preserve original FX provenance").tag(PortfolioEditFXIntent.preserve)
+                                Text("Set explicit manual FX / CNY identity").tag(PortfolioEditFXIntent.manualReset)
+                            }.accessibilityIdentifier("portfolio.edit.fx.intent")
+                            if model.activityDraft.fxIntent == .manualReset {
+                                field("Rate to CNY (CNY = 1)", $model.activityDraft.fxRate, "fx.rate")
+                                field("FX reference date YYYY-MM-DD", $model.activityDraft.fxReferenceDate, "fx.referenceDate")
+                                Toggle("Stale FX", isOn: $model.activityDraft.fxIsStale)
+                                    .accessibilityIdentifier("portfolio.edit.fx.stale")
+                                Text("Explicit input uses the first save command time, not a market quote.").font(.caption)
+                            } else if let fx = model.activityEditContext.flatMap({ PortfolioActivityDraft.fx($0.activity.payload) }) {
+                                Text("\(fx.original.currency.rawValue) → CNY \(PortfolioActivityDraft.text(fx.rate.decimal)) · \(fx.source) · \(fx.referenceDate) · UTC ms \(fx.recordedAt.millisecondsSince1970) · manual \(fx.isManual) · stale \(fx.isStale)")
+                                    .font(.caption).textSelection(.enabled).accessibilityIdentifier("portfolio.edit.fx.original")
+                            } else {
+                                Text("This split has no financial FX. Enter financial values and explicitly set FX before changing kind.")
+                                    .font(.caption).accessibilityIdentifier("portfolio.edit.fx.required")
+                            }
+                        }
+                        TextField("Correction reason (required for important changes)", text: $model.activityCorrectionReason, axis: .vertical)
+                            .accessibilityIdentifier("portfolio.edit.reason")
+                        Text(model.needsActivityCorrectionReason ? "An important correction requires a reason."
+                             : "No-change and opening-note-only edits do not create correction history.")
+                            .font(.caption).accessibilityIdentifier("portfolio.edit.reasonRequirement")
+                    }.padding(4)
+                }.accessibilityIdentifier("portfolio.edit.scroll")
+                .disabled(model.isSavingActivity || model.requiresActivityReload)
+            case .failed:
+                Text("Current Activity could not be read.").accessibilityIdentifier("portfolio.edit.failed")
+            case .idle: EmptyView()
+            }
+            if let feedback = model.activityEditFeedback {
+                Text(feedback).foregroundStyle(.orange).accessibilityIdentifier("portfolio.edit.feedback")
+            }
+            HStack {
+                Button("Cancel") { model.cancelActivityEdit() }
+                    .disabled(model.isSavingActivity).accessibilityIdentifier("portfolio.edit.cancel")
+                Button("Discard Draft and Reload…") { confirmsReload = true }
+                    .disabled(model.isSavingActivity).accessibilityIdentifier("portfolio.edit.reload")
+                Spacer()
+                if model.isSavingActivity { ProgressView().controlSize(.small) }
+                Button("Save Correction") { Task { await model.saveActivityEdit() } }
+                    .disabled(!model.canSaveActivity).accessibilityIdentifier("portfolio.edit.save")
+            }
+        }
+        .padding(20).frame(width: 650, height: 620)
+        .accessibilityElement(children: .contain).accessibilityIdentifier("portfolio.edit.sheet")
+        .interactiveDismissDisabled(model.isSavingActivity)
+        .alert("Discard this draft?", isPresented: $confirmsReload) {
+            Button("Keep Draft", role: .cancel) { }
+            Button("Discard and Reload", role: .destructive) { Task { await model.reloadActivityEdit() } }
+        } message: { Text("Your current draft and pending request will be discarded. Current data will be loaded with a new token.") }
+    }
+
+    private func field(_ title: String, _ value: Binding<String>, _ suffix: String) -> some View {
+        TextField(title, text: value).accessibilityIdentifier("portfolio.edit.\(suffix)")
+    }
+}
+
+private struct PortfolioActivityHistorySheet: View {
+    @Bindable var model: PortfolioFeatureModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Activity Correction History").font(.headline)
+                Spacer()
+                Button("Close") { model.closeActivityHistory() }.accessibilityIdentifier("portfolio.history.close")
+            }
+            Text("Read-only; historical amounts do not contribute to current FIFO or NAV.").font(.caption)
+            switch model.activityHistoryState {
+            case .loading: ProgressView("Loading history…").accessibilityIdentifier("portfolio.history.loading")
+            case .failed:
+                Text("History could not be loaded.").accessibilityIdentifier("portfolio.history.failed")
+                Button("Retry History") {
+                    if let id = model.activityHistoryID { Task { await model.showActivityHistory(id: id) } }
+                }.accessibilityIdentifier("portfolio.history.retry")
+            case .ready:
+                if model.activityHistory.isEmpty {
+                    Text("No correction history").accessibilityIdentifier("portfolio.history.empty")
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            ForEach(model.activityHistory.map(PortfolioActivityHistoryDisplay.init)) { row in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(row.title).font(.subheadline.weight(.semibold))
+                                        .accessibilityIdentifier("portfolio.history.row.\(row.id.uuidString).title")
+                                    Text(row.explanation).accessibilityIdentifier("portfolio.history.row.\(row.id.uuidString).reason")
+                                    Text("Before\n\(row.before)").accessibilityIdentifier("portfolio.history.row.\(row.id.uuidString).before")
+                                    Text("After\n\(row.after)").accessibilityIdentifier("portfolio.history.row.\(row.id.uuidString).after")
+                                }.textSelection(.enabled)
+                                .accessibilityElement(children: .contain)
+                                .accessibilityIdentifier("portfolio.history.row.\(row.id.uuidString)")
+                            }
+                        }.accessibilityElement(children: .contain).accessibilityIdentifier("portfolio.history.list")
+                    }
+                }
+            case .idle: EmptyView()
+            }
+        }.padding(20).frame(width: 760, height: 560)
+        .accessibilityElement(children: .contain).accessibilityIdentifier("portfolio.history.sheet")
     }
 }
