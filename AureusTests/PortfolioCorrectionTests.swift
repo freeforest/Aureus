@@ -612,6 +612,316 @@ struct PortfolioCorrectionTests {
         #expect(inventory.validGenerations.contains { $0.directoryURL != generation.directoryURL })
     }
 
+    @Test("Time-only corrections preserve financial provenance and survive reopen", arguments:
+        ["civilDate", "recordedAt", "timeZone", "combined"], ["CNY", "USD"])
+    func temporalFieldCorrections(field: String, currency: String) async throws {
+        let f = try await PortfolioCorrectionFixture(currency: CurrencyCode(rawValue: currency)!)
+        defer { f.remove() }
+        let ledgerID = try await f.createLedgerAssociation()
+        let old = try f.revised(f.trade(.buy, quantity: 1, price: 10), ledgerEntryID: ledgerID)
+        try await f.store.createPortfolioActivity(old)
+        let candidate = try f.revised(old,
+            civilDate: field == "civilDate" || field == "combined"
+                ? CivilDate(canonical: "2026-01-16") : old.civilDate,
+            recordedAt: field == "recordedAt" || field == "combined" ? f.at(86_400_000) : old.recordedAt,
+            timeZone: field == "timeZone" || field == "combined" ? "Asia/Shanghai" : old.exchangeTimeZoneIdentifier)
+        #expect(candidate.payload == old.payload)
+        #expect(candidate.ledgerEntryID == ledgerID)
+        let token = try await f.store.readPortfolioActivityEditContext(id: old.id).token
+        let history = try portfolioApplied(await f.store.correctPortfolioActivity(f.request(candidate, token: token)))
+        try await f.verifyCommitted(before: old, after: candidate, oldLink: f.link, newLink: f.link, history: history)
+        let replay = try await f.store.portfolioReplay(portfolioID: f.portfolio.id)
+        #expect(try replay.quantity(for: f.link.id).coefficient == 100_000_000)
+        #expect(replay.lots.map(\.remainingOriginalBasis) == [f.money(1_000)])
+        #expect(replay.lots.map(\.remainingCNYBasis.minorUnits) == [currency == "USD" ? 7_250 : 1_000])
+        #expect(replay.realized.isEmpty)
+    }
+
+    @Test("Civil date and UTC recorded time can commit a hand-calculated FIFO reorder", arguments:
+        ["civilDate", "recordedAt"], ["CNY", "USD"])
+    func temporalFIFOReorderCommits(boundary: String, currency: String) async throws {
+        let f = try await PortfolioCorrectionFixture(currency: CurrencyCode(rawValue: currency)!)
+        defer { f.remove() }
+        let first = try f.trade(.buy, quantity: 1, price: 10)
+        let second = try f.revised(f.trade(.buy, quantity: 1, price: 20, recordedAt: f.at(1_000)),
+            civilDate: boundary == "civilDate" ? CivilDate(canonical: "2026-01-16") : f.date)
+        let sale = try f.revised(f.trade(.sell, quantity: 1, price: 30, recordedAt: f.at(2_000)),
+            civilDate: boundary == "civilDate" ? CivilDate(canonical: "2026-01-17") : f.date)
+        for activity in [first, second, sale] { try await f.store.createPortfolioActivity(activity) }
+        let initial = try await f.store.portfolioReplay(portfolioID: f.portfolio.id)
+        let initialSale = try #require(initial.realized.first)
+        #expect(initialSale.activityID == sale.id)
+        #expect(initialSale.disposedOriginalBasis == f.money(1_000))
+        #expect(initialSale.originalPnL == f.money(2_000))
+        #expect(initialSale.disposedCNYBasis.minorUnits == (currency == "USD" ? 7_250 : 1_000))
+        #expect(initialSale.cnyPnL.minorUnits == (currency == "USD" ? 14_500 : 2_000))
+        #expect(initial.lots.map(\.sourceActivityID) == [first.id, second.id])
+        #expect(initial.lots.map(\.remainingOriginalBasis.minorUnits) == [0, 2_000])
+        let candidate = try f.revised(first,
+            civilDate: boundary == "civilDate" ? CivilDate(canonical: "2026-01-17") : first.civilDate,
+            recordedAt: boundary == "recordedAt" ? f.at(1_500) : first.recordedAt)
+        let token = try await f.store.readPortfolioActivityEditContext(id: first.id).token
+        let history = try portfolioApplied(await f.store.correctPortfolioActivity(f.request(candidate, token: token)))
+        try await f.verifyCommitted(before: first, after: candidate, oldLink: f.link, newLink: f.link, history: history)
+        #expect(try await f.store.fetchPortfolioActivities(portfolioID: f.portfolio.id).map(\.id)
+            == [second.id, first.id, sale.id])
+        let replay = try await f.store.portfolioReplay(portfolioID: f.portfolio.id)
+        #expect(replay.realized.count == 1)
+        let realized = try #require(replay.realized.first)
+        #expect(realized.activityID == sale.id)
+        #expect(realized.disposedOriginalBasis == f.money(2_000))
+        #expect(realized.originalPnL == f.money(1_000))
+        #expect(realized.disposedCNYBasis.minorUnits == (currency == "USD" ? 14_500 : 2_000))
+        #expect(realized.cnyPnL.minorUnits == (currency == "USD" ? 7_250 : 1_000))
+        #expect(replay.lots.map(\.sourceActivityID) == [second.id, first.id])
+        #expect(replay.lots.map(\.remainingQuantity.coefficient) == [0, 100_000_000])
+        #expect(replay.lots.map(\.remainingOriginalBasis.minorUnits) == [0, 1_000])
+        #expect(replay.lots.map(\.remainingCNYBasis.minorUnits) == [0, currency == "USD" ? 7_250 : 1_000])
+    }
+
+    @Test("Moving a buy after its dependent sale rejects oversell and rolls back every state", arguments:
+        ["civilDate", "recordedAt"], ["CNY", "USD"])
+    func temporalFIFOReorderRollsBack(boundary: String, currency: String) async throws {
+        let f = try await PortfolioCorrectionFixture(currency: CurrencyCode(rawValue: currency)!)
+        defer { f.remove() }
+        let first = try f.trade(.buy, quantity: 1, price: 10)
+        let sale = try f.revised(f.trade(.sell, quantity: 1, price: 30, recordedAt: f.at(1_000)),
+            civilDate: boundary == "civilDate" ? CivilDate(canonical: "2026-01-16") : f.date)
+        try await f.store.createPortfolioActivity(first)
+        try await f.store.createPortfolioActivity(sale)
+        let old = try await f.establishHistory(first)
+        let token = try await f.store.readPortfolioActivityEditContext(id: old.id).token
+        let snapshot = try await f.rollbackSnapshot()
+        #expect(snapshot.replay.realized.count == 1)
+        #expect(snapshot.replay.realized.first?.disposedOriginalBasis == f.money(1_000))
+        #expect(snapshot.replay.realized.first?.originalPnL == f.money(2_000))
+        let candidate = try f.revised(old,
+            civilDate: boundary == "civilDate" ? CivilDate(canonical: "2026-01-17") : old.civilDate,
+            recordedAt: boundary == "recordedAt" ? f.at(2_000) : old.recordedAt)
+        try PortfolioCorrectionProjection(candidate, link: f.link).validate()
+        #expect(throws: PortfolioDomainError.oversell) { _ = try PortfolioFIFOEngine.replay([candidate, sale]) }
+        let request = f.request(candidate, token: token)
+        await #expect(throws: PortfolioPersistenceError.invalidHistoricalMutation) {
+            _ = try await f.store.correctPortfolioActivity(request)
+        }
+        try await f.verifyRollback(snapshot, request: request, before: old)
+    }
+
+    @Test("Same-Portfolio security-link correction keeps identities and recalculates both securities", arguments:
+        ["buy", "sell"], ["CNY", "USD"])
+    func crossLinkCorrections(kind: String, currency: String) async throws {
+        let f = try await PortfolioCorrectionFixture(currency: CurrencyCode(rawValue: currency)!)
+        defer { f.remove() }
+        let targetLink = try await f.additionalLink()
+        #expect(targetLink.id != f.link.id)
+        #expect(targetLink.wealthContainerID != f.link.wealthContainerID)
+        #expect(targetLink.portfolioID == f.portfolio.id)
+        #expect(targetLink.currency == f.currency)
+        let ledgerID = try await f.createLedgerAssociation()
+        let old: PortfolioActivity
+        if kind == "buy" {
+            try await f.store.createPortfolioActivity(f.trade(.buy, quantity: 2, price: 5))
+            try await f.store.createPortfolioActivity(f.revised(
+                f.trade(.buy, quantity: 2, price: 20, recordedAt: f.at(500)), securityLinkID: targetLink.id))
+            old = try f.revised(f.trade(.buy, quantity: 1, price: 10, recordedAt: f.at(1_000)),
+                ledgerEntryID: ledgerID)
+            try await f.store.createPortfolioActivity(old)
+            try await f.store.createPortfolioActivity(f.trade(.sell, quantity: 1, price: 30, recordedAt: f.at(2_000)))
+            try await f.store.createPortfolioActivity(f.revised(
+                f.trade(.sell, quantity: 1, price: 40, recordedAt: f.at(3_000)), securityLinkID: targetLink.id))
+        } else {
+            try await f.store.createPortfolioActivity(f.trade(.buy, quantity: 2, price: 10))
+            try await f.store.createPortfolioActivity(f.revised(
+                f.trade(.buy, quantity: 2, price: 20, recordedAt: f.at(1_000)), securityLinkID: targetLink.id))
+            old = try f.revised(f.trade(.sell, quantity: 1, price: 30, recordedAt: f.at(2_000)),
+                ledgerEntryID: ledgerID)
+            try await f.store.createPortfolioActivity(old)
+        }
+        let initial = try await f.store.portfolioReplay(portfolioID: f.portfolio.id)
+        try f.verifyLink(initial, linkID: f.link.id, quantity: kind == "buy" ? 2 : 1,
+            originalBasis: kind == "buy" ? 1_500 : 1_000)
+        try f.verifyLink(initial, linkID: targetLink.id, quantity: kind == "buy" ? 1 : 2,
+            originalBasis: kind == "buy" ? 2_000 : 4_000)
+        #expect(initial.realized.map(\.originalPnL.minorUnits) == (kind == "buy" ? [2_500, 2_000] : [2_000]))
+        #expect(initial.realized.map(\.cnyPnL.minorUnits) == (currency == "USD"
+            ? (kind == "buy" ? [18_125, 14_500] : [14_500])
+            : (kind == "buy" ? [2_500, 2_000] : [2_000])))
+        let candidate = try f.revised(old, securityLinkID: targetLink.id)
+        #expect(candidate.payload == old.payload)
+        #expect(candidate.ledgerEntryID == ledgerID)
+        let token = try await f.store.readPortfolioActivityEditContext(id: old.id).token
+        let history = try portfolioApplied(await f.store.correctPortfolioActivity(f.request(candidate, token: token)))
+        try await f.verifyCommitted(before: old, after: candidate, oldLink: f.link,
+            newLink: targetLink, history: history)
+        #expect(try await f.store.fetchLedgerEntries().contains { $0.id == ledgerID })
+        let replay = try await f.store.portfolioReplay(portfolioID: f.portfolio.id)
+        try f.verifyLink(replay, linkID: f.link.id, quantity: kind == "buy" ? 1 : 2,
+            originalBasis: kind == "buy" ? 500 : 2_000)
+        try f.verifyLink(replay, linkID: targetLink.id, quantity: kind == "buy" ? 2 : 1,
+            originalBasis: kind == "buy" ? 3_000 : 2_000)
+        #expect(replay.realized.map(\.originalPnL.minorUnits) == (kind == "buy" ? [2_500, 2_000] : [1_000]))
+        #expect(replay.realized.map(\.cnyPnL.minorUnits) == (currency == "USD"
+            ? (kind == "buy" ? [18_125, 14_500] : [7_250])
+            : (kind == "buy" ? [2_500, 2_000] : [1_000])))
+    }
+
+    @Test("Cross-link candidates reach association or FIFO rejection without partial commit", arguments:
+        ["otherPortfolio", "currencyMismatch", "moveBuyOversell", "moveSellOversell"])
+    func crossLinkRejectionRollback(_ fault: String) async throws {
+        let f = try await PortfolioCorrectionFixture(currency: .cny); defer { f.remove() }
+        var targetPortfolioID = f.portfolio.id
+        if fault == "otherPortfolio" {
+            let other = try PortfolioRecord(name: "Synthetic other Portfolio", createdAt: f.instant,
+                updatedAt: f.instant, sortOrder: 1)
+            try await f.store.createPortfolio(other)
+            targetPortfolioID = other.id
+        }
+        let targetLink = try await f.additionalLink(currency: fault == "currencyMismatch" ? .usd : .cny,
+            portfolioID: targetPortfolioID)
+        let initial: PortfolioActivity
+        if fault == "moveSellOversell" {
+            try await f.store.createPortfolioActivity(f.trade(.buy, quantity: 2, price: 10))
+            try await f.store.createPortfolioActivity(f.revised(
+                f.trade(.buy, quantity: 1, price: 20, recordedAt: f.at(500)), securityLinkID: targetLink.id))
+            initial = try f.trade(.sell, quantity: 2, price: 30, recordedAt: f.at(1_000))
+            try await f.store.createPortfolioActivity(initial)
+        } else {
+            initial = try f.trade(.buy, quantity: 1, price: 10)
+            try await f.store.createPortfolioActivity(initial)
+            if fault == "moveBuyOversell" {
+                try await f.store.createPortfolioActivity(f.revised(
+                    f.trade(.buy, quantity: 1, price: 20, recordedAt: f.at(500)), securityLinkID: targetLink.id))
+                try await f.store.createPortfolioActivity(f.trade(.sell, quantity: 1, price: 30, recordedAt: f.at(1_000)))
+            }
+        }
+        let old = try await f.establishHistory(initial)
+        let token = try await f.store.readPortfolioActivityEditContext(id: old.id).token
+        let snapshot = try await f.rollbackSnapshot()
+        #expect(snapshot.historyRows.count == 1)
+        #expect(try await f.store.fetchPortfolioSecurityLinks(portfolioID: targetPortfolioID).contains(targetLink))
+        let candidate = try f.revised(old, securityLinkID: targetLink.id)
+        #expect(candidate.payload == old.payload) // The typed Activity constructor already succeeded.
+        let request = f.request(candidate, token: token)
+        if fault == "otherPortfolio" {
+            #expect(targetLink.portfolioID != old.portfolioID)
+            await #expect(throws: PortfolioCorrectionError.invalidRequest) {
+                _ = try await f.store.correctPortfolioActivity(request)
+            }
+            #expect(try await f.store.portfolioReplay(portfolioID: targetPortfolioID).lots.isEmpty)
+        } else if fault == "currencyMismatch" {
+            #expect(targetLink.currency != f.currency)
+            #expect(throws: PortfolioCorrectionError.invalidHistory) {
+                try PortfolioCorrectionProjection(candidate, link: targetLink).validate()
+            }
+            await #expect(throws: PortfolioCorrectionError.invalidHistory) {
+                _ = try await f.store.correctPortfolioActivity(request)
+            }
+        } else {
+            try PortfolioCorrectionProjection(candidate, link: targetLink).validate()
+            let activities = try await f.store.fetchPortfolioActivities(portfolioID: f.portfolio.id)
+            #expect(throws: PortfolioDomainError.oversell) {
+                _ = try PortfolioFIFOEngine.replay(activities.map { $0.id == old.id ? candidate : $0 })
+            }
+            try f.verifyLink(snapshot.replay, linkID: f.link.id, quantity: 0, originalBasis: 0)
+            try f.verifyLink(snapshot.replay, linkID: targetLink.id, quantity: 1, originalBasis: 2_000)
+            #expect(snapshot.replay.realized.first?.originalPnL == f.money(fault == "moveBuyOversell" ? 2_000 : 4_000))
+            await #expect(throws: PortfolioPersistenceError.invalidHistoricalMutation) {
+                _ = try await f.store.correctPortfolioActivity(request)
+            }
+        }
+        try await f.verifyRollback(snapshot, request: request, before: old)
+    }
+
+    @Test("Illegal history kind alone reaches SQLITE_CONSTRAINT_CHECK")
+    func invalidHistoryKindSQLConstraint() async throws {
+        let f = try await PortfolioCorrectionFixture(currency: .usd); defer { f.remove() }
+        let old = try await f.seed(kind: "buy")
+        let token = try await f.store.readPortfolioActivityEditContext(id: old.id).token
+        let history = try portfolioApplied(await f.store.correctPortfolioActivity(f.request(f.changed(old), token: token)))
+        let snapshot = try await f.rollbackSnapshot()
+        let freshHistoryID = UUID(), freshOperationID = UUID()
+        #expect(freshHistoryID != history.id && freshOperationID != history.operationID)
+        let queue = try DatabaseQueueFactory.open(at: f.database); defer { try? queue.close() }
+        try await queue.read { db in try PortfolioCorrectionSQL.validateSchema(db) }
+        do {
+            try await queue.write { db in
+                try f.insertHistoryWithIllegalKind(db, source: history.id,
+                    historyID: freshHistoryID, operationID: freshOperationID)
+            }
+            Issue.record("Illegal kind must not pass SQL CHECK")
+        } catch let error as DatabaseError {
+            #expect(error.extendedResultCode == .SQLITE_CONSTRAINT_CHECK)
+            #expect(error.message?.contains("kind IN") == true)
+        }
+        #expect(try await f.rollbackSnapshot() == snapshot)
+        #expect(try f.operationCount(freshOperationID) == 0)
+        #expect(try await f.store.portfolioActivityCorrectionHistory(id: old.id) == [history])
+    }
+
+    @Test("A persisted illegal kind is rejected by row decode, schema validation and shared validation")
+    func invalidHistoryKindRowValidation() async throws {
+        let f = try await PortfolioCorrectionFixture(currency: .usd); defer { f.remove() }
+        let old = try await f.seed(kind: "buy")
+        let token = try await f.store.readPortfolioActivityEditContext(id: old.id).token
+        let history = try portfolioApplied(await f.store.correctPortfolioActivity(f.request(f.changed(old), token: token)))
+        let activitiesBefore = try f.rows()
+        let declarationsBefore = try f.historyDeclarations()
+        let freshHistoryID = UUID(), freshOperationID = UUID()
+        let injector = try DatabaseQueueFactory.open(at: f.database)
+        do {
+            try await injector.write { db in
+                try PortfolioCorrectionSQL.validateSchema(db)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA ignore_check_constraints") == 0)
+                try db.execute(sql: "PRAGMA ignore_check_constraints=ON")
+                defer { try? db.execute(sql: "PRAGMA ignore_check_constraints=OFF") }
+                try f.insertHistoryWithIllegalKind(db, source: history.id,
+                    historyID: freshHistoryID, operationID: freshOperationID)
+                try db.execute(sql: "PRAGMA ignore_check_constraints=OFF")
+                #expect(try Int.fetchOne(db, sql: "PRAGMA ignore_check_constraints") == 0)
+            }
+            try injector.close()
+        } catch {
+            try? injector.close()
+            throw error
+        }
+        let reader = try DatabaseQueueFactory.open(at: f.database); defer { try? reader.close() }
+        try await reader.read { db in
+            #expect(try Int.fetchOne(db, sql: "PRAGMA ignore_check_constraints") == 0)
+            let row = try #require(try Row.fetchOne(db,
+                sql: "SELECT * FROM portfolio_activity_correction_history WHERE history_id=?",
+                arguments: [freshHistoryID.uuidString]))
+            #expect(row["kind"] as String == "illegal.synthetic.kind")
+            #expect(row["operation_id"] as String == freshOperationID.uuidString)
+            #expect(try PortfolioCorrectionSQL.uuid(row["history_id"]) == freshHistoryID)
+            #expect(try PortfolioCorrectionSQL.uuid(row["activity_id"]) == old.id)
+            let originalRow = try #require(try Row.fetchOne(db,
+                sql: "SELECT * FROM portfolio_activity_correction_history WHERE history_id=?",
+                arguments: [history.id.uuidString]))
+            #expect(try PortfolioCorrectionSQL.decode(originalRow) == history)
+            for column in ["activity_id", "occurred_at_ms", "reason", "request_digest", "post_state_digest", "payload"] {
+                #expect(row[column] as DatabaseValue == originalRow[column] as DatabaseValue)
+            }
+            #expect(row["sequence"] as Int64 > history.sequence)
+            let text: String = row["payload"]
+            let payload = try JSONDecoder().decode(PortfolioHistoryPayload.self, from: Data(text.utf8))
+            #expect(try PortfolioCorrectionEncoding.data(payload) == Data(text.utf8))
+            #expect(payload == history.payload)
+            try payload.validate(kind: "correction") // Only the persisted kind is illegal.
+            #expect(throws: PortfolioCorrectionError.invalidHistory) { _ = try PortfolioCorrectionSQL.decode(row) }
+            #expect(throws: PortfolioCorrectionError.invalidHistory) { try PortfolioCorrectionSQL.validateSchema(db) }
+            let check = try String.fetchAll(db, sql: "PRAGMA quick_check")
+            #expect(check != ["ok"])
+            #expect(check.allSatisfy { $0.contains("CHECK constraint failed in portfolio_activity_correction_history") })
+        }
+        #expect(try f.historyDeclarations() == declarationsBefore)
+        #expect(try f.rows() == activitiesBefore)
+        #expect(try f.operationCount(freshOperationID) == 1)
+        #expect(throws: PermanentDatabaseValidationFailure.databaseOpenOrIntegrity) {
+            _ = try PermanentDatabaseValidation.inspectFile(f.database,
+                expectedSchemaVersion: 10, requireCurrentApplicationSchema: true)
+        }
+    }
+
     @Test("Real v9 material and operation states retain fail-closed format1 migration", arguments: ["document", "operation", "unknownRoot"])
     func materialProtection(_ variant: String) async throws {
         let root = try temporaryDirectory(); defer { try? FileManager.default.removeItem(at: root) }
@@ -685,6 +995,13 @@ struct PortfolioCorrectionTests {
             sql: "SELECT version FROM schema_metadata WHERE store_kind='permanent'") } == 9)
         try unchanged.close()
     }
+}
+
+private struct PortfolioCorrectionRollbackSnapshot: Equatable {
+    let activityRows: [String]
+    let linkRows: [String]
+    let historyRows: [String]
+    let replay: PortfolioReplayResult
 }
 
 private func portfolioApplied(_ result: PortfolioCorrectionResult) throws -> PortfolioCorrectionHistory {
@@ -820,6 +1137,172 @@ private struct PortfolioCorrectionFixture {
     func count(_ table: String) throws -> Int {
         let q = try DatabaseQueueFactory.open(at: database); defer { try? q.close() }
         return try q.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM \(table)") ?? 0 }
+    }
+
+    func at(_ offset: Int64) -> UTCInstant {
+        UTCInstant(millisecondsSince1970: instant.millisecondsSince1970 + offset)
+    }
+
+    func revised(_ old: PortfolioActivity, securityLinkID: UUID? = nil,
+                 civilDate: CivilDate? = nil, recordedAt: UTCInstant? = nil,
+                 timeZone: String? = nil, ledgerEntryID: UUID? = nil) throws -> PortfolioActivity {
+        try PortfolioActivity(id: old.id, portfolioID: old.portfolioID,
+            securityLinkID: securityLinkID ?? old.securityLinkID,
+            civilDate: civilDate ?? old.civilDate, recordedAt: recordedAt ?? old.recordedAt,
+            exchangeTimeZoneIdentifier: timeZone ?? old.exchangeTimeZoneIdentifier,
+            ledgerEntryID: ledgerEntryID ?? old.ledgerEntryID, payload: old.payload)
+    }
+
+    func createLedgerAssociation() async throws -> UUID {
+        let context = try LedgerTestContext.make()
+        try await store.createWealthContainer(context.source)
+        let entry = try context.entry(kind: .income)
+        try await store.createLedgerEntry(entry)
+        return entry.id
+    }
+
+    func additionalLink(currency requestedCurrency: CurrencyCode? = nil,
+                        portfolioID requestedPortfolioID: UUID? = nil) async throws -> PortfolioSecurityLink {
+        let currency = requestedCurrency ?? self.currency
+        let container = AssetContainer(id: UUID(), accountID: nil, name: "Synthetic second security",
+            kind: .stock, institution: nil, primaryCurrency: currency, notes: nil,
+            createdDate: date, updatedDate: date)
+        let details = WealthRecordDetails.security(ticker: "SYNB", mic: "XSYN",
+            quantity: AssetQuantity(coefficient: 1_000_000_000),
+            manualPrice: try MarketPrice(decimal: 20, quoteCurrency: currency))
+        let value = try details.currentValue()
+        let valuation = try FXValuation(original: value,
+            rate: currency == .cny ? .cnyIdentity : FXRate(decimal: 7.25, sourceCurrency: .usd, targetCurrency: .cny),
+            referenceDate: date, fetchedAt: instant,
+            providerIdentifier: currency == .cny ? "identity" : "manual.synthetic.secondary",
+            isManualOverride: currency == .usd, isStale: false)
+        try await store.createWealthContainer(WealthContainer(container: container, details: details, valuation: valuation))
+        let second = try PortfolioSecurityLink(portfolioID: requestedPortfolioID ?? portfolio.id,
+            wealthContainerID: container.id, symbol: "SYNB", rawMIC: "XSYN",
+            currency: currency, assetKind: .stock, sortOrder: 1)
+        try await store.linkPortfolioSecurity(second)
+        return second
+    }
+
+    func establishHistory(_ old: PortfolioActivity) async throws -> PortfolioActivity {
+        let candidate = try revised(old, timeZone: "Asia/Shanghai")
+        let token = try await store.readPortfolioActivityEditContext(id: old.id).token
+        _ = try portfolioApplied(await store.correctPortfolioActivity(request(candidate, token: token)))
+        return candidate
+    }
+
+    func verifyCommitted(before: PortfolioActivity, after: PortfolioActivity,
+                         oldLink: PortfolioSecurityLink, newLink: PortfolioSecurityLink,
+                         history: PortfolioCorrectionHistory) async throws {
+        #expect(history.kind == "correction" && history.targetID == before.id)
+        #expect(history.reason == "Synthetic Activity correction")
+        #expect(after.id == before.id && after.portfolioID == before.portfolioID)
+        #expect(after.ledgerEntryID == before.ledgerEntryID && after.payload == before.payload)
+        #expect(history.payload.before == PortfolioCorrectionProjection(before, link: oldLink))
+        #expect(history.payload.after == PortfolioCorrectionProjection(after, link: newLink))
+        let context = try await store.readPortfolioActivityEditContext(id: after.id)
+        #expect(context.activity == after && context.link == newLink)
+        #expect(context.token.latestHistoryID == history.id)
+        try verifyActivityRow(after)
+        #expect(try await store.portfolioActivityCorrectionHistory(id: after.id) == [history])
+        let reopened = try WealthStore(databaseURL: database)
+        let reopenedContext = try await reopened.readPortfolioActivityEditContext(id: after.id)
+        #expect(reopenedContext.activity == after && reopenedContext.link == newLink)
+        #expect(try await reopened.portfolioActivityCorrectionHistory(id: after.id) == [history])
+        let reopenedReplay = try await reopened.portfolioReplay(portfolioID: portfolio.id)
+        let currentReplay = try await store.portfolioReplay(portfolioID: portfolio.id)
+        #expect(reopenedReplay == currentReplay)
+    }
+
+    func verifyActivityRow(_ expected: PortfolioActivity) throws {
+        let q = try DatabaseQueueFactory.open(at: database); defer { try? q.close() }
+        try q.read { db in
+            let row = try #require(try Row.fetchOne(db, sql: "SELECT * FROM portfolio_activities WHERE id=?",
+                arguments: [expected.id.uuidString]))
+            #expect(row["id"] as String == expected.id.uuidString)
+            #expect(row["portfolio_id"] as String == expected.portfolioID.uuidString)
+            #expect(row["security_link_id"] as String == expected.securityLinkID.uuidString)
+            #expect(row["civil_date"] as String == expected.civilDate.description)
+            #expect(row["recorded_at_ms"] as Int64 == expected.recordedAt.millisecondsSince1970)
+            #expect(row["exchange_time_zone_id"] as String == expected.exchangeTimeZoneIdentifier)
+            #expect(row["ledger_entry_id"] as String? == expected.ledgerEntryID?.uuidString)
+            #expect(try WealthStore.activityDomain(row) == expected)
+            switch expected.payload {
+            case let .buy(_, _, _, fx), let .sell(_, _, _, fx):
+                #expect(row["total_original_minor"] as Int64 == fx.original.minorUnits)
+                #expect(row["currency_code"] as String == fx.original.currency.rawValue)
+                #expect(row["converted_cny_minor"] as Int64 == fx.convertedCNY.minorUnits)
+                #expect(row["fx_coefficient"] as Int64 == fx.rate.coefficient)
+                #expect(row["fx_source"] as String == fx.source)
+                #expect(row["fx_reference_date"] as String == fx.referenceDate.description)
+                #expect(row["fx_recorded_at_ms"] as Int64 == fx.recordedAt.millisecondsSince1970)
+                #expect(row["fx_is_manual"] as Bool == fx.isManual)
+                #expect(row["fx_is_stale"] as Bool == fx.isStale)
+            default: break
+            }
+        }
+    }
+
+    func verifyLink(_ replay: PortfolioReplayResult, linkID: UUID, quantity: Int64, originalBasis: Int64) throws {
+        #expect(try replay.quantity(for: linkID).coefficient == quantity * 100_000_000)
+        let lots = replay.lots.filter { $0.securityLinkID == linkID }
+        #expect(lots.reduce(Int64(0)) { $0 + $1.remainingOriginalBasis.minorUnits } == originalBasis)
+        #expect(lots.reduce(Int64(0)) { $0 + $1.remainingCNYBasis.minorUnits }
+            == (currency == .usd ? originalBasis * 725 / 100 : originalBasis))
+    }
+
+    func rollbackSnapshot() async throws -> PortfolioCorrectionRollbackSnapshot {
+        let q = try DatabaseQueueFactory.open(at: database); defer { try? q.close() }
+        let stored = try await q.read { db in
+            try ["portfolio_activities", "portfolio_security_links", "portfolio_activity_correction_history"].map {
+                try Row.fetchAll(db, sql: "SELECT * FROM \($0) ORDER BY rowid").map(\.description)
+            }
+        }
+        return PortfolioCorrectionRollbackSnapshot(activityRows: stored[0], linkRows: stored[1],
+            historyRows: stored[2], replay: try await store.portfolioReplay(portfolioID: portfolio.id))
+    }
+
+    func verifyRollback(_ snapshot: PortfolioCorrectionRollbackSnapshot, request: PortfolioCorrectionRequest,
+                        before: PortfolioActivity) async throws {
+        #expect(try await rollbackSnapshot() == snapshot)
+        #expect(try operationCount(request.operationID) == 0)
+        let current = try await store.readPortfolioActivityEditContext(id: before.id)
+        #expect(current.activity == before && current.token == request.expected)
+        try verifyActivityRow(before)
+        let reopened = try WealthStore(databaseURL: database)
+        let reopenedActivities = try await reopened.fetchPortfolioActivities(portfolioID: portfolio.id)
+        let currentActivities = try await store.fetchPortfolioActivities(portfolioID: portfolio.id)
+        let reopenedHistory = try await reopened.portfolioActivityCorrectionHistory(id: before.id)
+        let currentHistory = try await store.portfolioActivityCorrectionHistory(id: before.id)
+        #expect(reopenedActivities == currentActivities)
+        #expect(reopenedHistory == currentHistory)
+        #expect(try await reopened.portfolioReplay(portfolioID: portfolio.id) == snapshot.replay)
+    }
+
+    func operationCount(_ operationID: UUID) throws -> Int {
+        let q = try DatabaseQueueFactory.open(at: database); defer { try? q.close() }
+        return try q.read { try Int.fetchOne($0,
+            sql: "SELECT COUNT(*) FROM portfolio_activity_correction_history WHERE operation_id=?",
+            arguments: [operationID.uuidString]) ?? 0 }
+    }
+
+    func historyDeclarations() throws -> [String] {
+        let q = try DatabaseQueueFactory.open(at: database); defer { try? q.close() }
+        return try q.read { db in
+            try PortfolioCorrectionSQL.declarations.map { name, _ in
+                try #require(try String.fetchOne(db, sql: "SELECT sql FROM sqlite_master WHERE name=?", arguments: [name]))
+            }
+        }
+    }
+
+    func insertHistoryWithIllegalKind(_ db: Database, source: UUID, historyID: UUID, operationID: UUID) throws {
+        try db.execute(sql: """
+            INSERT INTO portfolio_activity_correction_history
+                (history_id,operation_id,activity_id,kind,occurred_at_ms,reason,request_digest,post_state_digest,payload)
+            SELECT ?,?,activity_id,'illegal.synthetic.kind',occurred_at_ms,reason,request_digest,post_state_digest,payload
+            FROM portfolio_activity_correction_history WHERE history_id=?
+            """, arguments: [historyID.uuidString, operationID.uuidString, source.uuidString])
+        #expect(db.changesCount == 1)
     }
 
     func seedCompanionHistories() async throws -> (ledgerID: UUID,
