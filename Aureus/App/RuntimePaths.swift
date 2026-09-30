@@ -102,32 +102,33 @@ struct RuntimePaths: Equatable, Sendable {
                 throw RuntimeEnvironmentError.unsafeStorageRoot
             }
         case .temporary:
-            let temporaryBase = FileManager.default.temporaryDirectory.standardizedFileURL
-            let legacyTestBase = URL(fileURLWithPath: "/private/tmp/AureusTests", isDirectory: true)
-            let selectedRoot = permanentRoot.standardizedFileURL
-            let rootName = selectedRoot.lastPathComponent
+            let temporaryBase = try Self.temporaryPathComponents(FileManager.default.temporaryDirectory)
+            let legacyTestBase = ["/", "private", "tmp", "AureusTests"]
+            let selectedRoot = try Self.temporaryPathComponents(permanentRoot)
+            let rootName = selectedRoot.last ?? ""
             let hasUUIDName = UUID(uuidString: rootName) != nil
                 || (rootName.hasPrefix("Aureus-")
                     && UUID(uuidString: String(rootName.suffix(36))) != nil)
-            let allowedBase: URL?
-            if Self.isDescendant(selectedRoot, of: temporaryBase) {
-                allowedBase = temporaryBase
-            } else if Self.isDescendant(selectedRoot, of: legacyTestBase) {
-                allowedBase = legacyTestBase
-            } else {
-                allowedBase = nil
+            let allowedBase = [temporaryBase, legacyTestBase].first {
+                selectedRoot.count > $0.count && selectedRoot.starts(with: $0)
             }
-            guard permanentRoot == cacheRoot,
-                  hasUUIDName,
+            guard hasUUIDName,
+                  try Self.temporaryPathComponents(cacheRoot) == selectedRoot,
+                  try Self.temporaryPathComponents(permanentDatabaseURL)
+                    == selectedRoot + ["Permanent", "aureus.sqlite"],
+                  try Self.temporaryPathComponents(marketCacheDatabaseURL)
+                    == selectedRoot + ["MarketCache", "market-cache.sqlite"],
+                  try Self.temporaryPathComponents(internalBackupDirectoryURL)
+                    == selectedRoot + ["Backups"],
                   let allowedBase else {
                 throw RuntimeEnvironmentError.unsafeStorageRoot
             }
-            var component = selectedRoot
-            while component.path != allowedBase.path {
-                try Self.requireDirectoryOrMissing(component)
-                component = component.deletingLastPathComponent()
+            // Check every managed ancestor without resolving arbitrary symlinks.
+            // Component counts bound the walk, including for a root not yet created.
+            for count in stride(from: selectedRoot.count, through: allowedBase.count, by: -1) {
+                let path = "/" + selectedRoot.prefix(count).dropFirst().joined(separator: "/")
+                try Self.requireDirectoryOrMissing(URL(fileURLWithPath: path, isDirectory: true))
             }
-            try Self.requireDirectoryOrMissing(allowedBase)
         }
         for url in [permanentRoot, permanentDatabaseURL.deletingLastPathComponent(),
                     internalBackupDirectoryURL, cacheRoot,
@@ -147,8 +148,23 @@ struct RuntimePaths: Equatable, Sendable {
         }
     }
 
-    private static func isDescendant(_ candidate: URL, of root: URL) -> Bool {
-        candidate.path.hasPrefix(root.path.hasSuffix("/") ? root.path : root.path + "/")
+    private static func temporaryPathComponents(_ url: URL) throws -> [String] {
+        var components = url.pathComponents
+        guard url.isFileURL, components.first == "/",
+              !components.contains(".."), !components.contains(".") else {
+            throw RuntimeEnvironmentError.unsafeStorageRoot
+        }
+        // These macOS system aliases are the only links accepted during comparison.
+        // Keep all components below them intact so lstat can still reject managed links.
+        if components.count > 1, components[1] == "tmp" || components[1] == "var" {
+            let alias = "/" + components[1]
+            let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: alias)
+            guard destination == "private" + alias || destination == "/private" + alias else {
+                throw RuntimeEnvironmentError.unsafeStorageRoot
+            }
+            components.insert("private", at: 1)
+        }
+        return components
     }
 }
 

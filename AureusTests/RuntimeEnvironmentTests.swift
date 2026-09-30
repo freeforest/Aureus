@@ -103,4 +103,130 @@ struct RuntimeEnvironmentTests {
             try development.validateSelected(for: .development)
         }
     }
+
+    @Test("Legal temporary roots keep ownership before and after creation, including system aliases and directory URLs",
+          arguments: ["system", "legacy"])
+    func temporaryRootRepresentations(base: String) throws {
+        let manager = FileManager.default
+        let parent = base == "system" ? manager.temporaryDirectory
+            : URL(fileURLWithPath: "/private/tmp/AureusTests", isDirectory: true)
+        let root = parent.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        #expect(!manager.fileExists(atPath: root.path))
+        defer { try? manager.removeItem(at: root) }
+        var representations = [root, URL(fileURLWithPath: root.path + "/", isDirectory: true),
+                               URL(fileURLWithPath: root.path, isDirectory: false)]
+        if base == "legacy" {
+            representations.append(URL(fileURLWithPath:
+                "/tmp/AureusTests/" + root.lastPathComponent, isDirectory: true))
+        } else if root.path.hasPrefix("/var/") {
+            representations.append(URL(fileURLWithPath: "/private" + root.path, isDirectory: true))
+        }
+        for created in [false, true] {
+            if created {
+                for component in ["Permanent", "MarketCache", "Backups"] {
+                    try manager.createDirectory(at: root.appendingPathComponent(component),
+                        withIntermediateDirectories: true)
+                }
+            }
+            #expect(manager.fileExists(atPath: root.path) == created)
+            for representation in representations {
+                try RuntimePaths.temporary(root: representation).validateSelected(for: .temporary)
+            }
+        }
+    }
+
+    @Test("A UUID or similar string prefix does not authorize an unrelated root",
+          arguments: ["outside", "similar-prefix", "invalid-name", "parent-traversal"])
+    func temporaryRootBoundaryRejected(scenario: String) {
+        let id = UUID().uuidString
+        let path: String
+        switch scenario {
+        case "outside": path = "/ENV03-Synthetic-Unowned/" + id
+        case "similar-prefix": path = "/private/tmp/AureusTestsUnowned/" + id
+        case "invalid-name": path = FileManager.default.temporaryDirectory.path + "/Not-A-Controlled-Root"
+        default: path = "/private/tmp/AureusTests/../" + id
+        }
+        #expect(throws: RuntimeEnvironmentError.unsafeStorageRoot) {
+            try RuntimePaths.temporary(root: URL(fileURLWithPath: path, isDirectory: true))
+                .validateSelected(for: .temporary)
+        }
+    }
+
+    @Test("Temporary root and each required directory reject ordinary files",
+          arguments: ["root", "Permanent", "MarketCache", "Backups"])
+    func temporaryDirectoryFilesRejected(component: String) throws {
+        let owner = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: owner) }
+        let root = owner.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        if component != "root" {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        }
+        let file = component == "root" ? root : root.appendingPathComponent(component)
+        try Data("synthetic file".utf8).write(to: file)
+        #expect(throws: RuntimeEnvironmentError.unsafeStorageRoot) {
+            try RuntimePaths.temporary(root: root).validateSelected(for: .temporary)
+        }
+    }
+
+    @Test("Managed links cannot borrow temporary or synthetic Production/Dev ownership",
+          arguments: ["root", "parent", "Permanent", "MarketCache", "Backups"],
+          ["temporary", "synthetic-production", "synthetic-development"])
+    func temporaryManagedLinksRejected(component: String, destination: String) throws {
+        let manager = FileManager.default
+        let owner = try temporaryDirectory()
+        defer { try? manager.removeItem(at: owner) }
+        let namespace: String
+        switch destination {
+        case "synthetic-production": namespace = "Controls/Support/Aureus"
+        case "synthetic-development": namespace = "Controls/Support/AureusDev"
+        default: namespace = "Controls/Temporary"
+        }
+        let target = owner.appendingPathComponent(namespace, isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try manager.createDirectory(at: target, withIntermediateDirectories: true)
+        let root: URL
+        if component == "parent" {
+            let linkedParent = owner.appendingPathComponent("LinkedParent", isDirectory: true)
+            try manager.createSymbolicLink(at: linkedParent, withDestinationURL: target)
+            root = linkedParent.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        } else {
+            root = owner.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            if component == "root" {
+                try manager.createSymbolicLink(at: root, withDestinationURL: target)
+            } else {
+                try manager.createDirectory(at: root, withIntermediateDirectories: true)
+                try manager.createSymbolicLink(at: root.appendingPathComponent(component),
+                    withDestinationURL: target)
+            }
+        }
+        let alias = URL(fileURLWithPath: root.path.replacingOccurrences(
+            of: "/private/tmp/", with: "/tmp/"), isDirectory: true)
+        for representation in [root, alias] {
+            #expect(throws: RuntimeEnvironmentError.unsafeStorageRoot) {
+                try RuntimePaths.temporary(root: representation).validateSelected(for: .temporary)
+            }
+        }
+    }
+
+    @Test("Temporary database, cache and Backup paths must belong to the same exact layout",
+          arguments: ["backup", "cache", "permanent-directory", "cache-directory"])
+    func temporaryLayoutRejected(component: String) throws {
+        let owner = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: owner) }
+        let paths = RuntimePaths.temporary(root: owner)
+        let other = owner.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let mismatched = RuntimePaths(
+            permanentDatabaseURL: component == "permanent-directory"
+                ? owner.appendingPathComponent("OtherPermanent/aureus.sqlite") : paths.permanentDatabaseURL,
+            marketCacheDatabaseURL: component == "cache"
+                ? RuntimePaths.temporary(root: other).marketCacheDatabaseURL
+                : component == "cache-directory"
+                    ? owner.appendingPathComponent("OtherCache/market-cache.sqlite") : paths.marketCacheDatabaseURL,
+            internalBackupDirectoryURL: component == "backup"
+                ? other.appendingPathComponent("Backups") : paths.internalBackupDirectoryURL
+        )
+        #expect(throws: RuntimeEnvironmentError.unsafeStorageRoot) {
+            try mismatched.validateSelected(for: .temporary)
+        }
+    }
 }
