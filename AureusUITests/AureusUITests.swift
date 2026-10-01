@@ -5547,54 +5547,82 @@ final class AureusUITests: XCTestCase {
     private func portfolioCorrectionNativeMenu(_ app: XCUIApplication, _ identifier: String, title: String) throws {
         let scope = identifier.hasPrefix("portfolio.edit.") ? "portfolio.edit.sheet" : nil
         try portfolioCorrectionNativeMenuOwnership(app, identifier)
-        try portfolioCorrectionNativeRequire(app.menus.count == 0, "Another App menu is already open")
         let entry = try portfolioCorrectionNativeReady(app, identifier, scope: scope)
-        try portfolioCorrectionNativeMenuObserve(entry, stage: "entry", identifier: identifier, count: 1)
+        try portfolioCorrectionNativeMenuObserve(entry, stage: "entry-before-click", identifier: identifier, count: 1)
+        let entryIdentity = (entry.identifier, entry.label, entry.value as? String, entry.elementType)
+        let before = try portfolioCorrectionNativeMenuSnapshot(app, identifier, title: title, stage: "before-click")
         entry.click()
-        // Only the single popup exposed by this one owned entrance is inspected.
-        // Re-query after the popup transition; no pre-popup option is retained.
-        try portfolioCorrectionNativeWait("Unique opened App menu for \(identifier)") {
-            app.menus.count == 1 && app.menus.element(boundBy: 0).menuItems.count > 0
-        }
-        let menus = app.menus
-        try portfolioCorrectionNativeRequire(menus.count == 1, "Opened menu ownership changed")
-        let options = menus.element(boundBy: 0).menuItems
-        let count = options.count
-        print("PORTFOLIO_NATIVE_MENU entrance=\(identifier) utc=\(ISO8601DateFormatter().string(from: Date())) menus=\(menus.count) totalMatches=\(app.menuItems.count) candidates=\(count) truncated=\(count > 40)")
-        try portfolioCorrectionNativeRequire(count > 0 && count <= 40 && app.menuItems.count == count,
-            "One bounded related menu; no additional menu candidates")
-        var matches: [(attribute: String, identifier: String, label: String, value: String?)] = []
-        for index in 0..<count {
-            let option = options.element(boundBy: index)
-            try portfolioCorrectionNativeMenuObserve(option, stage: "candidate-\(index)", identifier: identifier, count: count)
-            let label = option.label, value = option.value as? String, id = option.identifier
-            try portfolioCorrectionNativeRequire(label.isEmpty || value == nil || value!.isEmpty || label == value,
-                "Menu label/value semantics conflict")
-            let attribute: String?
-            if label == title { attribute = "label" }
-            else if value == title { attribute = "value" }
-            else if id == title { attribute = "identifier" }
-            else { attribute = nil }
-            if let attribute {
-                try portfolioCorrectionNativeRequire((label.isEmpty || label == title)
-                    && (value == nil || value!.isEmpty || value == title), "Conflicting exact menu title")
-                matches.append((attribute, id, label, value))
+        // Global menu counts include AX state not established to be this popup.
+        // Wait for the requested semantic candidate, without repeatedly logging.
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            MainActor.assumeIsolated {
+                let q = self.portfolioCorrectionNativeMenuQuery(app, title: title)
+                return q.count > 0 && q.count <= 40
+                    && q.allElementsBoundByIndex.contains { $0.isEnabled && $0.isHittable }
             }
+        }, object: nil)
+        let opened = XCTWaiter.wait(for: [expectation], timeout: 5)
+        let after = try portfolioCorrectionNativeMenuSnapshot(app, identifier, title: title, stage: "after-click")
+        try portfolioCorrectionNativeRequire(opened == .completed, "No interactive exact menu candidate after one click")
+        try portfolioCorrectionNativeMenuOwnership(app, identifier)
+        let currentEntry = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
+        try portfolioCorrectionNativeRequire(currentEntry.identifier == entryIdentity.0
+            && currentEntry.label == entryIdentity.1 && (currentEntry.value as? String) == entryIdentity.2
+            && currentEntry.elementType == entryIdentity.3, "Menu entrance identity changed before selection")
+        let interactive = after.filter { $0.enabled && $0.hittable }
+        try portfolioCorrectionNativeRequire(interactive.count == 1,
+            "Exact related menu candidates not uniquely interactive; actual \(interactive.count)")
+        let observed = interactive[0]
+        let descendants = portfolioCorrectionNativeMenuQuery(currentEntry, title: title)
+        try portfolioCorrectionNativeRequire(descendants.count <= 40, "Entrance-related menu candidate bound")
+        let owned = descendants.allElementsBoundByIndex.filter { $0.isEnabled && $0.isHittable }
+        let hierarchical = owned.count == 1 && owned[0].identifier == observed.identifier
+            && owned[0].label == observed.label && (owned[0].value as? String) == observed.value
+        let transitioned = !before.contains { $0.enabled && $0.hittable }
+        try portfolioCorrectionNativeRequire(hierarchical || transitioned,
+            "Cannot prove option ownership by entrance hierarchy or click-driven interactive transition")
+        let attribute: String
+        if observed.label == title { attribute = "label" }
+        else {
+            try portfolioCorrectionNativeRequire(observed.label.isEmpty,
+                "Nonempty alternative menu label conflicts with requested value/identifier title")
+            attribute = observed.value == title ? "value" : "identifier"
         }
-        try portfolioCorrectionNativeRequire(matches.count == 1,
-            "Missing/ambiguous observed menu option \(title); actual \(matches.count)")
-        let observed = matches[0]
-        let currentMenus = app.menus
-        try portfolioCorrectionNativeRequire(currentMenus.count == 1, "Menu disappeared before selection")
-        let target = currentMenus.element(boundBy: 0).menuItems
-            .matching(NSPredicate(format: "%K == %@", observed.attribute, title))
-        try portfolioCorrectionNativeRequire(target.count == 1, "Observed exact menu attribute no longer unique")
-        let option = target.element(boundBy: 0)
+        // Value can represent check state rather than the label's title. Preserve
+        // both actual properties; do not require them to have identical semantics.
+        let queried = portfolioCorrectionNativeMenuQuery(app, title: title)
+            .matching(NSPredicate(format: "%K == %@", attribute, title))
+        try portfolioCorrectionNativeRequire(queried.count <= 40, "Re-queried semantic candidate bound")
+        let ready = queried.allElementsBoundByIndex.filter { $0.isEnabled && $0.isHittable }
+        try portfolioCorrectionNativeRequire(ready.count == 1, "Re-queried related target not uniquely ready")
+        let option = ready[0]
+        try portfolioCorrectionNativeMenuObserve(option, stage: "before-selection", identifier: identifier, count: ready.count)
         try portfolioCorrectionNativeRequire(option.identifier == observed.identifier && option.label == observed.label
-            && (option.value as? String) == observed.value && option.isEnabled && option.isHittable,
-            "Re-queried menu target changed or is not ready")
-        print("PORTFOLIO_NATIVE_MENU_SELECTION entrance=\(identifier) attribute=\(observed.attribute) exactTitle=\(title) matches=1 enabled=true hittable=true focus=NOT_VERIFIED")
+            && (option.value as? String) == observed.value, "Re-queried semantic menu identity changed")
+        print("PORTFOLIO_NATIVE_MENU_SELECTION entrance=\(identifier) attribute=\(attribute) exactTitle=\(title) matches=1 enabled=true hittable=true ownership=\(hierarchical ? "entrance-descendant" : "single-click-interactive-transition") focus=NOT_VERIFIED")
         option.click()
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeMenuQuery(_ container: XCUIElement, title: String) -> XCUIElementQuery {
+        container.descendants(matching: .menuItem)
+            .matching(NSPredicate(format: "label == %@ OR value == %@ OR identifier == %@", title, title, title))
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeMenuSnapshot(_ app: XCUIApplication, _ identifier: String,
+        title: String, stage: String) throws -> [(identifier: String, label: String, value: String?, enabled: Bool, hittable: Bool)] {
+        let candidates = portfolioCorrectionNativeMenuQuery(app, title: title)
+        let count = candidates.count
+        print("PORTFOLIO_NATIVE_MENU entrance=\(identifier) stage=\(stage) utc=\(ISO8601DateFormatter().string(from: Date())) appMenus=\(app.menus.count) appMenuItems=\(app.menuItems.count) exactTitleCandidates=\(count) truncated=\(count > 40)")
+        try portfolioCorrectionNativeRequire(count <= 40, "Related semantic menu observation exceeds 40 candidates")
+        var result: [(identifier: String, label: String, value: String?, enabled: Bool, hittable: Bool)] = []
+        for index in 0..<count {
+            let e = candidates.element(boundBy: index)
+            try portfolioCorrectionNativeMenuObserve(e, stage: "\(stage)-candidate-\(index)", identifier: identifier, count: count)
+            result.append((e.identifier, e.label, e.value as? String, e.isEnabled, e.isHittable))
+        }
+        return result
     }
 
     @MainActor
