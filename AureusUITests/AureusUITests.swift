@@ -5546,35 +5546,119 @@ final class AureusUITests: XCTestCase {
     @MainActor
     private func portfolioCorrectionNativeMenu(_ app: XCUIApplication, _ identifier: String, title: String) throws {
         let scope = identifier.hasPrefix("portfolio.edit.") ? "portfolio.edit.sheet" : nil
-        try portfolioCorrectionNativeClick(app, identifier, scope: scope)
-        try portfolioCorrectionNativeWait("Missing/ambiguous menu option \(title)") {
-            app.menuItems.matching(NSPredicate(format: "label == %@", title)).count == 1
+        try portfolioCorrectionNativeMenuOwnership(app, identifier)
+        try portfolioCorrectionNativeRequire(app.menus.count == 0, "Another App menu is already open")
+        let entry = try portfolioCorrectionNativeReady(app, identifier, scope: scope)
+        try portfolioCorrectionNativeMenuObserve(entry, stage: "entry", identifier: identifier, count: 1)
+        entry.click()
+        // Only the single popup exposed by this one owned entrance is inspected.
+        // Re-query after the popup transition; no pre-popup option is retained.
+        try portfolioCorrectionNativeWait("Unique opened App menu for \(identifier)") {
+            app.menus.count == 1 && app.menus.element(boundBy: 0).menuItems.count > 0
         }
-        let options = app.menuItems.matching(NSPredicate(format: "label == %@", title))
-        try portfolioCorrectionNativeRequire(options.count == 1 && options.element(boundBy: 0).isEnabled, "Menu option unique and enabled")
-        options.element(boundBy: 0).click()
+        let menus = app.menus
+        try portfolioCorrectionNativeRequire(menus.count == 1, "Opened menu ownership changed")
+        let options = menus.element(boundBy: 0).menuItems
+        let count = options.count
+        print("PORTFOLIO_NATIVE_MENU entrance=\(identifier) utc=\(ISO8601DateFormatter().string(from: Date())) menus=\(menus.count) totalMatches=\(app.menuItems.count) candidates=\(count) truncated=\(count > 40)")
+        try portfolioCorrectionNativeRequire(count > 0 && count <= 40 && app.menuItems.count == count,
+            "One bounded related menu; no additional menu candidates")
+        var matches: [(attribute: String, identifier: String, label: String, value: String?)] = []
+        for index in 0..<count {
+            let option = options.element(boundBy: index)
+            try portfolioCorrectionNativeMenuObserve(option, stage: "candidate-\(index)", identifier: identifier, count: count)
+            let label = option.label, value = option.value as? String, id = option.identifier
+            try portfolioCorrectionNativeRequire(label.isEmpty || value == nil || value!.isEmpty || label == value,
+                "Menu label/value semantics conflict")
+            let attribute: String?
+            if label == title { attribute = "label" }
+            else if value == title { attribute = "value" }
+            else if id == title { attribute = "identifier" }
+            else { attribute = nil }
+            if let attribute {
+                try portfolioCorrectionNativeRequire((label.isEmpty || label == title)
+                    && (value == nil || value!.isEmpty || value == title), "Conflicting exact menu title")
+                matches.append((attribute, id, label, value))
+            }
+        }
+        try portfolioCorrectionNativeRequire(matches.count == 1,
+            "Missing/ambiguous observed menu option \(title); actual \(matches.count)")
+        let observed = matches[0]
+        let currentMenus = app.menus
+        try portfolioCorrectionNativeRequire(currentMenus.count == 1, "Menu disappeared before selection")
+        let target = currentMenus.element(boundBy: 0).menuItems
+            .matching(NSPredicate(format: "%K == %@", observed.attribute, title))
+        try portfolioCorrectionNativeRequire(target.count == 1, "Observed exact menu attribute no longer unique")
+        let option = target.element(boundBy: 0)
+        try portfolioCorrectionNativeRequire(option.identifier == observed.identifier && option.label == observed.label
+            && (option.value as? String) == observed.value && option.isEnabled && option.isHittable,
+            "Re-queried menu target changed or is not ready")
+        print("PORTFOLIO_NATIVE_MENU_SELECTION entrance=\(identifier) attribute=\(observed.attribute) exactTitle=\(title) matches=1 enabled=true hittable=true focus=NOT_VERIFIED")
+        option.click()
     }
 
     @MainActor
     private func portfolioCorrectionNativeAssertPicker(_ app: XCUIApplication, _ identifier: String, title: String) throws {
         let scope = identifier.hasPrefix("portfolio.edit.") ? "portfolio.edit.sheet" : nil
+        try portfolioCorrectionNativeMenuOwnership(app, identifier)
         try portfolioCorrectionNativeWait("Picker selection mismatch \(identifier): \(title)") {
             guard let container = try? self.portfolioCorrectionNativeScope(app, scope) else { return false }
             let q = container.descendants(matching: .any).matching(identifier: identifier)
             guard q.count == 1 else { return false }
             let e = q.element(boundBy: 0)
-            return (e.value as? String) == title || e.label == title
+            return (e.value as? String) == title
         }
+        let current = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
+        try portfolioCorrectionNativeMenuObserve(current, stage: "picker-readback", identifier: identifier, count: 1)
+        try portfolioCorrectionNativeRequire((current.value as? String) == title,
+            "Full actual Picker value must equal the requested selection")
     }
 
     @MainActor
     private func portfolioCorrectionNativePicker(_ app: XCUIApplication, _ identifier: String, title: String) throws {
         let scope = identifier.hasPrefix("portfolio.edit.") ? "portfolio.edit.sheet" : nil
+        try portfolioCorrectionNativeMenuOwnership(app, identifier)
         let current = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
-        if (current.value as? String) != title && current.label != title {
+        try portfolioCorrectionNativeMenuObserve(current, stage: "picker-current", identifier: identifier, count: 1)
+        if (current.value as? String) != title {
             try portfolioCorrectionNativeMenu(app, identifier, title: title)
         }
         try portfolioCorrectionNativeAssertPicker(app, identifier, title: title)
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeMenuOwnership(_ app: XCUIApplication, _ identifier: String) throws {
+        let allowed = ["wealth.form.type", "portfolio.activity.security", "portfolio.activity.kind",
+                       "portfolio.edit.security", "portfolio.edit.kind", "portfolio.edit.fx.intent", "portfolio.security.link"]
+        try portfolioCorrectionNativeRequire(allowed.contains(identifier) && app.state == .runningForeground,
+            "Only an authorized foreground synthetic App menu entrance")
+        if identifier == "wealth.form.type" {
+            let sheets = app.sheets.containing(.button, identifier: "wealth.form.save")
+            try portfolioCorrectionNativeRequire(sheets.count == 1
+                && sheets.element(boundBy: 0).descendants(matching: .any).matching(identifier: identifier).count == 1,
+                "Type belongs to the unique synthetic Wealth creation sheet")
+        } else if identifier.hasPrefix("portfolio.edit.") {
+            _ = try portfolioCorrectionNativeElement(app, identifier, scope: "portfolio.edit.sheet")
+        } else {
+            _ = try portfolioCorrectionNativeElement(app, "portfolio.page")
+            _ = try portfolioCorrectionNativeElement(app, identifier)
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeMenuObserve(_ element: XCUIElement, stage: String,
+                                                       identifier: String, count: Int) throws {
+        let id = element.identifier, label = element.label, value = element.value as? String
+        let truncated = id.count > 4096 || label.count > 4096 || (value?.count ?? 0) > 4096 || count > 40
+        let record: [String: Any] = ["stage": stage, "entrance": identifier,
+            "utc": ISO8601DateFormatter().string(from: Date()), "candidateCount": count,
+            "identifier": String(id.prefix(4096)), "elementType": element.elementType.rawValue,
+            "label": String(label.prefix(4096)), "stringValue": value.map { String($0.prefix(4096)) as Any } ?? NSNull(),
+            "enabled": element.isEnabled, "hittable": element.isHittable,
+            "truncated": truncated, "focus": "NOT_VERIFIED"]
+        let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+        print("PORTFOLIO_NATIVE_MENU_AX \(String(decoding: data, as: UTF8.self))")
+        try portfolioCorrectionNativeRequire(!truncated, "Menu observation exceeds bounded complete evidence")
     }
 
     @MainActor
@@ -5682,8 +5766,8 @@ final class AureusUITests: XCTestCase {
         try portfolioCorrectionNativeRequire(order.count == expected, "Logical UUID record count")
         var result: [portfolioCorrectionNativeHistoryRecord] = []
         for id in order {
-            let rowID = "portfolio.history.row.\(id.uuidString)"
-            try portfolioCorrectionNativeRequire(list.descendants(matching: .any).matching(identifier: rowID).count == 1, "Unique logical row container")
+            try portfolioCorrectionNativeRequire(Set(grouped[id]?.keys.map { $0 } ?? []) == Set(["title", "reason", "before", "after"]),
+                "Exactly four independent roles for each logical history UUID")
             guard let values = grouped[id], let title = values["title"], let reason = values["reason"],
                   let before = values["before"], let after = values["after"] else { throw portfolioCorrectionNativeError.invalidState }
             let components = title.components(separatedBy: " · ")
