@@ -5551,6 +5551,8 @@ final class AureusUITests: XCTestCase {
         try portfolioCorrectionNativeMenuObserve(entry, stage: "entry-before-click", identifier: identifier, count: 1)
         let entryIdentity = (entry.identifier, entry.label, entry.value as? String, entry.elementType)
         let before = try portfolioCorrectionNativeMenuSnapshot(app, identifier, title: title, stage: "before-click")
+        let diagnosticBefore = identifier == "wealth.form.type"
+            ? try portfolioCorrectionNativeMenuDiagnostic(app, identifier, title: title, stage: "before-click", before: nil) : []
         entry.click()
         // Global menu counts include AX state not established to be this popup.
         // Wait for the requested semantic candidate, without repeatedly logging.
@@ -5563,6 +5565,9 @@ final class AureusUITests: XCTestCase {
         }, object: nil)
         let opened = XCTWaiter.wait(for: [expectation], timeout: 5)
         let after = try portfolioCorrectionNativeMenuSnapshot(app, identifier, title: title, stage: "after-click")
+        if identifier == "wealth.form.type" {
+            _ = try portfolioCorrectionNativeMenuDiagnostic(app, identifier, title: title, stage: "after-click", before: diagnosticBefore)
+        }
         try portfolioCorrectionNativeRequire(opened == .completed, "No interactive exact menu candidate after one click")
         try portfolioCorrectionNativeMenuOwnership(app, identifier)
         let currentEntry = try portfolioCorrectionNativeElement(app, identifier, scope: scope)
@@ -5623,6 +5628,97 @@ final class AureusUITests: XCTestCase {
             result.append((e.identifier, e.label, e.value as? String, e.isEnabled, e.isHittable))
         }
         return result
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeMenuDiagnostic(_ app: XCUIApplication, _ identifier: String,
+        title: String, stage: String, before: [[String: String]]?) throws -> [[String: String]] {
+        // Observation only: the original title-filtered query and selection above
+        // remain authoritative during UI-DIAG. Never read the global item pool.
+        try portfolioCorrectionNativeMenuOwnership(app, identifier)
+        let entry = try portfolioCorrectionNativeElement(app, identifier)
+        let menus = app.menus
+        let count = menus.count
+        print("PORTFOLIO_NATIVE_MENU_QUERY entrance=\(identifier) stage=\(stage) appMenuItems=\(app.menuItems.count) descendantMenuItems=\(app.descendants(matching: .menuItem).count) menuContainers=\(count) truncated=\(count > 40)")
+        try portfolioCorrectionNativeRequire(count <= 40, "Bounded menu container metadata exceeded")
+        var states: [[String: String]] = []
+        for index in 0..<count {
+            let menu = menus.element(boundBy: index), frame = menu.frame
+            let state = ["identifier": menu.identifier, "elementType": String(menu.elementType.rawValue),
+                "frame": "\(frame.origin.x),\(frame.origin.y),\(frame.size.width),\(frame.size.height)",
+                "enabled": String(menu.isEnabled), "hittable": String(menu.isHittable),
+                "directChildren": String(menu.children(matching: .any).count), "menuItems": String(menu.menuItems.count)]
+            let truncated = state.values.contains { $0.count > 4096 }
+            var record: [String: Any] = state
+            record["entrance"] = identifier; record["stage"] = stage
+            record["kind"] = "container-metadata"; record["enumerationIndex"] = index
+            record["utc"] = ISO8601DateFormatter().string(from: Date()); record["truncated"] = truncated
+            let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+            print("PORTFOLIO_NATIVE_MENU_QUERY_JSON \(String(decoding: data, as: UTF8.self))")
+            try portfolioCorrectionNativeRequire(!truncated, "Incomplete menu container metadata")
+            states.append(state)
+        }
+        try portfolioCorrectionNativeMenuLocalObserve(entry, identifier, title: title, stage: stage, relation: "entrance-descendants")
+        guard let before else { return states }
+        let nested = entry.descendants(matching: .menu)
+        if nested.count == 1 {
+            try portfolioCorrectionNativeMenuLocalObserve(nested.element(boundBy: 0), identifier,
+                title: title, stage: stage, relation: "entrance-owned-menu")
+        } else {
+            // An index is only used to enumerate a container whose semantic
+            // identity/frame was absent before this one entrance click.
+            let identity: ([String: String]) -> [String] = { state in
+                [state["identifier"] ?? "", state["elementType"] ?? "", state["frame"] ?? ""]
+            }
+            let newContainers = states.indices.filter { i in !before.contains { identity($0) == identity(states[i]) } }
+            print("PORTFOLIO_NATIVE_MENU_QUERY entrance=\(identifier) stage=\(stage) entranceMenus=\(nested.count) newContainerIdentities=\(newContainers.count) association=single-entrance-click-within-owned-App")
+            if newContainers.count == 1 {
+                let index = newContainers[0]
+                let current = app.menus.element(boundBy: index), frame = current.frame
+                let currentIdentity = [current.identifier, String(current.elementType.rawValue),
+                    "\(frame.origin.x),\(frame.origin.y),\(frame.size.width),\(frame.size.height)"]
+                try portfolioCorrectionNativeRequire(currentIdentity == identity(states[index]), "Diagnostic container identity changed")
+                try portfolioCorrectionNativeMenuLocalObserve(current, identifier, title: title,
+                    stage: stage, relation: "single-click-new-container-identity")
+            } else {
+                print("PORTFOLIO_NATIVE_MENU_QUERY entrance=\(identifier) stage=\(stage) localPopup=NOT_VERIFIED no-expanded-global-item-properties=true")
+            }
+        }
+        return states
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeMenuLocalObserve(_ container: XCUIElement, _ identifier: String,
+        title: String, stage: String, relation: String) throws {
+        let all = container.descendants(matching: .any), typed = container.descendants(matching: .menuItem)
+        let count = all.count
+        print("PORTFOLIO_NATIVE_MENU_QUERY entrance=\(identifier) stage=\(stage) relation=\(relation) localAny=\(count) localMenuItems=\(typed.count) truncated=\(count > 40)")
+        try portfolioCorrectionNativeRequire(count <= 40, "Local menu observation exceeds40; no wider dump")
+        var directAny = 0, directMenuItem = 0
+        for index in 0..<count {
+            let element = all.element(boundBy: index), rawValue = element.value
+            let id = element.identifier, label = element.label, text = rawValue as? String
+            let truncated = id.count > 4096 || label.count > 4096 || (text?.count ?? 0) > 4096
+            let matches = id == title || label == title || text == title
+            if matches { directAny += 1; if element.elementType == .menuItem { directMenuItem += 1 } }
+            let frame = element.frame
+            let simple: Any = text.map { String($0.prefix(4096)) as Any }
+                ?? (rawValue as? NSNumber).map { $0 as Any } ?? NSNull()
+            let record: [String: Any] = ["entrance": identifier, "stage": stage, "relation": relation,
+                "kind": "unfiltered-local-element", "enumerationIndex": index, "candidateCount": count,
+                "identifier": String(id.prefix(4096)), "label": String(label.prefix(4096)),
+                "elementType": element.elementType.rawValue, "valueType": rawValue.map { String(describing: type(of: $0)) } ?? "nil",
+                "value": simple, "stringValue": text.map { String($0.prefix(4096)) as Any } ?? NSNull(),
+                "frame": [frame.origin.x, frame.origin.y, frame.size.width, frame.size.height],
+                "enabled": element.isEnabled, "hittable": element.isHittable,
+                "directChildren": element.children(matching: .any).count,
+                "exactDirectTitleMatch": matches, "truncated": truncated, "focus": "NOT_VERIFIED"]
+            let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+            print("PORTFOLIO_NATIVE_MENU_QUERY_JSON \(String(decoding: data, as: UTF8.self))")
+            try portfolioCorrectionNativeRequire(!truncated, "Incomplete local menu evidence")
+        }
+        let predicate = NSPredicate(format: "label == %@ OR value == %@ OR identifier == %@", title, title, title)
+        print("PORTFOLIO_NATIVE_MENU_QUERY entrance=\(identifier) stage=\(stage) relation=\(relation) directAnyExact=\(directAny) directMenuItemExact=\(directMenuItem) predicateAnyExact=\(all.matching(predicate).count) predicateMenuItemExact=\(typed.matching(predicate).count) namedMenuItemMatches=\(container.menuItems.matching(identifier: title).count) namedMenuItemExists=\(container.menuItems[title].exists) title=\(title)")
     }
 
     @MainActor
