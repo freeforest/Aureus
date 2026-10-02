@@ -5845,6 +5845,7 @@ final class AureusUITests: XCTestCase {
     @MainActor
     private func portfolioCorrectionNativeHistory(_ app: XCUIApplication, expected: Int) throws -> [portfolioCorrectionNativeHistoryRecord] {
         let sheet = try portfolioCorrectionNativeScope(app, "portfolio.history.sheet")
+        try portfolioCorrectionNativeHistoryReadOnlyObserve(app, sheet: sheet, expected: expected)
         try portfolioCorrectionNativeRequire(sheet.descendants(matching: .any).matching(identifier: "portfolio.history.failed").count == 0, "History failure is not empty")
         try portfolioCorrectionNativeRequire(sheet.textFields.count == 0 && sheet.textViews.count == 0,
             "History contains no editable fields")
@@ -5891,6 +5892,79 @@ final class AureusUITests: XCTestCase {
             result.append(.init(id: id, sequence: sequence, title: title, reason: reason, before: before, after: after))
         }
         return result
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeHistoryReadOnlyObserve(_ app: XCUIApplication,
+        sheet: XCUIElement, expected: Int) throws {
+        let nodes = sheet.descendants(matching: .any)
+        let buttons = sheet.buttons
+        let count = buttons.count
+        let state: [String: Any] = ["stage": "before-original-readonly-guard", "expectedHistory": expected,
+            "sheetCount": app.descendants(matching: .any).matching(identifier: "portfolio.history.sheet").count,
+            "failedCount": nodes.matching(identifier: "portfolio.history.failed").count,
+            "loadingCount": nodes.matching(identifier: "portfolio.history.loading").count,
+            "textFields": sheet.textFields.count, "textViews": sheet.textViews.count,
+            "buttons": count, "closeAnyCount": nodes.matching(identifier: "portfolio.history.close").count,
+            "closeButtonCount": buttons.matching(identifier: "portfolio.history.close").count,
+            "originalCountCondition": count == 1,
+            "originalIdentifierCondition": count == 1 ? buttons.element(boundBy: 0).identifier == "portfolio.history.close" : false]
+        try portfolioCorrectionNativeHistoryReadOnlyEmit(state)
+        try portfolioCorrectionNativeHistoryReadOnlySnapshot(buttons, relation: "sheet.buttons", expected: expected)
+        // Observe only native containers inside this synthetic sheet. These are
+        // evidence candidates, not an exemption from the unchanged guard.
+        for (relation, containers) in [("sheet.scrollViews", sheet.scrollViews), ("sheet.scrollBars", sheet.scrollBars)] {
+            try portfolioCorrectionNativeHistoryReadOnlySnapshot(containers, relation: relation, expected: expected)
+            let containerCount = containers.count
+            try portfolioCorrectionNativeRequire(containerCount <= 40, "History native container observation bound")
+            for index in 0..<containerCount {
+                let container = containers.element(boundBy: index)
+                try portfolioCorrectionNativeHistoryReadOnlySnapshot(container.buttons,
+                    relation: "\(relation)[\(index)].buttons", expected: expected)
+                try portfolioCorrectionNativeHistoryReadOnlySnapshot(container.scrollBars,
+                    relation: "\(relation)[\(index)].scrollBars", expected: expected)
+            }
+            try portfolioCorrectionNativeRequire(containers.count == containerCount, "History container query changed during observation")
+        }
+        try portfolioCorrectionNativeRequire(buttons.count == count, "History button query changed during observation")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeHistoryReadOnlySnapshot(_ query: XCUIElementQuery,
+        relation: String, expected: Int) throws {
+        let count = query.count
+        try portfolioCorrectionNativeHistoryReadOnlyEmit(["kind": "collection", "relation": relation,
+            "expectedHistory": expected, "queryCount": count, "truncated": count > 40])
+        try portfolioCorrectionNativeRequire(count <= 40, "History read-only candidates exceed 40; no wider observation")
+        var captured = 0
+        for index in 0..<count {
+            let e = query.element(boundBy: index)
+            let identifier = e.identifier, label = e.label, value = e.value as? String
+            let truncated = identifier.count > 256 || label.count > 256 || (value?.count ?? 0) > 256
+            let frame = e.frame
+            try portfolioCorrectionNativeHistoryReadOnlyEmit(["kind": "candidate", "relation": relation,
+                "expectedHistory": expected, "enumerationIndex": index, "queryCount": count,
+                "elementType": e.elementType.rawValue, "identifier": String(identifier.prefix(256)),
+                "label": String(label.prefix(256)), "stringValue": value.map { String($0.prefix(256)) as Any } ?? NSNull(),
+                "enabled": e.isEnabled, "hittable": e.isHittable,
+                "frame": [frame.origin.x, frame.origin.y, frame.width, frame.height], "truncated": truncated])
+            try portfolioCorrectionNativeRequire(!truncated, "History read-only candidate string truncated")
+            captured += 1
+        }
+        let afterCount = query.count
+        try portfolioCorrectionNativeHistoryReadOnlyEmit(["kind": "collection-end", "relation": relation,
+            "expectedHistory": expected, "queryCount": count, "snapshotCount": captured,
+            "afterQueryCount": afterCount, "stableCount": count == afterCount && count == captured])
+        try portfolioCorrectionNativeRequire(count == afterCount && count == captured, "History read-only query count unstable")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeHistoryReadOnlyEmit(_ fields: [String: Any]) throws {
+        var record = fields
+        record["utc"] = ISO8601DateFormatter().string(from: Date())
+        record["scope"] = "portfolio.history.sheet"
+        let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+        print("PORTFOLIO_NATIVE_HISTORY_READONLY \(String(decoding: data, as: UTF8.self))")
     }
 
     @MainActor
