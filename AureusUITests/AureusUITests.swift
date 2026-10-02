@@ -5509,26 +5509,66 @@ final class AureusUITests: XCTestCase {
         portfolioCorrectionNativeStartupEmit(bound, stage: "after-launch-identity", ownership: ownership)
         try portfolioCorrectionNativeRequire(bound["identityValid"] == 1, "Launched Dev PID/path could not be uniquely bound")
         // activate can launch a stopped App; verify the existing owned process first.
+        let initialLaunchDate = ownership.running?.launchDate
+        ownership.initialActivations = 1
         app.activate()
+        let activated = portfolioCorrectionNativeStartupIdentity(ownership)
+        portfolioCorrectionNativeStartupEmit(activated, stage: "after-initial-activate-identity", ownership: ownership)
+        try portfolioCorrectionNativeRequire(activated["identityValid"] == 1 && initialLaunchDate != nil
+            && ownership.running?.launchDate == initialLaunchDate, "Identity changed during initial activation")
         let natural = portfolioCorrectionNativeStartupWait(app, ownership: ownership, phase: "natural", timeout: 15)
+        if natural["ready"] == 1 && natural["isActive"] == 1 {
+            portfolioCorrectionNativeStartupEmit(natural, stage: "ready-natural", ownership: ownership)
+            return
+        }
+        let identity = portfolioCorrectionNativeStartupIdentity(ownership)
+        portfolioCorrectionNativeStartupEmit(identity, stage: "before-natural-failure-observation", ownership: ownership)
+        try portfolioCorrectionNativeRequire(identity["identityValid"] == 1, "No observation or recovery of an unowned instance")
         try portfolioCorrectionNativeStartupWindows(app)
-        if natural["ready"] == 1 { return }
-        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeStartupMayOpen(natural),
-            "Natural startup is not eligible for explicit window opening: \(natural)")
-        let axCount = portfolioCorrectionNativeStartupAXWindowCount(ownership)
-        try portfolioCorrectionNativeRequire(axCount == nil || axCount == 0,
-            "AXWindows reports an existing window while XCTest reports zero; no Command-N")
+        // Read-only, PID-scoped AX observation deliberately precedes the foreground gate.
+        let axCount = portfolioCorrectionNativeStartupAXWindowCount(ownership, phase: "after-natural-wait")
+        var current = portfolioCorrectionNativeStartupState(app, ownership: ownership)
+        portfolioCorrectionNativeStartupEmit(current, stage: "after-natural-observation", ownership: ownership)
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeStartupForegroundSafe(current)
+            && (axCount == nil || axCount! <= 1), "Unsafe state for foreground recovery: \(current)")
+        if current["foreground"] != 1 || current["isActive"] != 1 {
+            try portfolioCorrectionNativeStartupForegroundRecover(app, ownership: ownership, axCount: axCount)
+        }
+        current = portfolioCorrectionNativeStartupState(app, ownership: ownership)
+        portfolioCorrectionNativeStartupEmit(current, stage: "window-branch", ownership: ownership)
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeStartupForegroundSafe(current)
+            && current["foreground"] == 1 && current["isActive"] == 1,
+            "Window branch requires the same owned active foreground instance: \(current)")
+        if current["windowCount"] == 1 {
+            let ready = current["ready"] == 1 ? current : portfolioCorrectionNativeStartupWait(app,
+                ownership: ownership, phase: "existing-window", timeout: 10, requireActive: true)
+            if ready["ready"] != 1 || ready["isActive"] != 1 || ready["waitInvalidated"] == 1 {
+                portfolioCorrectionNativeStartupForegroundFailure(app, ownership: ownership, phase: "existing-window-failed")
+            }
+            try portfolioCorrectionNativeRequire(ready["ready"] == 1 && ready["isActive"] == 1
+                && ready["waitInvalidated"] != 1, "Existing window did not become ready: \(ready)")
+            portfolioCorrectionNativeStartupEmit(ready, stage: ownership.foregroundRecoveries == 1
+                ? "ready-after-foreground-recovery" : "ready-existing-window", ownership: ownership)
+            return
+        }
+        let decisionAXCount = portfolioCorrectionNativeStartupAXWindowCount(ownership, phase: "before-window-decision")
         let beforeCommand = portfolioCorrectionNativeStartupState(app, ownership: ownership)
         portfolioCorrectionNativeStartupEmit(beforeCommand, stage: "before-command-N", ownership: ownership)
         try portfolioCorrectionNativeRequire(portfolioCorrectionNativeStartupMayOpen(beforeCommand)
-            && ownership.windowCommands == 0, "Window-opening eligibility changed before command")
+            && (decisionAXCount == nil || decisionAXCount == 0)
+            && (axCount != 1 || decisionAXCount == 0) && ownership.windowCommands == 0,
+            "Window-opening eligibility changed or AX reports an existing window; no Command-N: \(beforeCommand)")
         ownership.windowCommands = 1
         portfolioCorrectionNativeStartupEmit(["commandCount": 1], stage: "issuing-command-N", ownership: ownership)
         app.typeKey("n", modifierFlags: [.command])
-        let opened = portfolioCorrectionNativeStartupWait(app, ownership: ownership, phase: "explicit-window", timeout: 10)
-        try portfolioCorrectionNativeStartupWindows(app)
-        try portfolioCorrectionNativeRequire(opened["ready"] == 1,
+        let opened = portfolioCorrectionNativeStartupWait(app, ownership: ownership, phase: "explicit-window", timeout: 10, requireActive: true)
+        if opened["ready"] != 1 || opened["isActive"] != 1 || opened["waitInvalidated"] == 1 {
+            portfolioCorrectionNativeStartupForegroundFailure(app, ownership: ownership, phase: "explicit-window-failed")
+        }
+        try portfolioCorrectionNativeRequire(opened["ready"] == 1 && opened["isActive"] == 1 && opened["waitInvalidated"] != 1,
             "Explicit window opening did not reach readiness: \(opened); no second command or launch")
+        try portfolioCorrectionNativeStartupWindows(app)
+        portfolioCorrectionNativeStartupEmit(opened, stage: "ready-after-command-N", ownership: ownership)
     }
 
     @MainActor
@@ -5538,6 +5578,9 @@ final class AureusUITests: XCTestCase {
         var launchStarted: Date?
         var running: NSRunningApplication?
         var windowCommands = 0
+        var initialActivations = 0
+        var foregroundRecoveries = 0
+        var axObservations = 0
         init(productURL: URL) {
             self.productURL = productURL.standardizedFileURL
             self.executableURL = productURL.appendingPathComponent("Contents/MacOS/AureusDev").standardizedFileURL
@@ -5589,9 +5632,11 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func portfolioCorrectionNativeStartupWait(_ app: XCUIApplication,
-        ownership: portfolioCorrectionNativeStartupOwnership, phase: String, timeout: TimeInterval) -> [String: Int] {
+        ownership: portfolioCorrectionNativeStartupOwnership, phase: String, timeout: TimeInterval,
+        foregroundOnly: Bool = false, requireActive: Bool = false) -> [String: Int] {
         let started = Date()
         var previous: [String: Int] = [:]
+        var invalidated = false
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             MainActor.assumeIsolated {
                 let state = self.portfolioCorrectionNativeStartupState(app, ownership: ownership)
@@ -5599,11 +5644,18 @@ final class AureusUITests: XCTestCase {
                     self.portfolioCorrectionNativeStartupEmit(state, stage: phase + "-state-change", ownership: ownership)
                     previous = state
                 }
-                return state["ready"] == 1
+                if phase != "natural" {
+                    invalidated = invalidated || !self.portfolioCorrectionNativeStartupForegroundSafe(state)
+                        || (requireActive && (state["foreground"] != 1 || state["isActive"] != 1))
+                }
+                return invalidated || (foregroundOnly
+                    ? state["foreground"] == 1 && state["isActive"] == 1
+                    : state["ready"] == 1 && (!requireActive || state["isActive"] == 1))
             }
         }, object: nil)
         let waited = XCTWaiter.wait(for: [expectation], timeout: timeout)
-        let final = portfolioCorrectionNativeStartupState(app, ownership: ownership)
+        var final = portfolioCorrectionNativeStartupState(app, ownership: ownership)
+        final["waitInvalidated"] = invalidated ? 1 : 0
         portfolioCorrectionNativeStartupEmit(final, stage: phase + "-final", ownership: ownership,
             extra: ["elapsedSeconds": Date().timeIntervalSince(started), "waitBudgetSeconds": timeout,
                 "waitCompleted": waited == .completed])
@@ -5613,13 +5665,17 @@ final class AureusUITests: XCTestCase {
     @MainActor
     private func portfolioCorrectionNativeStartupState(_ app: XCUIApplication,
         ownership: portfolioCorrectionNativeStartupOwnership) -> [String: Int] {
+        let applicationState = app.state
         let windows = app.windows
         let count = windows.count
         let nodes = app.descendants(matching: .any)
         var state = portfolioCorrectionNativeStartupIdentity(ownership)
         state.merge(["windowCount": count, "progressCount": nodes.matching(identifier: "startup.progress").count,
             "errorCount": nodes.matching(identifier: "startup.error").count,
-            "appState": Int(app.state.rawValue), "foreground": app.state == .runningForeground ? 1 : 0]) { _, b in b }
+            "appState": Int(applicationState.rawValue), "foreground": applicationState == .runningForeground ? 1 : 0]) { _, b in b }
+        let valid = state["identityValid"] == 1
+        state["isActive"] = valid ? (ownership.running?.isActive == true ? 1 : 0) : -1
+        state["isHidden"] = valid ? (ownership.running?.isHidden == true ? 1 : 0) : -1
         for name in ["dashboard", "portfolio", "wealth"] {
             state[name + "Count"] = nodes.matching(identifier: "sidebar.\(name)").count
             state[name + "OwnedCount"] = count == 1
@@ -5646,7 +5702,11 @@ final class AureusUITests: XCTestCase {
             record["executablePath"] = ownership.executableURL.path
             record["boundPID"] = ownership.running?.processIdentifier ?? -1
             record["launchUTC"] = ownership.launchStarted.map { ISO8601DateFormatter().string(from: $0) }
+            record["boundLaunchUTC"] = ownership.running?.launchDate.map { ISO8601DateFormatter().string(from: $0) }
             record["windowCommands"] = ownership.windowCommands
+            record["initialActivations"] = ownership.initialActivations
+            record["foregroundRecoveries"] = ownership.foregroundRecoveries
+            record["axObservations"] = ownership.axObservations
         }
         if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
             print("PORTFOLIO_NATIVE_STARTUP \(String(decoding: data, as: UTF8.self))")
@@ -5655,7 +5715,7 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func portfolioCorrectionNativeStartupMayOpen(_ state: [String: Int]) -> Bool {
-        state["identityValid"] == 1 && state["foreground"] == 1
+        state["identityValid"] == 1 && state["foreground"] == 1 && state["isActive"] == 1
             && state["windowCount"] == 0 && state["progressCount"] == 0 && state["errorCount"] == 0
             && ["dashboard", "portfolio", "wealth"].allSatisfy {
                 state[$0 + "Count"] == 0 && state[$0 + "OwnedCount"] == 0
@@ -5663,28 +5723,81 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
-    private func portfolioCorrectionNativeStartupAXWindowCount(_ ownership: portfolioCorrectionNativeStartupOwnership) -> Int? {
+    private func portfolioCorrectionNativeStartupAXWindowCount(_ ownership: portfolioCorrectionNativeStartupOwnership,
+        phase: String) -> Int? {
         let identity = portfolioCorrectionNativeStartupIdentity(ownership)
         let trusted = AXIsProcessTrusted()
-        guard identity["identityValid"] == 1, trusted, let running = ownership.running else {
-            portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows", ownership: ownership,
-                extra: ["trusted": trusted, "status": "NOT VERIFIED", "windowCount": NSNull()])
+        guard ownership.axObservations < 3, identity["identityValid"] == 1, trusted, let running = ownership.running else {
+            portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows-" + phase, ownership: ownership,
+                extra: ["trusted": trusted, "status": "NOT VERIFIED", "windowCount": NSNull(),
+                    "reason": identity["identityValid"] != 1 ? "invalid-identity" : (!trusted ? "untrusted-client" : "observation-budget")])
             return nil
         }
+        ownership.axObservations += 1
         let application = AXUIElementCreateApplication(running.processIdentifier)
         let timeoutStatus = AXUIElementSetMessagingTimeout(application, 2)
         guard timeoutStatus == .success else {
-            portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows", ownership: ownership,
+            portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows-" + phase, ownership: ownership,
                 extra: ["trusted": trusted, "status": "NOT VERIFIED", "timeoutError": timeoutStatus.rawValue, "windowCount": NSNull()])
             return nil
         }
         var count: CFIndex = -1
         let status = AXUIElementGetAttributeValueCount(application, kAXWindowsAttribute as CFString, &count)
         let verified = status == .success && count >= 0
-        portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows", ownership: ownership,
+        portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows-" + phase, ownership: ownership,
             extra: ["trusted": trusted, "status": verified ? "VERIFIED count only" : "NOT VERIFIED",
                 "error": status.rawValue, "windowCount": verified ? count as Any : NSNull()])
         return verified ? count : nil
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupForegroundSafe(_ state: [String: Int]) -> Bool {
+        state["identityValid"] == 1 && state["devInstanceCount"] == 1 && state["errorCount"] == 0
+            && [0, 1].contains(state["windowCount"] ?? -1)
+            && [Int(XCUIApplication.State.runningBackground.rawValue), Int(XCUIApplication.State.runningForeground.rawValue)]
+                .contains(state["appState"] ?? -1)
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupForegroundRecover(_ app: XCUIApplication,
+        ownership: portfolioCorrectionNativeStartupOwnership, axCount: Int?) throws {
+        let before = portfolioCorrectionNativeStartupState(app, ownership: ownership)
+        portfolioCorrectionNativeStartupEmit(before, stage: "before-foreground-recovery", ownership: ownership,
+            extra: ["reason": "XCTest background or bound instance inactive", "precedingAXCount": axCount as Any? ?? NSNull()])
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeStartupForegroundSafe(before)
+            && (before["foreground"] != 1 || before["isActive"] != 1)
+            && ownership.foregroundRecoveries == 0 && (axCount == nil || axCount! <= 1),
+            "One foreground recovery requires the same running instance and no multiwindow evidence: \(before)")
+        let identity = portfolioCorrectionNativeStartupIdentity(ownership)
+        portfolioCorrectionNativeStartupEmit(identity, stage: "immediately-before-recovery-identity", ownership: ownership)
+        try portfolioCorrectionNativeRequire(identity["identityValid"] == 1, "Identity lost before recovery; activate could launch")
+        let launchDate = ownership.running?.launchDate
+        ownership.foregroundRecoveries = 1
+        app.activate()
+        let after = portfolioCorrectionNativeStartupIdentity(ownership)
+        portfolioCorrectionNativeStartupEmit(after, stage: "after-recovery-identity", ownership: ownership)
+        try portfolioCorrectionNativeRequire(after["identityValid"] == 1 && launchDate != nil
+            && ownership.running?.launchDate == launchDate, "Identity changed during foreground recovery")
+        let recovered = portfolioCorrectionNativeStartupWait(app, ownership: ownership,
+            phase: "foreground-recovery", timeout: 5, foregroundOnly: true)
+        if recovered["foreground"] != 1 || recovered["isActive"] != 1 || recovered["waitInvalidated"] == 1 {
+            portfolioCorrectionNativeStartupForegroundFailure(app, ownership: ownership, phase: "foreground-recovery-failed")
+        }
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeStartupForegroundSafe(recovered)
+            && recovered["foreground"] == 1 && recovered["isActive"] == 1 && recovered["waitInvalidated"] != 1,
+            "One foreground recovery did not establish both foreground observations: \(recovered)")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupForegroundFailure(_ app: XCUIApplication,
+        ownership: portfolioCorrectionNativeStartupOwnership, phase: String) {
+        let identity = portfolioCorrectionNativeStartupIdentity(ownership)
+        portfolioCorrectionNativeStartupEmit(identity, stage: phase + "-identity", ownership: ownership)
+        if identity["identityValid"] == 1 {
+            portfolioCorrectionNativeStartupEmit(portfolioCorrectionNativeStartupState(app, ownership: ownership),
+                stage: phase + "-state", ownership: ownership)
+        }
+        _ = portfolioCorrectionNativeStartupAXWindowCount(ownership, phase: phase)
     }
 
     @MainActor
@@ -5779,18 +5892,33 @@ final class AureusUITests: XCTestCase {
         let rowCount = rows.count
         let ownedCount = rowCount == 1
             ? rows.element(boundBy: 0).descendants(matching: .any).matching(identifier: identifier).count : 0
+        let bounded = rawCount <= 40 && rowCount <= 40
+        let exact = bounded && rawCount == 1 ? labels.element(boundBy: 0) : nil
+        let row = bounded && rawCount > 0 && rowCount == 1 ? rows.element(boundBy: 0) : nil
+        let exactID = exact?.identifier ?? "", rowID = row?.identifier ?? ""
+        let exactEnabled = exact?.isEnabled ?? false, exactHittable = exact?.isHittable ?? false
+        let rowEnabled = row?.isEnabled ?? false, rowHittable = row?.isHittable ?? false
         let target: XCUIElement?
         let reason: String
-        if rawCount == 0 { target = nil; reason = "missing-target" }
-        else if rawCount > 40 || rowCount > 40 { target = nil; reason = "candidate-bound" }
-        else if rowCount == 1 && ownedCount == rawCount { target = rows.element(boundBy: 0); reason = "one-owning-native-row" }
-        else if rowCount == 0 && rawCount == 1 { target = labels.element(boundBy: 0); reason = "one-exact-item-without-row" }
-        else { target = nil; reason = "ambiguous-or-unowned" }
-        let enabled = target?.isEnabled ?? false, hittable = target?.isHittable ?? false
-        let targetID = target?.identifier ?? ""
+        let selectedKind: String
+        if !bounded { target = nil; selectedKind = "none"; reason = "candidate-bound" }
+        else if rawCount == 0 { target = nil; selectedKind = "none"; reason = "missing-target" }
+        else if rawCount == 1 && (rowCount == 0 || (rowCount == 1 && ownedCount == 1))
+            && exactID == identifier && exactID.count <= 256 && exactEnabled && exactHittable {
+            target = exact; selectedKind = "exact"; reason = "unique-interactive-exact-target"
+        } else if rowCount == 1 && ownedCount == rawCount && rowID.count <= 256 && rowEnabled && rowHittable {
+            target = row; selectedKind = "row"; reason = "unique-interactive-owning-row-fallback"
+        } else {
+            target = nil; selectedKind = "none"
+            reason = rowCount > 1 || (rowCount == 1 && ownedCount != rawCount) || (rowCount == 0 && rawCount != 1)
+                ? "ambiguous-or-unowned" : "no-legal-interactive-candidate"
+        }
+        let enabled = selectedKind == "exact" ? exactEnabled : (selectedKind == "row" && rowEnabled)
+        let hittable = selectedKind == "exact" ? exactHittable : (selectedKind == "row" && rowHittable)
+        let targetID = selectedKind == "exact" ? exactID : (selectedKind == "row" ? rowID : "")
         let identity = target.map { "\($0.elementType.rawValue)|\(targetID)|\($0.frame)|\(window.frame)" } ?? ""
         let ready = target != nil && targetID.count <= 256 && enabled && hittable && app.state == .runningForeground
-        return (target, ready, "windowCount=\(windowCount) rawTargetCount=\(rawCount) rowCount=\(rowCount) rowOwnedCount=\(ownedCount) enabled=\(enabled) hittable=\(hittable) ready=\(ready) reason=\(reason)", identity)
+        return (target, ready, "windowCount=\(windowCount) rawTargetCount=\(rawCount) rowCount=\(rowCount) rowOwnedCount=\(ownedCount) exactSampled=\(exact != nil) exactEnabled=\(exactEnabled) exactHittable=\(exactHittable) rowSampled=\(row != nil) rowEnabled=\(rowEnabled) rowHittable=\(rowHittable) selectedKind=\(selectedKind) enabled=\(enabled) hittable=\(hittable) ready=\(ready) reason=\(reason)", identity)
     }
 
     @MainActor
