@@ -5478,8 +5478,90 @@ final class AureusUITests: XCTestCase {
 
     @MainActor
     private func portfolioCorrectionNativeNavigate(_ app: XCUIApplication, destination: String) throws {
-        try portfolioCorrectionNativeClick(app, "sidebar.\(destination)")
-        _ = try portfolioCorrectionNativeElement(app, destination == "portfolio" ? "portfolio.page" : "wealth.add")
+        try portfolioCorrectionNativeRequire(["portfolio", "wealth"].contains(destination)
+            && app.launchArguments.contains("--aureus-ui-testing"), "Owned synthetic sidebar destination required")
+        let identifier = "sidebar.\(destination)"
+        _ = try portfolioCorrectionNativeElement(app, identifier)
+        var target = try portfolioCorrectionNativeSidebarTarget(app, identifier, stage: "initial")
+        if app.state != .runningForeground || !target.isHittable {
+            app.activate() // At most one activation; never restore or create a window here.
+            target = try portfolioCorrectionNativeSidebarTarget(app, identifier, stage: "after-activate")
+        }
+        for step in 0..<2 where !target.isHittable {
+            let scrolls = app.scrollViews.containing(.any, identifier: identifier)
+            try portfolioCorrectionNativeSidebarObserve(scrolls, identifier, relation: "target-owning-sidebar-scroll", stage: "scroll-\(step)")
+            try portfolioCorrectionNativeRequire(scrolls.count == 1, "Unique target-owning sidebar scroll region required")
+            let scroll = scrolls.element(boundBy: 0)
+            try portfolioCorrectionNativeRequire(scroll.descendants(matching: .any).matching(identifier: identifier).count == 1
+                && scroll.isEnabled && scroll.isHittable, "Sidebar scroll ownership and readiness")
+            let frame = target.frame, viewport = scroll.frame
+            try portfolioCorrectionNativeRequire(!frame.isEmpty && !viewport.isEmpty
+                && (frame.maxY < viewport.minY || frame.minY > viewport.maxY), "Sidebar target is not demonstrably outside its own viewport")
+            scroll.scroll(byDeltaX: 0, deltaY: frame.maxY < viewport.minY ? 140 : -140)
+            target = try portfolioCorrectionNativeSidebarTarget(app, identifier, stage: "after-scroll-\(step)")
+        }
+        try portfolioCorrectionNativeWait("Owned sidebar target must be ready") {
+            let labels = app.descendants(matching: .any).matching(identifier: identifier)
+            guard labels.count == 1 else { return false }
+            let rows = app.descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@",
+                [XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue]))
+                .containing(.any, identifier: identifier)
+            guard rows.count <= 1 else { return false }
+            let candidate = rows.count == 1 ? rows.element(boundBy: 0) : labels.element(boundBy: 0)
+            return app.state == .runningForeground && candidate.isEnabled && candidate.isHittable
+        }
+        target = try portfolioCorrectionNativeSidebarTarget(app, identifier, stage: "before-single-selection")
+        try portfolioCorrectionNativeRequire(target.isEnabled && target.isHittable, "Owned sidebar target is not interactive")
+        target.click()
+        let page = destination == "portfolio" ? "portfolio.page" : "wealth.add"
+        _ = try portfolioCorrectionNativeElement(app, page)
+        print("PORTFOLIO_NATIVE_SIDEBAR {\"stage\":\"navigation-complete\",\"destination\":\"\(destination)\",\"postcondition\":\"\(page)\",\"matches\":1,\"selections\":1}")
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeSidebarTarget(_ app: XCUIApplication, _ identifier: String,
+        stage: String) throws -> XCUIElement {
+        let labels = app.descendants(matching: .any).matching(identifier: identifier)
+        try portfolioCorrectionNativeSidebarObserve(labels, identifier, relation: "exact-sidebar-item", stage: stage)
+        try portfolioCorrectionNativeRequire(labels.count == 1, "Unique exact sidebar identifier required")
+        let label = labels.element(boundBy: 0)
+        try portfolioCorrectionNativeRequire(label.identifier == identifier && label.isEnabled, "Exact enabled sidebar identity required")
+        let windows = app.windows.containing(.any, identifier: identifier)
+        try portfolioCorrectionNativeSidebarObserve(windows, identifier, relation: "target-owning-App-window", stage: stage)
+        try portfolioCorrectionNativeRequire(windows.count == 1, "Unique App window containing sidebar target required")
+        let rows = windows.element(boundBy: 0).descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@",
+            [XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue]))
+            .containing(.any, identifier: identifier)
+        try portfolioCorrectionNativeSidebarObserve(rows, identifier, relation: "native-row-containing-exact-item", stage: stage)
+        try portfolioCorrectionNativeRequire(rows.count <= 1, "Sidebar native row ownership is ambiguous")
+        guard rows.count == 1 else { return label }
+        let row = rows.element(boundBy: 0)
+        try portfolioCorrectionNativeRequire(row.descendants(matching: .any).matching(identifier: identifier).count == 1
+            && row.isEnabled, "Native row must own exactly the enabled sidebar item")
+        return row
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeSidebarObserve(_ query: XCUIElementQuery, _ identifier: String,
+        relation: String, stage: String) throws {
+        let count = query.count
+        print("PORTFOLIO_NATIVE_SIDEBAR {\"stage\":\"\(stage)\",\"target\":\"\(identifier)\",\"relation\":\"\(relation)\",\"queryCount\":\(count),\"truncated\":\(count > 40)}")
+        try portfolioCorrectionNativeRequire(count <= 40, "Sidebar observation exceeds bounded candidate set")
+        for index in 0..<count {
+            let e = query.element(boundBy: index), id = e.identifier, label = e.label, value = e.value as? String
+            let truncated = id.count > 256 || label.count > 256 || (value?.count ?? 0) > 256
+            let frame = e.frame
+            let record: [String: Any] = ["stage": stage, "target": identifier, "relation": relation,
+                "queryCount": count, "enumerationIndex": index, "elementType": e.elementType.rawValue,
+                "identifier": String(id.prefix(256)), "label": String(label.prefix(256)),
+                "stringValue": value.map { String($0.prefix(256)) as Any } ?? NSNull(),
+                "enabled": e.isEnabled, "hittable": e.isHittable,
+                "frame": [frame.origin.x, frame.origin.y, frame.width, frame.height], "truncated": truncated]
+            let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+            print("PORTFOLIO_NATIVE_SIDEBAR \(String(decoding: data, as: UTF8.self))")
+            try portfolioCorrectionNativeRequire(!truncated, "Incomplete sidebar observation")
+        }
+        try portfolioCorrectionNativeRequire(query.count == count, "Sidebar observation query changed")
     }
 
     @MainActor
