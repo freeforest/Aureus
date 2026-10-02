@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import XCTest
 
 final class AureusUITests: XCTestCase {
@@ -466,7 +467,7 @@ final class AureusUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
             + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        launchApp(app)
+        try portfolioCorrectionNativeLaunch(app)
         defer { app.terminate() }
 
         app.descendants(matching: .any)["sidebar.portfolio"].click()
@@ -566,7 +567,7 @@ final class AureusUITests: XCTestCase {
         let production = XCUIApplication()
         production.launchArguments = uiTestingArguments()
             + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        launchApp(production)
+        try portfolioCorrectionNativeLaunch(production)
         defer { production.terminate() }
         production.descendants(matching: .any)["sidebar.portfolio"].click()
         XCTAssertTrue(production.descendants(matching: .any)["portfolio.empty"].waitForExistence(timeout: 5))
@@ -582,7 +583,7 @@ final class AureusUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
             + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        launchApp(app)
+        try portfolioCorrectionNativeLaunch(app)
         defer { app.terminate() }
         try portfolioCorrectionNativeNavigate(app, destination: "portfolio")
         let id = "00000000-0000-4000-8000-000000008003"
@@ -653,7 +654,7 @@ final class AureusUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
             + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        launchApp(app)
+        try portfolioCorrectionNativeLaunch(app)
         defer { app.terminate() }
         try portfolioCorrectionNativeNavigate(app, destination: "portfolio")
         let id = "00000000-0000-4000-8000-000000008004"
@@ -717,7 +718,7 @@ final class AureusUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments(demo: true)
             + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        launchApp(app)
+        try portfolioCorrectionNativeLaunch(app)
         defer { app.terminate() }
         try portfolioCorrectionNativeNavigate(app, destination: "portfolio")
         try portfolioCorrectionNativeHolding(app, symbol: "SYNX", quantity: "20.5")
@@ -794,7 +795,7 @@ final class AureusUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = uiTestingArguments()
             + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        launchApp(app)
+        try portfolioCorrectionNativeLaunch(app)
         defer { app.terminate() }
         try portfolioCorrectionNativeNavigate(app, destination: "wealth")
         try portfolioCorrectionNativeCreateSecurity(app, name: "Synthetic Native Stock A", symbol: "SYNRA", quantity: "20", price: "3")
@@ -5477,76 +5478,327 @@ final class AureusUITests: XCTestCase {
     }
 
     @MainActor
+    private func portfolioCorrectionNativeLaunch(_ app: XCUIApplication) throws {
+        let arguments = app.launchArguments
+        let expected = uiTestingArguments(demo: arguments.contains("--aureus-demo"))
+            + ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        let runner = Bundle.main
+        let ui = Bundle(for: type(of: self))
+        let productURL = runner.bundleURL.deletingLastPathComponent().appendingPathComponent("AureusDev.app")
+        let product = Bundle(url: productURL)
+        try portfolioCorrectionNativeRequire(arguments == expected
+            && runner.bundleIdentifier == "com.aureus.wealthterminal.uitests.xctrunner"
+            && ui.bundleIdentifier == "com.aureus.wealthterminal.uitests"
+            && product?.bundleIdentifier == "com.aureus.wealthterminal.dev"
+            && (product?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String) == "Aureus Dev",
+            "Verified isolated Runner/UI/Dev identity and unchanged UI-testing arguments required")
+        let ownership = portfolioCorrectionNativeStartupOwnership(productURL: productURL)
+        let existing = NSRunningApplication.runningApplications(withBundleIdentifier: "com.aureus.wealthterminal.dev")
+        portfolioCorrectionNativeStartupEmit(["existingDevCount": existing.count], stage: "before-launch")
+        try portfolioCorrectionNativeRequire(existing.isEmpty, "Existing Dev instance is not owned by this launch; no termination")
+        addTeardownBlock { @MainActor [self] in
+            portfolioCorrectionNativeStartupTeardown(app, ownership: ownership)
+        }
+        ownership.launchStarted = Date()
+        app.launch()
+        let launched = NSRunningApplication.runningApplications(withBundleIdentifier: "com.aureus.wealthterminal.dev")
+        if launched.count == 1, portfolioCorrectionNativeStartupMatches(launched[0], ownership: ownership) {
+            ownership.running = launched[0]
+        }
+        let bound = portfolioCorrectionNativeStartupIdentity(ownership)
+        portfolioCorrectionNativeStartupEmit(bound, stage: "after-launch-identity", ownership: ownership)
+        try portfolioCorrectionNativeRequire(bound["identityValid"] == 1, "Launched Dev PID/path could not be uniquely bound")
+        // activate can launch a stopped App; verify the existing owned process first.
+        app.activate()
+        let natural = portfolioCorrectionNativeStartupWait(app, ownership: ownership, phase: "natural", timeout: 15)
+        try portfolioCorrectionNativeStartupWindows(app)
+        if natural["ready"] == 1 { return }
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeStartupMayOpen(natural),
+            "Natural startup is not eligible for explicit window opening: \(natural)")
+        let axCount = portfolioCorrectionNativeStartupAXWindowCount(ownership)
+        try portfolioCorrectionNativeRequire(axCount == nil || axCount == 0,
+            "AXWindows reports an existing window while XCTest reports zero; no Command-N")
+        let beforeCommand = portfolioCorrectionNativeStartupState(app, ownership: ownership)
+        portfolioCorrectionNativeStartupEmit(beforeCommand, stage: "before-command-N", ownership: ownership)
+        try portfolioCorrectionNativeRequire(portfolioCorrectionNativeStartupMayOpen(beforeCommand)
+            && ownership.windowCommands == 0, "Window-opening eligibility changed before command")
+        ownership.windowCommands = 1
+        portfolioCorrectionNativeStartupEmit(["commandCount": 1], stage: "issuing-command-N", ownership: ownership)
+        app.typeKey("n", modifierFlags: [.command])
+        let opened = portfolioCorrectionNativeStartupWait(app, ownership: ownership, phase: "explicit-window", timeout: 10)
+        try portfolioCorrectionNativeStartupWindows(app)
+        try portfolioCorrectionNativeRequire(opened["ready"] == 1,
+            "Explicit window opening did not reach readiness: \(opened); no second command or launch")
+    }
+
+    @MainActor
+    private final class portfolioCorrectionNativeStartupOwnership {
+        let productURL: URL
+        let executableURL: URL
+        var launchStarted: Date?
+        var running: NSRunningApplication?
+        var windowCommands = 0
+        init(productURL: URL) {
+            self.productURL = productURL.standardizedFileURL
+            self.executableURL = productURL.appendingPathComponent("Contents/MacOS/AureusDev").standardizedFileURL
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupMatches(_ running: NSRunningApplication,
+        ownership: portfolioCorrectionNativeStartupOwnership) -> Bool {
+        guard let started = ownership.launchStarted, let date = running.launchDate else { return false }
+        return running.bundleIdentifier == "com.aureus.wealthterminal.dev"
+            && running.bundleURL?.standardizedFileURL == ownership.productURL
+            && running.executableURL?.standardizedFileURL == ownership.executableURL
+            && running.processIdentifier > 0 && !running.isTerminated && date >= started
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupIdentity(_ ownership: portfolioCorrectionNativeStartupOwnership) -> [String: Int] {
+        let candidates = NSRunningApplication.runningApplications(withBundleIdentifier: "com.aureus.wealthterminal.dev")
+        let valid = candidates.count == 1 && ownership.running != nil
+            && candidates[0].isEqual(ownership.running)
+            && candidates[0].processIdentifier == ownership.running?.processIdentifier
+            && portfolioCorrectionNativeStartupMatches(candidates[0], ownership: ownership)
+        return ["devInstanceCount": candidates.count, "identityValid": valid ? 1 : 0,
+            "pid": Int(ownership.running?.processIdentifier ?? -1)]
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupTeardown(_ app: XCUIApplication,
+        ownership: portfolioCorrectionNativeStartupOwnership) {
+        portfolioCorrectionNativeStartupEmit(["entered": 1], stage: "teardown-enter", ownership: ownership)
+        // launch itself may abort before post-launch binding. The empty preflight,
+        // exact paths and launch date still have to prove ownership before cleanup.
+        if ownership.running == nil {
+            let candidates = NSRunningApplication.runningApplications(withBundleIdentifier: "com.aureus.wealthterminal.dev")
+            if candidates.count == 1, portfolioCorrectionNativeStartupMatches(candidates[0], ownership: ownership) {
+                ownership.running = candidates[0]
+            }
+        }
+        let identity = portfolioCorrectionNativeStartupIdentity(ownership)
+        let terminate = identity["identityValid"] == 1
+        portfolioCorrectionNativeStartupEmit(identity.merging(["willTerminate": terminate ? 1 : 0]) { _, b in b },
+            stage: "teardown-decision", ownership: ownership)
+        if terminate { app.terminate() }
+        portfolioCorrectionNativeStartupEmit(["terminatedByTeardown": terminate ? 1 : 0,
+            "boundProcessTerminated": ownership.running?.isTerminated == true ? 1 : 0,
+            "appState": Int(app.state.rawValue)], stage: "teardown-end", ownership: ownership)
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupWait(_ app: XCUIApplication,
+        ownership: portfolioCorrectionNativeStartupOwnership, phase: String, timeout: TimeInterval) -> [String: Int] {
+        let started = Date()
+        var previous: [String: Int] = [:]
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            MainActor.assumeIsolated {
+                let state = self.portfolioCorrectionNativeStartupState(app, ownership: ownership)
+                if state != previous {
+                    self.portfolioCorrectionNativeStartupEmit(state, stage: phase + "-state-change", ownership: ownership)
+                    previous = state
+                }
+                return state["ready"] == 1
+            }
+        }, object: nil)
+        let waited = XCTWaiter.wait(for: [expectation], timeout: timeout)
+        let final = portfolioCorrectionNativeStartupState(app, ownership: ownership)
+        portfolioCorrectionNativeStartupEmit(final, stage: phase + "-final", ownership: ownership,
+            extra: ["elapsedSeconds": Date().timeIntervalSince(started), "waitBudgetSeconds": timeout,
+                "waitCompleted": waited == .completed])
+        return final
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupState(_ app: XCUIApplication,
+        ownership: portfolioCorrectionNativeStartupOwnership) -> [String: Int] {
+        let windows = app.windows
+        let count = windows.count
+        let nodes = app.descendants(matching: .any)
+        var state = portfolioCorrectionNativeStartupIdentity(ownership)
+        state.merge(["windowCount": count, "progressCount": nodes.matching(identifier: "startup.progress").count,
+            "errorCount": nodes.matching(identifier: "startup.error").count,
+            "appState": Int(app.state.rawValue), "foreground": app.state == .runningForeground ? 1 : 0]) { _, b in b }
+        for name in ["dashboard", "portfolio", "wealth"] {
+            state[name + "Count"] = nodes.matching(identifier: "sidebar.\(name)").count
+            state[name + "OwnedCount"] = count == 1
+                ? windows.element(boundBy: 0).descendants(matching: .any).matching(identifier: "sidebar.\(name)").count : 0
+        }
+        let owned = ["dashboard", "portfolio", "wealth"].allSatisfy {
+            let total = state[$0 + "Count"] ?? 0
+            return total > 0 && total <= 40 && total == state[$0 + "OwnedCount"]
+        }
+        state["ready"] = count == 1 && state["progressCount"] == 0 && state["errorCount"] == 0
+            && state["foreground"] == 1 && state["identityValid"] == 1 && owned ? 1 : 0
+        return state
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupEmit(_ state: [String: Int], stage: String,
+        ownership: portfolioCorrectionNativeStartupOwnership? = nil, extra: [String: Any] = [:]) {
+        var record: [String: Any] = state
+        record.merge(extra) { _, b in b }
+        record["stage"] = stage
+        record["utc"] = ISO8601DateFormatter().string(from: Date())
+        if let ownership {
+            record["productPath"] = ownership.productURL.path
+            record["executablePath"] = ownership.executableURL.path
+            record["boundPID"] = ownership.running?.processIdentifier ?? -1
+            record["launchUTC"] = ownership.launchStarted.map { ISO8601DateFormatter().string(from: $0) }
+            record["windowCommands"] = ownership.windowCommands
+        }
+        if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
+            print("PORTFOLIO_NATIVE_STARTUP \(String(decoding: data, as: UTF8.self))")
+        }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupMayOpen(_ state: [String: Int]) -> Bool {
+        state["identityValid"] == 1 && state["foreground"] == 1
+            && state["windowCount"] == 0 && state["progressCount"] == 0 && state["errorCount"] == 0
+            && ["dashboard", "portfolio", "wealth"].allSatisfy {
+                state[$0 + "Count"] == 0 && state[$0 + "OwnedCount"] == 0
+            }
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupAXWindowCount(_ ownership: portfolioCorrectionNativeStartupOwnership) -> Int? {
+        let identity = portfolioCorrectionNativeStartupIdentity(ownership)
+        let trusted = AXIsProcessTrusted()
+        guard identity["identityValid"] == 1, trusted, let running = ownership.running else {
+            portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows", ownership: ownership,
+                extra: ["trusted": trusted, "status": "NOT VERIFIED", "windowCount": NSNull()])
+            return nil
+        }
+        let application = AXUIElementCreateApplication(running.processIdentifier)
+        let timeoutStatus = AXUIElementSetMessagingTimeout(application, 2)
+        guard timeoutStatus == .success else {
+            portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows", ownership: ownership,
+                extra: ["trusted": trusted, "status": "NOT VERIFIED", "timeoutError": timeoutStatus.rawValue, "windowCount": NSNull()])
+            return nil
+        }
+        var count: CFIndex = -1
+        let status = AXUIElementGetAttributeValueCount(application, kAXWindowsAttribute as CFString, &count)
+        let verified = status == .success && count >= 0
+        portfolioCorrectionNativeStartupEmit(identity, stage: "direct-AX-windows", ownership: ownership,
+            extra: ["trusted": trusted, "status": verified ? "VERIFIED count only" : "NOT VERIFIED",
+                "error": status.rawValue, "windowCount": verified ? count as Any : NSNull()])
+        return verified ? count : nil
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeStartupWindows(_ app: XCUIApplication) throws {
+        let windows = app.windows
+        let count = windows.count
+        print("PORTFOLIO_NATIVE_STARTUP windowSnapshotCount=\(count) truncated=\(count > 40)")
+        try portfolioCorrectionNativeRequire(count <= 40, "Startup window observation bound")
+        for index in 0..<count {
+            let window = windows.element(boundBy: index), identifier = window.identifier, frame = window.frame
+            let record: [String: Any] = ["stage": "window-final", "windowCount": count,
+                "elementType": window.elementType.rawValue, "identifier": String(identifier.prefix(256)),
+                "enabled": window.isEnabled, "hittable": window.isHittable,
+                "frame": [frame.origin.x, frame.origin.y, frame.width, frame.height],
+                "truncated": identifier.count > 256]
+            let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+            print("PORTFOLIO_NATIVE_STARTUP \(String(decoding: data, as: UTF8.self))")
+            try portfolioCorrectionNativeRequire(identifier.count <= 256, "Startup window identifier truncated")
+        }
+        let after = windows.count
+        print("PORTFOLIO_NATIVE_STARTUP windowSnapshotBefore=\(count) after=\(after)")
+        try portfolioCorrectionNativeRequire(count == after, "Startup window count changed during final observation")
+    }
+
+    @MainActor
     private func portfolioCorrectionNativeNavigate(_ app: XCUIApplication, destination: String) throws {
         try portfolioCorrectionNativeRequire(["portfolio", "wealth"].contains(destination)
             && app.launchArguments.contains("--aureus-ui-testing"), "Owned synthetic sidebar destination required")
         let identifier = "sidebar.\(destination)"
-        _ = try portfolioCorrectionNativeElement(app, identifier)
-        var target = try portfolioCorrectionNativeSidebarTarget(app, identifier, stage: "initial")
-        if app.state != .runningForeground || !target.isHittable {
-            app.activate() // At most one activation; never restore or create a window here.
-            target = try portfolioCorrectionNativeSidebarTarget(app, identifier, stage: "after-activate")
+        if app.state != .runningForeground { app.activate() }
+        var previous = ""
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            MainActor.assumeIsolated {
+                let state = self.portfolioCorrectionNativeSidebarTarget(app, identifier)
+                if state.detail != previous {
+                    print("PORTFOLIO_NATIVE_SIDEBAR stage=readiness target=\(identifier) \(state.detail)")
+                    previous = state.detail
+                }
+                return state.ready
+            }
+        }, object: nil)
+        let waited = XCTWaiter.wait(for: [expectation], timeout: 5)
+        let observed = portfolioCorrectionNativeSidebarTarget(app, identifier)
+        print("PORTFOLIO_NATIVE_SIDEBAR stage=after-wait target=\(identifier) \(observed.detail)")
+        let windowCount = app.windows.count
+        print("PORTFOLIO_NATIVE_SIDEBAR stage=snapshot-window target=\(identifier) windowCount=\(windowCount)")
+        if windowCount == 1 {
+            let window = app.windows.element(boundBy: 0)
+            try portfolioCorrectionNativeSidebarObserve(window.descendants(matching: .any).matching(identifier: identifier),
+                identifier, relation: "exact-target-in-main-window", stage: "after-wait")
+            try portfolioCorrectionNativeSidebarObserve(window.descendants(matching: .any)
+                .matching(NSPredicate(format: "elementType IN %@",
+                    [XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue]))
+                .containing(.any, identifier: identifier),
+                identifier, relation: "native-row-containing-target", stage: "after-wait")
         }
-        for step in 0..<2 where !target.isHittable {
-            let scrolls = app.scrollViews.containing(.any, identifier: identifier)
-            try portfolioCorrectionNativeSidebarObserve(scrolls, identifier, relation: "target-owning-sidebar-scroll", stage: "scroll-\(step)")
-            try portfolioCorrectionNativeRequire(scrolls.count == 1, "Unique target-owning sidebar scroll region required")
-            let scroll = scrolls.element(boundBy: 0)
-            try portfolioCorrectionNativeRequire(scroll.descendants(matching: .any).matching(identifier: identifier).count == 1
-                && scroll.isEnabled && scroll.isHittable, "Sidebar scroll ownership and readiness")
-            let frame = target.frame, viewport = scroll.frame
-            try portfolioCorrectionNativeRequire(!frame.isEmpty && !viewport.isEmpty
-                && (frame.maxY < viewport.minY || frame.minY > viewport.maxY), "Sidebar target is not demonstrably outside its own viewport")
-            scroll.scroll(byDeltaX: 0, deltaY: frame.maxY < viewport.minY ? 140 : -140)
-            target = try portfolioCorrectionNativeSidebarTarget(app, identifier, stage: "after-scroll-\(step)")
-        }
-        try portfolioCorrectionNativeWait("Owned sidebar target must be ready") {
-            let labels = app.descendants(matching: .any).matching(identifier: identifier)
-            guard labels.count == 1 else { return false }
-            let rows = app.descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@",
-                [XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue]))
-                .containing(.any, identifier: identifier)
-            guard rows.count <= 1 else { return false }
-            let candidate = rows.count == 1 ? rows.element(boundBy: 0) : labels.element(boundBy: 0)
-            return app.state == .runningForeground && candidate.isEnabled && candidate.isHittable
-        }
-        target = try portfolioCorrectionNativeSidebarTarget(app, identifier, stage: "before-single-selection")
-        try portfolioCorrectionNativeRequire(target.isEnabled && target.isHittable, "Owned sidebar target is not interactive")
+        try portfolioCorrectionNativeRequire(waited == .completed && observed.ready && windowCount == 1,
+            "Sidebar readiness failed: \(observed.detail), snapshotWindowCount=\(windowCount)")
+        let current = portfolioCorrectionNativeSidebarTarget(app, identifier)
+        print("PORTFOLIO_NATIVE_SIDEBAR stage=before-single-selection target=\(identifier) \(current.detail)")
+        try portfolioCorrectionNativeRequire(current.ready && current.detail == observed.detail
+            && current.identity == observed.identity,
+            "Sidebar changed before selection: previous \(observed.detail), current \(current.detail)")
+        guard let target = current.target else { throw portfolioCorrectionNativeError.invalidState }
         target.click()
         let page = destination == "portfolio" ? "portfolio.page" : "wealth.add"
-        _ = try portfolioCorrectionNativeElement(app, page)
-        print("PORTFOLIO_NATIVE_SIDEBAR {\"stage\":\"navigation-complete\",\"destination\":\"\(destination)\",\"postcondition\":\"\(page)\",\"matches\":1,\"selections\":1}")
+        try portfolioCorrectionNativeWait("Navigation destination \(page)") {
+            let windows = app.windows
+            let count = windows.count
+            return count == 1 && windows.element(boundBy: 0).descendants(matching: .any).matching(identifier: page).count == 1
+        }
+        let windows = app.windows, finalWindowCount = windows.count
+        let pageCount = finalWindowCount == 1
+            ? windows.element(boundBy: 0).descendants(matching: .any).matching(identifier: page).count : 0
+        print("PORTFOLIO_NATIVE_SIDEBAR stage=navigation-complete destination=\(destination) windowCount=\(finalWindowCount) pageCount=\(pageCount) selections=1")
+        try portfolioCorrectionNativeRequire(finalWindowCount == 1 && pageCount == 1, "Navigation postcondition changed")
     }
 
     @MainActor
-    private func portfolioCorrectionNativeSidebarTarget(_ app: XCUIApplication, _ identifier: String,
-        stage: String) throws -> XCUIElement {
-        let labels = app.descendants(matching: .any).matching(identifier: identifier)
-        try portfolioCorrectionNativeSidebarObserve(labels, identifier, relation: "exact-sidebar-item", stage: stage)
-        try portfolioCorrectionNativeRequire(labels.count == 1, "Unique exact sidebar identifier required")
-        let label = labels.element(boundBy: 0)
-        try portfolioCorrectionNativeRequire(label.identifier == identifier && label.isEnabled, "Exact enabled sidebar identity required")
-        let windows = app.windows.containing(.any, identifier: identifier)
-        try portfolioCorrectionNativeSidebarObserve(windows, identifier, relation: "target-owning-App-window", stage: stage)
-        try portfolioCorrectionNativeRequire(windows.count == 1, "Unique App window containing sidebar target required")
-        let rows = windows.element(boundBy: 0).descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@",
+    private func portfolioCorrectionNativeSidebarTarget(_ app: XCUIApplication, _ identifier: String)
+        -> (target: XCUIElement?, ready: Bool, detail: String, identity: String) {
+        let windows = app.windows, windowCount = windows.count
+        guard windowCount == 1 else {
+            return (nil, false, "windowCount=\(windowCount) rawTargetCount=NOT_QUERIED rowCount=NOT_QUERIED ready=false reason=nonunique-window", "")
+        }
+        let window = windows.element(boundBy: 0)
+        let labels = window.descendants(matching: .any).matching(identifier: identifier)
+        let rawCount = labels.count
+        let rows = window.descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@",
             [XCUIElement.ElementType.tableRow.rawValue, XCUIElement.ElementType.outlineRow.rawValue]))
             .containing(.any, identifier: identifier)
-        try portfolioCorrectionNativeSidebarObserve(rows, identifier, relation: "native-row-containing-exact-item", stage: stage)
-        try portfolioCorrectionNativeRequire(rows.count <= 1, "Sidebar native row ownership is ambiguous")
-        guard rows.count == 1 else { return label }
-        let row = rows.element(boundBy: 0)
-        try portfolioCorrectionNativeRequire(row.descendants(matching: .any).matching(identifier: identifier).count == 1
-            && row.isEnabled, "Native row must own exactly the enabled sidebar item")
-        return row
+        let rowCount = rows.count
+        let ownedCount = rowCount == 1
+            ? rows.element(boundBy: 0).descendants(matching: .any).matching(identifier: identifier).count : 0
+        let target: XCUIElement?
+        let reason: String
+        if rawCount == 0 { target = nil; reason = "missing-target" }
+        else if rawCount > 40 || rowCount > 40 { target = nil; reason = "candidate-bound" }
+        else if rowCount == 1 && ownedCount == rawCount { target = rows.element(boundBy: 0); reason = "one-owning-native-row" }
+        else if rowCount == 0 && rawCount == 1 { target = labels.element(boundBy: 0); reason = "one-exact-item-without-row" }
+        else { target = nil; reason = "ambiguous-or-unowned" }
+        let enabled = target?.isEnabled ?? false, hittable = target?.isHittable ?? false
+        let targetID = target?.identifier ?? ""
+        let identity = target.map { "\($0.elementType.rawValue)|\(targetID)|\($0.frame)|\(window.frame)" } ?? ""
+        let ready = target != nil && targetID.count <= 256 && enabled && hittable && app.state == .runningForeground
+        return (target, ready, "windowCount=\(windowCount) rawTargetCount=\(rawCount) rowCount=\(rowCount) rowOwnedCount=\(ownedCount) enabled=\(enabled) hittable=\(hittable) ready=\(ready) reason=\(reason)", identity)
     }
 
     @MainActor
     private func portfolioCorrectionNativeSidebarObserve(_ query: XCUIElementQuery, _ identifier: String,
         relation: String, stage: String) throws {
         let count = query.count
-        print("PORTFOLIO_NATIVE_SIDEBAR {\"stage\":\"\(stage)\",\"target\":\"\(identifier)\",\"relation\":\"\(relation)\",\"queryCount\":\(count),\"truncated\":\(count > 40)}")
-        try portfolioCorrectionNativeRequire(count <= 40, "Sidebar observation exceeds bounded candidate set")
+        print("PORTFOLIO_NATIVE_SIDEBAR stage=\(stage) target=\(identifier) relation=\(relation) queryCount=\(count) truncated=\(count > 40)")
+        try portfolioCorrectionNativeRequire(count <= 40, "Sidebar observation exceeds bounded candidate set: \(count)")
         for index in 0..<count {
             let e = query.element(boundBy: index), id = e.identifier, label = e.label, value = e.value as? String
             let truncated = id.count > 256 || label.count > 256 || (value?.count ?? 0) > 256
@@ -5561,7 +5813,9 @@ final class AureusUITests: XCTestCase {
             print("PORTFOLIO_NATIVE_SIDEBAR \(String(decoding: data, as: UTF8.self))")
             try portfolioCorrectionNativeRequire(!truncated, "Incomplete sidebar observation")
         }
-        try portfolioCorrectionNativeRequire(query.count == count, "Sidebar observation query changed")
+        let after = query.count
+        print("PORTFOLIO_NATIVE_SIDEBAR stage=\(stage)-end target=\(identifier) relation=\(relation) before=\(count) after=\(after)")
+        try portfolioCorrectionNativeRequire(after == count, "Sidebar observation query changed: before=\(count) after=\(after)")
     }
 
     @MainActor
