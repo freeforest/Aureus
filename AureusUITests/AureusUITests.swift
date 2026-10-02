@@ -6313,9 +6313,7 @@ final class AureusUITests: XCTestCase {
         try portfolioCorrectionNativeRequire(sheet.descendants(matching: .any).matching(identifier: "portfolio.history.failed").count == 0, "History failure is not empty")
         try portfolioCorrectionNativeRequire(sheet.textFields.count == 0 && sheet.textViews.count == 0,
             "History contains no editable fields")
-        let buttons = sheet.buttons
-        try portfolioCorrectionNativeRequire(buttons.count == 1 && buttons.element(boundBy: 0).identifier == "portfolio.history.close",
-            "History has only its read-only Close action")
+        try portfolioCorrectionNativeHistoryReadOnlyValidate(app, sheet: sheet)
         if expected == 0 {
             try portfolioCorrectionNativeRequire(try portfolioCorrectionNativeText(app, "portfolio.history.empty", scope: "portfolio.history.sheet") == "No correction history",
                 "Explicit empty history state")
@@ -6356,6 +6354,191 @@ final class AureusUITests: XCTestCase {
             result.append(.init(id: id, sequence: sequence, title: title, reason: reason, before: before, after: after))
         }
         return result
+    }
+
+    private struct portfolioCorrectionNativeHistoryReadOnlyNode {
+        let type: XCUIElement.ElementType
+        let identifier: String
+        let parent: Int?
+        // Synthetic cases vary this value. Classification deliberately does not
+        // infer a native control's role from whether it is enabled.
+        var enabled: Bool? = nil
+    }
+
+    private func portfolioCorrectionNativeHistoryReadOnlyClassify(
+        _ nodes: [portfolioCorrectionNativeHistoryReadOnlyNode]
+    ) -> (accepted: Bool, summary: [String: Any]) {
+        var reasons: [String] = []
+        var paths: [[Int]] = []
+        var maxDepth = 0
+        guard !nodes.isEmpty, nodes.count <= 512,
+              nodes[0].parent == nil, nodes[0].identifier == "portfolio.history.sheet" else {
+            return (false, ["accepted": false, "reason": "root-or-node-bound", "nodeCount": nodes.count])
+        }
+        for (index, node) in nodes.enumerated() {
+            guard node.identifier.count <= 256 else {
+                return (false, ["accepted": false, "reason": "identifier-bound", "nodeCount": nodes.count])
+            }
+            if index == 0 { paths.append([]); continue }
+            guard let parent = node.parent, parent >= 0, parent < index else {
+                return (false, ["accepted": false, "reason": "invalid-parent-chain", "nodeCount": nodes.count])
+            }
+            let ancestors = paths[parent] + [parent]
+            guard ancestors.count <= 32 else {
+                return (false, ["accepted": false, "reason": "depth-bound", "nodeCount": nodes.count])
+            }
+            maxDepth = max(maxDepth, ancestors.count)
+            paths.append(ancestors)
+        }
+        let close = nodes.indices.filter { nodes[$0].identifier == "portfolio.history.close" }
+        let lists = nodes.indices.filter { nodes[$0].identifier == "portfolio.history.list" }
+        let editors = nodes.filter { [.textField, .secureTextField, .textView].contains($0.type) }.count
+        if close.count != 1 || close.contains(where: { nodes[$0].type != .button }) {
+            reasons.append("missing-duplicate-or-wrong-type-Close")
+        }
+        if editors != 0 { reasons.append("editable-controls") }
+        if lists.count > 1 { reasons.append("duplicate-history-list") }
+        if nodes.dropFirst().contains(where: { $0.identifier == "portfolio.history.sheet"
+            || $0.identifier == "portfolio.history.failed" || $0.identifier == "portfolio.history.loading" }) {
+            reasons.append("nested-sheet-or-abnormal-state")
+        }
+        // Indices identify nodes in this one tree only; no geometry/attribute
+        // equality is used to equate independently queried AX elements.
+        let historyScrollViews = lists.count == 1
+            ? paths[lists[0]].filter { nodes[$0].type == .scrollView } : []
+        var extras: [[String: Any]] = []
+        for index in nodes.indices where nodes[index].type == .button
+            && nodes[index].identifier != "portfolio.history.close" {
+            let ancestors = paths[index]
+            let bars = ancestors.filter { nodes[$0].type == .scrollBar }
+            let scrolls = ancestors.filter { nodes[$0].type == .scrollView }
+            let owned = historyScrollViews.count == 1 && bars.count == 1 && scrolls.count == 1
+                && scrolls[0] == historyScrollViews[0] && paths[bars[0]].contains(scrolls[0])
+            // Identified extra actions remain unknown, even inside a scrollbar.
+            // Empty identifiers are never sufficient: the full chain is required.
+            let allowed = owned && nodes[index].identifier.isEmpty
+            if !allowed { reasons.append("unclassified-button") }
+            extras.append(["elementType": nodes[index].type.rawValue, "allowed": allowed,
+                "scrollBarAncestorCount": bars.count, "scrollViewAncestorCount": scrolls.count,
+                "historyScrollViewOwned": owned, "hasIdentifier": !nodes[index].identifier.isEmpty,
+                "reason": allowed ? "button-scrollBar-historyScrollView-sheet" : "unknown-action-or-incomplete-ownership"])
+        }
+        return (reasons.isEmpty, ["accepted": reasons.isEmpty, "reasons": reasons,
+            "nodeCount": nodes.count, "maxDepth": maxDepth, "closeCount": close.count,
+            "editableCount": editors, "historyListCount": lists.count,
+            "historyScrollViewCount": historyScrollViews.count, "extraButtonCount": extras.count,
+            "unclassifiedButtonCount": extras.filter { $0["allowed"] as? Bool != true }.count,
+            "extraButtons": extras, "truncated": false])
+    }
+
+    @MainActor
+    private func portfolioCorrectionNativeHistoryReadOnlyValidate(_ app: XCUIApplication,
+        sheet: XCUIElement) throws {
+        let sheets = app.descendants(matching: .any).matching(identifier: "portfolio.history.sheet")
+        let sheetCount = sheets.count
+        let descendants = sheet.descendants(matching: .any)
+        let closeAnyCount = descendants.matching(identifier: "portfolio.history.close").count
+        let closes = sheet.buttons.matching(identifier: "portfolio.history.close")
+        let closeCount = closes.count
+        let failedCount = descendants.matching(identifier: "portfolio.history.failed").count
+        let loadingCount = descendants.matching(identifier: "portfolio.history.loading").count
+        let listCount = descendants.matching(identifier: "portfolio.history.list").count
+        let emptyCount = descendants.matching(identifier: "portfolio.history.empty").count
+        let buttonCount = sheet.buttons.count
+        let close = closeCount == 1 ? closes.element(boundBy: 0) : nil
+        let closeEnabled = close?.isEnabled ?? false, closeHittable = close?.isHittable ?? false
+        let liveReady = sheetCount == 1 && closeAnyCount == 1 && closeCount == 1
+            && close?.identifier == "portfolio.history.close" && close?.elementType == .button
+            && closeEnabled && closeHittable && failedCount == 0 && loadingCount == 0
+            && ((listCount == 1 && emptyCount == 0) || (listCount == 0 && emptyCount == 1))
+        try portfolioCorrectionNativeHistoryReadOnlyEmit(["kind": "structural-live-preflight",
+            "sheetCount": sheetCount, "closeAnyCount": closeAnyCount, "closeButtonCount": closeCount,
+            "closeEnabled": closeEnabled, "closeHittable": closeHittable, "failedCount": failedCount,
+            "loadingCount": loadingCount, "listCount": listCount, "emptyCount": emptyCount,
+            "buttonCount": buttonCount, "ready": liveReady])
+        try portfolioCorrectionNativeRequire(liveReady, "History structural live state/Close invalid")
+        let snapshot: any XCUIElementSnapshot
+        do { snapshot = try sheet.snapshot() }
+        catch {
+            try portfolioCorrectionNativeHistoryReadOnlyEmit(["kind": "structural-classification",
+                "accepted": false, "reason": "snapshot-failed", "snapshotAttempts": 1])
+            throw error
+        }
+        try portfolioCorrectionNativeRequire(snapshot.identifier == "portfolio.history.sheet"
+            && snapshot.elementType == sheet.elementType, "History snapshot root identity/type changed")
+        var nodes: [portfolioCorrectionNativeHistoryReadOnlyNode] = []
+        var pending: [(node: any XCUIElementSnapshot, parent: Int?, depth: Int)] = [(snapshot, nil, 0)]
+        while let item = pending.popLast() {
+            let identifier = item.node.identifier
+            let children = item.node.children
+            let bounded = item.depth <= 32 && identifier.count <= 256
+                && nodes.count + pending.count + 1 + children.count <= 512
+            if !bounded {
+                try portfolioCorrectionNativeHistoryReadOnlyEmit(["kind": "structural-classification",
+                    "accepted": false, "reason": "snapshot-bound", "visitedNodes": nodes.count,
+                    "depth": item.depth, "truncated": true, "snapshotAttempts": 1])
+            }
+            try portfolioCorrectionNativeRequire(bounded, "History snapshot exceeds node/depth/identifier bounds")
+            let index = nodes.count
+            nodes.append(.init(type: item.node.elementType, identifier: identifier, parent: item.parent))
+            for child in children.reversed() { pending.append((child, index, item.depth + 1)) }
+        }
+        let classified = portfolioCorrectionNativeHistoryReadOnlyClassify(nodes)
+        let afterSheetCount = sheets.count, afterButtonCount = sheet.buttons.count
+        let afterCloseCount = closes.count
+        let stable = afterSheetCount == sheetCount && afterButtonCount == buttonCount
+            && nodes.filter { $0.type == .button }.count == buttonCount && afterCloseCount == closeCount
+            && nodes.filter { $0.identifier == "portfolio.history.list" }.count == listCount
+        var summary = classified.summary
+        summary.merge(["kind": "structural-classification", "snapshotAttempts": 1,
+            "queryStable": stable, "liveButtonsBefore": buttonCount, "liveButtonsAfter": afterButtonCount,
+            "sheetCountAfter": afterSheetCount, "closeCountAfter": afterCloseCount]) { _, new in new }
+        try portfolioCorrectionNativeHistoryReadOnlyEmit(summary)
+        try portfolioCorrectionNativeRequire(stable && classified.accepted,
+            "History requires unique Close and zero structurally unclassified actions")
+    }
+
+    @MainActor
+    func testPortfolioHistoryReadOnlyControlClassification() throws {
+        typealias Node = portfolioCorrectionNativeHistoryReadOnlyNode
+        let sheet = Node(type: .other, identifier: "portfolio.history.sheet", parent: nil)
+        let close = Node(type: .button, identifier: "portfolio.history.close", parent: 0)
+        let scroll = Node(type: .scrollView, identifier: "", parent: 0)
+        let list = Node(type: .other, identifier: "portfolio.history.list", parent: 2)
+        let bar = Node(type: .scrollBar, identifier: "", parent: 2)
+        let native = Node(type: .button, identifier: "", parent: 4, enabled: false)
+        let content = [sheet, close, scroll, list]
+        let nativeTree = content + [bar, native]
+        var enabledTree = nativeTree
+        enabledTree[5].enabled = true
+        let cases: [(String, [Node], Bool)] = [
+            ("close-only", [sheet, close], true),
+            ("history-without-extra-buttons", content, true),
+            ("history-scrollbar-native-button", nativeTree, true),
+            ("native-button-enabled-change", enabledTree, true),
+            ("sheet-business-button", [sheet, close, .init(type: .button, identifier: "portfolio.history.retry", parent: 0)], false),
+            ("unnamed-disabled-history-content-button", content + [.init(type: .button, identifier: "", parent: 3, enabled: false)], false),
+            ("other-scrollbar-button", content + [.init(type: .scrollView, identifier: "", parent: 0),
+                .init(type: .scrollBar, identifier: "", parent: 4), .init(type: .button, identifier: "", parent: 5)], false),
+            ("missing-close", [sheet], false),
+            ("duplicate-close", [sheet, close, close], false),
+            ("editable-field", content + [.init(type: .textField, identifier: "", parent: 3)], false),
+            ("editable-view", content + [.init(type: .textView, identifier: "", parent: 3)], false),
+            ("business-button-in-history-scrollbar", content + [bar,
+                .init(type: .button, identifier: "portfolio.history.retry", parent: 4)], false),
+            ("scrollbar-without-history-list", [sheet, close, scroll,
+                .init(type: .scrollBar, identifier: "", parent: 2), .init(type: .button, identifier: "", parent: 3)], false),
+            ("loading", [sheet, close, .init(type: .progressIndicator, identifier: "portfolio.history.loading", parent: 0)], false),
+            ("failed", [sheet, close, .init(type: .staticText, identifier: "portfolio.history.failed", parent: 0)], false)
+        ]
+        for (name, nodes, expected) in cases {
+            let result = portfolioCorrectionNativeHistoryReadOnlyClassify(nodes)
+            XCTAssertEqual(result.accepted, expected, name)
+            let record: [String: Any] = ["case": name, "expectedAccepted": expected,
+                "actualAccepted": result.accepted, "passed": result.accepted == expected]
+            let data = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+            print("PORTFOLIO_NATIVE_HISTORY_CLASSIFICATION_CASE \(String(decoding: data, as: UTF8.self))")
+        }
     }
 
     @MainActor
